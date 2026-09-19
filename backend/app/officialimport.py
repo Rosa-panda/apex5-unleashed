@@ -69,7 +69,7 @@ def convert_entry(entry):
     if mod_only:
         parts.append("官方深度Mod条目：本工具仅提供震动联动兜底（事件级手感需官方Mod）。")
     if entry.get("IsPS5") and not vib:
-        parts.append("官方为DS桥接模式条目（需手柄DS模式）。")
+        parts.append("官方为 PS5/DS 模式条目：本工具无桥接（ADR-020 已删），该条目仅作记录。")
     return {"name": entry.get("GameName") or entry.get("EnGameName") or f"游戏{entry.get('Id')}",
             "exe": exes,
             "note": "\n\n".join(p for p in parts if p),

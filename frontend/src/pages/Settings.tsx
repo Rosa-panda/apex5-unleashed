@@ -22,14 +22,14 @@ export default function Settings() {
         <div className="space-y-2 text-[12px] leading-relaxed text-text-mid">
           <p>· <b className="text-text-hi">锁存账本</b>：所有下发先记账，状态面板所见即手柄真实状态。</p>
           <p>· <b className="text-text-hi">启动卫生检查</b>：每次手柄连接先无条件复位，清除上次强杀残留的马达/扳机效果。</p>
-          <p>· <b className="text-text-hi">代理权检测</b>：总线上出现非本软件命令即为铁证，结合进程扫描（飞智空间站 / Steam / DualSenseX）归因提示。</p>
+          <p>· <b className="text-text-hi">代理权检测</b>：总线上出现非本软件命令即为铁证（本进程三条写路径均登记宽限账本，自己人不误报），结合进程扫描（飞智空间站 / Steam / DualSenseX）归因提示。</p>
           <p>· <b className="text-text-hi">预设事务</b>：应用失败自动回滚到 Normal 基线，不留半套效果。</p>
           <p>· <b className="text-text-hi">单 HID 线程</b>：读写集中一个工作线程，流式与队列命令共用写锁防帧交错。</p>
         </div>
       </div>
 
       <div className="card p-5 text-[12px] leading-relaxed text-text-low">
-        v0.2 路线：DualSense 虚拟手柄桥接（游戏事件级自适应扳机）、DSX UDP 7878 兼容输入、前台进程检测自动切预设。
+        下一步：统一游戏配置格式（ADR-015）、社区预设分享。DS 虚拟手柄桥接路线已废弃删除（ADR-020：消费端依赖 Steam Input，结构性缺失）。
         详见仓库 docs\ 下的 TECH-SPEC 与企划书。
       </div>
     </div>
