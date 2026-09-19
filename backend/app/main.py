@@ -75,14 +75,31 @@ def main():
     except Exception:
         pass
 
-    try:
-        cfg = uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="warning")
-        server = uvicorn.Server(cfg)
-        srv_thread = threading.Thread(target=server.run, daemon=True, name="uvicorn")
-        srv_thread.start()
-    except OSError:
-        print("已在运行（端口被占用），退出。")
-        return
+    # 起 uvicorn 并**实等就绪**：绑定失败（旧实例退出中端口未放/被占用）时 uvicorn
+    # 是在子线程里静默死掉的，主流程若不核实就会带着死后台开窗 → 白屏
+    # （2026-09-19 用户实测：退出/重启竞态 → 10048 → "主界面打不开"）。
+    cfg = uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="warning")
+    server = uvicorn.Server(cfg)
+    threading.Thread(target=server.run, daemon=True, name="uvicorn").start()
+
+    ready = False
+    for _ in range(100):               # 最多 ~10s：给退出中的旧进程留足放端口时间
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{args.port}/api/health", timeout=0.5)
+            ready = True
+            break
+        except Exception:
+            time.sleep(0.1)
+    if not ready:
+        msg = (f"后台启动失败：端口 {args.port} 迟迟不可用（可能有残留进程未退出）。\n"
+               "请用任务管理器结束残留的 python/pythonw 进程后重新打开本软件。")
+        print(msg)
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(None, msg, "Apex5 Unleashed", 0x10)
+        except Exception:
+            pass
+        return                          # 绝不带病开窗
 
     threading.Thread(target=monitor_loop, args=(eng, args.mock), daemon=True, name="monitor").start()
     games.start_watch(eng, eng._stop)          # 前台游戏自动切换（ADR-014）
