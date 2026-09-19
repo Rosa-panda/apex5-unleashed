@@ -66,6 +66,7 @@ class Engine:
         self._led_bean = None                # 最近一次读回的灯表（dict）
         self._led_blob_raw = b""             # 最近一次读回的原始 blob（备份用）
         self._extkey_bits = 0                # 0xEF 键位图上一次状态（变化才发事件）
+        self.battery = None                  # {"level":0..5,"charging":bool}（cmd1 心跳回复 body[11]）
 
     # ---------- 事件总线 / 状态推送 ----------
     def subscribe(self, cb):
@@ -84,7 +85,8 @@ class Engine:
                 pass
 
     def snapshot(self):
-        return {"device": {"kind": self.dev_kind, "online": self.online},
+        return {"device": {"kind": self.dev_kind, "online": self.online,
+                           "battery": self.battery},
                 "state": self.state, "proxy": self.proxy,
                 "ext_cmds": dict(self._ext_cmds),
                 "orphan_replies": dict(self._orphan_replies),
@@ -107,6 +109,7 @@ class Engine:
             # 重开 0xEF 位图流（拓展键检测/宏录制的信号源；开关 RAM 态，休眠/重启会丢）
             import extkeys
             self._send(extkeys.build(17, bytes([255, 1, 255, 255, 255])), source="attach")
+        self.refresh_battery()                    # 心跳一发，电量随回复异步进账（_capture_battery）
 
     def detach(self, reason=""):
         if self._rumble_timer:
@@ -129,6 +132,29 @@ class Engine:
 
     def _notify_state(self):
         self._emit("state", **{"state": self.state, "proxy": self.proxy})
+
+    # ---------- 电量（cmd1 心跳回复，openflydigi 同源布局） ----------
+    def refresh_battery(self, source="battery"):
+        """发一发 cmd1 心跳；回复异步走 _classify 抓取。离线静默跳过。"""
+        if not self.online:
+            return
+        try:
+            import extkeys
+            self._send(extkeys.build(protocol.CMD_INFO), source=source)
+        except Exception:
+            pass
+
+    def _capture_battery(self, body):
+        """body[11]：低半字节=电量 0..5，高半字节 1=充电中。真机实证（2026-09-19，
+        满电读数 0x05）。变化才发事件，快照/WS 均可见。"""
+        if len(body) <= 11:
+            return
+        b = body[11]
+        new = {"level": min(b & 0xF, 5), "charging": (b >> 4) == 1}
+        old = self.battery
+        self.battery = {**new, "updated_at": now()}
+        if old is None or old["level"] != new["level"] or old["charging"] != new["charging"]:
+            self._emit("battery", **new)
 
     # ---------- HID worker：唯一读写线程（ADR-012） ----------
     def _worker_loop(self):
@@ -183,6 +209,9 @@ class Engine:
                     names = [protocol.KEY32_NAMES.get(i, f"k{i}") for i in range(32) if cur >> i & 1]
                     self._emit("extkey", keys=keys, names=names, bits=f"{cur:08x}")
             return
+        if cmd == protocol.CMD_INFO and len(body) > 11 and body[5] == 0x80:
+            # 心跳回复（设备类型 0x80 守门，防误吃其他 cmd1 帧）：抓电量后照常走 ACK 逻辑
+            self._capture_battery(body)
         if cmd == protocol.CMD_LED_READ and self._led_rx is not None:
             # 0xA7 多包 ACK（ADR-018）：[3]=总包数 [4]=包序号 [6..26]=数据段；末包 data[3]==data[4]+1
             self._led_rx.append(body)

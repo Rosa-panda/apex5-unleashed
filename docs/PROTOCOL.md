@@ -40,3 +40,11 @@
 1. 测试前必须 panic 基线（效果锁存污染实验）
 2. ACK 成功位偏移：非 K6 命令看 [3]，K6 看 [5]
 3. side=3(Both) 会被 ACK 但不执行（官方枚举存在但固件不理）——双侧=分别发 L 和 R
+
+## 电量（cmd1 心跳回复，2026-09-19 真机实证）
+
+- 帧：`5a a5 01 01 00 80 02 | MAC×4 | 电量 | 7组BCD固件版本...`（report id 剥离后）
+- body[5]=0x80 设备类型，body[6]=连接方式（0x02=2.4G dongle），body[7..10]=MAC（本机全零），**body[11]=电量字节**
+- **电量字节：低半字节 = 电量 0..5（5=满），高半字节 1 = 充电中**。粒度 20%，协议里不存在更细数值（openflydigi 全命令族核查结论）
+- 引擎实现：refresh_battery() 发心跳（attach 首发 + monitor_loop 30s 轮询），_classify 抓取（0x80 守门），变化才发 battery 事件；快照 device.battery
+- Mock：mock_ack_frame 对 cmd1 伪造 body[11]=0x04，离线 UI 可显

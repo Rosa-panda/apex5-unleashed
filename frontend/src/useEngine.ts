@@ -32,6 +32,13 @@ export function useEngine() {
             device: { kind: (evt.dev_kind as string | null) ?? s.device.kind, online: !!evt.online },
           } : s)
           setEvents((e) => [...e.slice(-199), evt])
+        } else if (evt.kind === 'battery') {
+          // 电量心跳（~30s 一次，变化才发）：level 0..5，charging=充电中
+          setSnap((s) => s ? {
+            ...s,
+            device: { ...s.device, battery: { level: evt.level as number, charging: !!evt.charging } },
+          } : s)
+          setEvents((e) => [...e.slice(-199), evt])
         } else {
           if (evt.kind === 'state') {
             setSnap((s) => s ? { ...s, state: evt.state, proxy: evt.proxy } : s)

@@ -13,7 +13,8 @@ import transport
 
 
 def monitor_loop(eng, force_mock):
-    """线程D：2s 热插拔轮询 + 代理进程扫描。"""
+    """线程D：2s 热插拔轮询 + 代理进程扫描 + 30s 电量心跳。"""
+    batt_tick = 0
     while not eng._stop.is_set():
         if not eng.online:
             if force_mock:
@@ -33,6 +34,11 @@ def monitor_loop(eng, force_mock):
             else:
                 eng.scan_proxy_processes()
                 eng.maybe_release_proxy()
+        # 电量心跳 ~30s 一发（attach 时有首发；回复异步进 _capture_battery）
+        batt_tick += 1
+        if eng.online and batt_tick >= 15:
+            batt_tick = 0
+            eng.refresh_battery()
         eng._stop.wait(2.0)
 
 

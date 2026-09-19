@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Activity, Gamepad, Gamepad2, LayoutDashboard, LibraryBig, Lightbulb, MonitorPlay, Settings as SettingsIcon, SlidersHorizontal, TriangleAlert, Wand2, Zap } from 'lucide-react'
+import { Activity, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Gamepad, Gamepad2, LayoutDashboard, LibraryBig, Lightbulb, MonitorPlay, Settings as SettingsIcon, SlidersHorizontal, TriangleAlert, Wand2, Zap } from 'lucide-react'
 import { api } from './api'
 import { useEngine } from './useEngine'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -37,6 +37,7 @@ export default function App() {
   const taken = proxy?.holder === 'external'
   const online = snap?.device.online ?? false
   const mock = snap?.device.kind === 'mock'
+  const batt = snap?.device.battery
 
   const doPanic = async () => {
     setPanicFlash(true)
@@ -82,6 +83,16 @@ export default function App() {
               <span className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-ok animate-pulse' : 'bg-err'}`} />
               {online ? (mock ? 'Mock 设备' : 'Apex 5 已连接') : '手柄未连接'}
             </div>
+            {online && batt && (
+              <div className={`mt-1 flex items-center gap-1.5 ${
+                batt.charging ? 'text-ok' : batt.level <= 1 ? 'text-err' : 'text-text-mid'}`}>
+                {batt.charging ? <BatteryCharging size={11} />
+                  : batt.level >= 4 ? <BatteryFull size={11} />
+                  : batt.level >= 2 ? <BatteryMedium size={11} />
+                  : <BatteryLow size={11} />}
+                {batt.charging ? `充电中 · ${batt.level}/5` : `电量 ${batt.level}/5`}
+              </div>
+            )}
             <div className={`mt-1 flex items-center gap-1.5 ${taken ? 'text-warn' : 'text-text-low'}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${taken ? 'bg-warn' : 'bg-ok'}`} />
               {taken ? `被接管：${proxy?.detail || '未知进程'}` : '代理权：本软件'}

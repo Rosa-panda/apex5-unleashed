@@ -77,7 +77,11 @@ def grip_payload(side, params):
 
 
 def mock_ack_frame(cmd_id):
-    """MockPad 伪造的 ACK 输入报告（含 report id 0x04 前缀）"""
+    """MockPad 伪造的 ACK 输入报告（含 report id 0x04 前缀）。
+    cmd1 心跳特例：body[11]=0x04（电量 4/5），Mock 模式 UI 也有电量可显示。"""
+    if cmd_id == CMD_INFO:
+        # 与真机回复同布局：body[5]=0x80 设备类型，body[7..10]=MAC，body[11]=电量
+        return bytes([REPORT_ID_IN, 0x5A, 0xA5, cmd_id, 0x01, 0x00, 0x80] + [0] * 5 + [0x04] + [0] * 19)
     return bytes([REPORT_ID_IN, 0x5A, 0xA5, cmd_id, 0x01, 0x00, 0x80] + [0] * 25)
 
 
