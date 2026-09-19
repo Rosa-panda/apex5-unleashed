@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "战地风云™ 6",
+  "en": "Battlefield 6",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "bf6.exe",
+    "bf6"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/10/11/86f52d054345e53cb171c0708cb51730.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 1,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 100,
+    "freq": 15
+  },
+  "official": true,
+  "official_id": 82
+}

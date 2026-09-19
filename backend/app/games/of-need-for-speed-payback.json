@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "极品飞车：复仇",
+  "en": "Need for Speed Payback",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "needforspeedpayback.exe",
+    "needforspeedpayback"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/24/7600f2778a73de9948b8cdab8146a116.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 4,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 255,
+    "freq": 70
+  },
+  "official": true,
+  "official_id": 19
+}

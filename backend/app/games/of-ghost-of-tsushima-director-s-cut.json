@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "对马岛之魂：导演剪辑版",
+  "en": "Ghost Of Tsushima: Director's Cut",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "ghostoftsushima.exe",
+    "xgamemonitor.exe",
+    "ghostoftsushima"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/23/9963539c167d8b410d7e0a0ecb6ef2ff.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 53,
+  "mod_only": true
+}

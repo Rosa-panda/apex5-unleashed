@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "战锤40k：星际战士2",
+  "note": "",
+  "exe": [
+    "warhammer 40000 space marine 2 - retail"
+  ],
+  "preset_id": "",
+  "vib": {
+    "filter": 85,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 20,
+    "freq": 15
+  },
+  "official": true,
+  "official_id": 97
+}

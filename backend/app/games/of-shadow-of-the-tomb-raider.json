@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "古墓丽影：暗影",
+  "en": "Shadow of the Tomb Raider",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "sottr.exe",
+    "xgamemonitor.exe",
+    "sottr"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/23/6d5e373518dd69afa7175ac8900e752d.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 26,
+  "mod_only": true
+}

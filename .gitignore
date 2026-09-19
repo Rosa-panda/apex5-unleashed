@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+
+# 前端构建产物 / 依赖
+node_modules/
+frontend/dist/
+
+# 运行时杂物
+*.log
+
+# 设备配置转储（备份 bin 含整机配置槽，属本机数据）
+backend/*.bin

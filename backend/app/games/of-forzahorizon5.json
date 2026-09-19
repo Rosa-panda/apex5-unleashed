@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "地平线5",
+  "en": "ForzaHorizon5",
+  "note": "官方适配清单 · xbox",
+  "exe": [
+    "forzadualsense.exe",
+    "forzahorizon5.exe",
+    "forzahorizon5"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/steam/banners/1551360.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 3,
+  "mod_only": true
+}

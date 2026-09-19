@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "第一后裔",
+  "en": "The First Descendant",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "m1-win64-shipping.exe",
+    "m1-win64-shipping"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/steam/banners/2074920.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 1,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 245,
+    "freq": 70
+  },
+  "official": true,
+  "official_id": 102
+}

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "艾尔登法环",
+  "note": "LT 锁定开镜体验（战斗中 LT 常驻锁定，狙击预设近似）",
+  "exe": [
+    "eldenring.exe",
+    "start_game_in_offline_mode.exe",
+    "xgamemonitor.exe",
+    "eldenring",
+    "start_game_in_offline_mode"
+  ],
+  "preset_id": "fps-sniper",
+  "official": true,
+  "official_id": 8,
+  "mod_only": true
+}

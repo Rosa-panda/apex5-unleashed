@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "name": "神秘海域：盗贼末路",
+  "en": "Uncharted-A Thief 's End",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "tll.exe",
+    "u4.exe",
+    "xgamemonitor.exe",
+    "u4",
+    "tll"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/23/7152b0f2c87473cd81d8dd5ed9db42ef.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 34,
+  "mod_only": true
+}

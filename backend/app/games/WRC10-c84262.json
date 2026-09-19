@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "WRC10",
+  "note": "",
+  "exe": [
+    "wrc10"
+  ],
+  "preset_id": "",
+  "vib": {
+    "filter": 82,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 5,
+    "freq": 110
+  },
+  "official": true,
+  "official_id": 86
+}

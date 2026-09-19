@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "GTA 5",
+  "en": "Grand Theft Auto V",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "gta5.exe",
+    "gtavlauncher.exe",
+    "gta5",
+    "gtavlauncher"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/steam/banners/3240220.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 5,
+  "mod_only": true
+}

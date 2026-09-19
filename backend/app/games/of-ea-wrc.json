@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "EA WRC",
+  "en": "EA WRC",
+  "note": "官方适配清单 · epic",
+  "exe": [
+    "wrc.exe",
+    "wrc"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/09/25/c1550dad7ba45688ca8ea642271702dc.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 30,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 100,
+    "freq": 110
+  },
+  "official": true,
+  "official_id": 77
+}

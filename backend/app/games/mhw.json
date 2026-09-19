@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "name": "怪物猎人：世界",
+  "note": "打击感拉满",
+  "exe": ["monsterhunterworld.exe"],
+  "preset_id": "battle-vibe"
+}

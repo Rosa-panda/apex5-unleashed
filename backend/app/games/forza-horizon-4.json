@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "name": "极限竞速：地平线 4",
+  "note": "同地平线 5",
+  "exe": ["forzahorizon4.exe"],
+  "preset_id": "race-lt"
+}

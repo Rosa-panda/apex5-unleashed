@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "终极角逐",
+  "en": "The Finals",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "discovery.exe",
+    "discovery"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/12/08/f023ed2199ecdc65e13e7c8222fb5065.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 55,
+    "scale": 10,
+    "stroke": 25,
+    "press": 1,
+    "strength": 25,
+    "freq": 17
+  },
+  "official": true,
+  "official_id": 104
+}

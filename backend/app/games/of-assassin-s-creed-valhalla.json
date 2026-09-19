@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "刺客信条：英灵殿",
+  "en": "Assassin's Creed Valhalla",
+  "note": "官方适配清单 · ubisoft",
+  "exe": [
+    "acvalhalla.exe",
+    "xgamemonitor.exe",
+    "acvalhalla"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/23/7018aa9666757e44a23fcff8efad9a52.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 28,
+  "mod_only": true
+}

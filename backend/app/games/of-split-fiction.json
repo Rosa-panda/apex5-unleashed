@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "双影奇境",
+  "en": "Split Fiction",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "splitfiction.exe",
+    "splitfiction"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/23/3294953e18b2c9400086852fe6b8ce26.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 1,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 245,
+    "freq": 70
+  },
+  "official": true,
+  "official_id": 66
+}

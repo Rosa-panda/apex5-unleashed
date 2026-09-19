@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "动作 · 全力体感",
+  "note": "双扳机振动模式 + 握把震动路由增强，动作游戏打击感拉满。",
+  "actions": [
+    {"kind": "trigger", "side": "left",  "mode": "vibration", "params": {"stroke": 150, "press": 50, "strength": 120, "freq": 30, "match": 1}},
+    {"kind": "trigger", "side": "right", "mode": "vibration", "params": {"stroke": 150, "press": 50, "strength": 120, "freq": 30, "match": 1}},
+    {"kind": "grip", "side": "left",  "params": {"filter": 10, "scale": 60, "stroke": 50, "press": 50, "strength": 60, "freq": 20}},
+    {"kind": "grip", "side": "right", "params": {"filter": 10, "scale": 60, "stroke": 50, "press": 50, "strength": 60, "freq": 20}}
+  ]
+}

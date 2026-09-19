@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "黑暗之魂:重置版",
+  "en": "Dark Souls: Remastered",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "darksoulsremastered.exe",
+    "xgamemonitor.exe",
+    "darksoulsremastered"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/23/2a0a9b1c2ebf7c08eea6e40e21ff9149.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 63,
+  "mod_only": true
+}

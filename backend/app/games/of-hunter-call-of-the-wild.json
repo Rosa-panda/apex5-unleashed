@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "猎人：荒野的召唤",
+  "en": "Hunter: Call of the Wild",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "thehuntercotw_f.exe",
+    "xgamemonitor.exe",
+    "thehuntercotw_f"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/08/20/6d408563ee08b2ca51d8c37f1212fcbe.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 73,
+  "mod_only": true
+}

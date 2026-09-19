@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "地平线6",
+  "en": "ForzaHorizon6",
+  "note": "官方适配清单 · xbox",
+  "exe": [
+    "forzadualsense.exe",
+    "forzahorizon6.exe",
+    "forzahorizon6"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/steam/banners/2483190.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 108,
+  "mod_only": true
+}

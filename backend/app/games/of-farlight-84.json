@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "远光84",
+  "en": "Farlight 84",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "solarlandclient.exe",
+    "solarlandclient"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/11/04/4ef696ea9795297c38d1667c8014ed26.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 10,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 100,
+    "freq": 15
+  },
+  "official": true,
+  "official_id": 90
+}

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "七日杀",
+  "en": "7 Days to Die",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "7daystodie.exe",
+    "xgamemonitor.exe",
+    "7daystodie"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/23/f0bfdcca210a33985d6140af81d3075f.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 62,
+  "mod_only": true
+}

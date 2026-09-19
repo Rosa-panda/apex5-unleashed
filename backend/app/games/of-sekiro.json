@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "只狼",
+  "en": "Sekiro",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "sekiro.exe",
+    "xgamemonitor.exe",
+    "sekiro"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/23/6c7ac3870f4926e72217604194d2b9ad.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 35,
+  "mod_only": true
+}

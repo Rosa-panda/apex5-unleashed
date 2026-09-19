@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "遗迹2",
+  "en": "Remnant II",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "remnant2.exe",
+    "remnant2"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/12/04/3211a9ac9bebedf4a2cd683a6a2cf09e.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 55,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 1,
+    "freq": 18
+  },
+  "official": true,
+  "official_id": 101
+}

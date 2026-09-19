@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "地平线 4",
+  "en": "ForzaHorizon 4",
+  "note": "官方适配清单 · xbox",
+  "exe": [
+    "forzadualsense.exe",
+    "forzahorizon4.exe",
+    "forzahorizon4"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/24/9d898f4a0c2d11674bbc0011ae0961fc.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 2,
+  "mod_only": true
+}

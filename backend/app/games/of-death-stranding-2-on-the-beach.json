@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "死亡搁浅2：冥滩之上",
+  "en": "DEATH STRANDING 2 : ON THE BEACH",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "death stranding 2: on the beach.exe",
+    "ds2.exe",
+    "ds2",
+    "death stranding 2: on the beach"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/steam/banners/3280350.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 8,
+    "scale": 10,
+    "stroke": 1,
+    "press": 25,
+    "strength": 20,
+    "freq": 20
+  },
+  "official": true,
+  "official_id": 107
+}

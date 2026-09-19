@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "生化危机3（需从steam启动）",
+  "en": "Resident Evil 3",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "re3.exe",
+    "residentevil3",
+    "re3"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/24/70a4bcfd5ef1fe220ea6dbd9abfd41d4.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 14,
+  "mod_only": true
+}

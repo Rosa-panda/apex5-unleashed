@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "空洞骑士：丝之歌",
+  "en": "Hollow Knight: Silksong",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "hollow knight silksong.exe",
+    "hollow knight silksong"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/steam/banners/1030300.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 1,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 100,
+    "freq": 125
+  },
+  "official": true,
+  "official_id": 74
+}

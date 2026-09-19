@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "name": "死亡搁浅 导演剪辑版",
+  "en": "DEATH STRANDING DIRECTORS CUT",
+  "note": "官方适配清单 · epic",
+  "exe": [
+    "deathstranding.exe",
+    "ds.exe",
+    "xgamemonitor.exe",
+    "ds",
+    "deathstranding"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/24/8413ef4c2214017f600c0f9ad752124a.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 25,
+  "mod_only": true
+}

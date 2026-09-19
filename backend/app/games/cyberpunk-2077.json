@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "赛博朋克 2077",
+  "note": "射击后坐力反馈",
+  "exe": [
+    "cyberpunk2077.exe",
+    "redprelauncher.exe",
+    "xgamemonitor.exe",
+    "cyberpunk2077",
+    "redprelauncher"
+  ],
+  "preset_id": "shoot-recoil",
+  "official": true,
+  "official_id": 1,
+  "mod_only": true
+}

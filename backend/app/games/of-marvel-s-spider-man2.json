@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "漫威蜘蛛侠2",
+  "en": "Marvel's Spider-Man2",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "spider-man2.exe",
+    "xgamemonitor.exe",
+    "spider-man2"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/08/01/5b196e2c884db7a4748f24aec6950213.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 70,
+  "mod_only": true
+}

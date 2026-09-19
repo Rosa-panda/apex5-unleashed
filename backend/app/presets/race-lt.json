@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "name": "赛车 · 油门行程阻尼",
+  "note": "LT/RT 模拟油门刹车，中段起阻力渐增，脚感接近线性踏板。",
+  "actions": [
+    {"kind": "trigger", "side": "left",  "mode": "race", "params": {"stroke": 120, "resistance": 90,  "match": 1}},
+    {"kind": "trigger", "side": "right", "mode": "race", "params": {"stroke": 120, "resistance": 120, "match": 1}}
+  ]
+}

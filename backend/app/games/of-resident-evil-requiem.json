@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "生化危机9：安魂曲",
+  "en": "Resident Evil Requiem",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "re9.exe",
+    "re9"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/steam/banners/3764200.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 45,
+    "scale": 10,
+    "stroke": 1,
+    "press": 200,
+    "strength": 200,
+    "freq": 12
+  },
+  "official": true,
+  "official_id": 106
+}

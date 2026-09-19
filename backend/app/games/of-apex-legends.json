@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "APEX英雄",
+  "en": "Apex Legends™",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "r5apex.exe",
+    "r5apex_dx12.exe",
+    "r5apex",
+    "r5apex_dx12"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/steam/banners/1172470.jpg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 100,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 1,
+    "freq": 15
+  },
+  "official": true,
+  "official_id": 58
+}

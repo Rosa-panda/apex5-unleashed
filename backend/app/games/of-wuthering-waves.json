@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "鸣潮",
+  "en": "Wuthering Waves",
+  "note": "官方适配清单 · standalone",
+  "exe": [
+    "wuthering waves.exe",
+    "wuthering waves"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/12/01/9d70df154d2d6e7794912ac48f91d846.jpeg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 22,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 55,
+    "freq": 100
+  },
+  "official": true,
+  "official_id": 100
+}

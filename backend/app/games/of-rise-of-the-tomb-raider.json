@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "古墓丽影：崛起",
+  "en": "Rise of the Tomb Raider",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "rottr.exe",
+    "xgamemonitor.exe",
+    "rottr"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/23/7eafeba9a6ceb250f4931151f8153727.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 27,
+  "mod_only": true
+}

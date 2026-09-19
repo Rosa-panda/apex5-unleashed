@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "WRC8",
+  "en": "WRC8",
+  "note": "官方适配清单 · steam",
+  "exe": [
+    "wrc8.exe",
+    "wrc8"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/10/20/dcf36f7fac3cf18f337c161241f44373.jpeg",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "vib": {
+    "filter": 82,
+    "scale": 10,
+    "stroke": 0,
+    "press": 1,
+    "strength": 5,
+    "freq": 110
+  },
+  "official": true,
+  "official_id": 84
+}

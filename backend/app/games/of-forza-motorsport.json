@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "name": "极限竞速8",
+  "en": "Forza Motorsport",
+  "note": "官方适配清单 · xbox",
+  "exe": [
+    "forza_gaming.desktop.x64_release_final.exe",
+    "forza_steamworks_release_final.exe",
+    "forzadualsense.exe",
+    "forza_gaming.desktop.x64_release_final",
+    "forza_steamworks_release_final"
+  ],
+  "preset_id": "",
+  "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/23/cf78cb52786b9ca64e53eb0eb434bd50.png",
+  "source": "official-list",
+  "imported_at": "2026-09-18",
+  "official": true,
+  "official_id": 52,
+  "mod_only": true
+}
