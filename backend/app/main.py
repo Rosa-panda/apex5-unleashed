@@ -43,6 +43,7 @@ def monitor_loop(eng, force_mock):
 
 
 def main():
+    _boot_t0 = time.monotonic()          # 启动计时（run_gui.pyw 的 [boot] 日志配套）
     ap = argparse.ArgumentParser()
     ap.add_argument("--mock", action="store_true", help="无手柄 Mock 模式")
     ap.add_argument("--no-gui", action="store_true", help="无窗口（开发/CI）")
@@ -75,34 +76,44 @@ def main():
     except Exception:
         pass
 
-    # 起 uvicorn 并**实等自家就绪**：绑定失败（旧实例退出中/竞态双开）时 uvicorn
-    # 在子线程里 sys.exit 静默死亡，主流程若只探 health 会把**别人家的**后台当成
-    # 自己的 → 双开两个窗口（2026-09-20 用户实测）。必须认 server.started（自家标志）。
-    cfg = uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="warning")
-    server = uvicorn.Server(cfg)
-    threading.Thread(target=server.run, daemon=True, name="uvicorn").start()
-
-    own_ready = False
-    foreign_up = False
-    for _ in range(100):               # 最多 ~10s：给退出中的旧进程留足放端口时间
-        if server.started:
-            own_ready = True
-            break
-        try:                            # 端口上有别人（先启动的实例）→ 唤起它，本进程退出
+    # 起 uvicorn：**绑定重试 + 认自家标志**。三种端口状态三种处置——
+    #   ① 活实例在服务 → 唤起它的窗口，本进程退出（防双开）
+    #   ② 端口被垂死旧进程占着（刚退出还没放）→ 每 0.5s 重试绑定，等它放了就起
+    #      （2026-09-20 用户实测：退出后立刻重启 → 10048 → 干等 10s 弹错，启动"非常慢"的元凶）
+    #   ③ 重试用尽仍不行 → 弹窗报错退出，绝不带病开窗
+    # 绑定失败时 uvicorn 在子线程里 sys.exit 静默死亡，必须认 server.started（自家标志），
+    # 不能只探 health——那会把别人家的后台当成自己的（双开两窗口的老 bug）。
+    server = None
+    deadline = time.monotonic() + 12.0
+    while time.monotonic() < deadline:
+        try:                            # 活实例？唤起并退出
             urllib.request.urlopen(f"http://127.0.0.1:{args.port}/api/health", timeout=0.5)
-            foreign_up = True
-            break
-        except Exception:
-            time.sleep(0.1)
-    if foreign_up:
-        try:
-            urllib.request.urlopen(f"http://127.0.0.1:{args.port}/api/show", timeout=1.0)
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{args.port}/api/show", timeout=1.0)
+            except Exception:
+                pass
+            return
         except Exception:
             pass
-        return
-    if not own_ready:
-        msg = (f"后台启动失败：端口 {args.port} 迟迟不可用（可能有残留进程未退出）。\n"
+        srv = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1",
+                                            port=args.port, log_level="warning"))
+        t = threading.Thread(target=srv.run, daemon=True, name="uvicorn")
+        t.start()
+        while time.monotonic() < deadline:       # 等到起来或线程死（绑挂），不设短超时
+            if srv.started:
+                server = srv
+                break
+            if not t.is_alive():
+                break                            # 绑定失败（10048），线程已死 → 重试
+            time.sleep(0.05)
+        if server:
+            print(f"[boot] uvicorn 就绪 +{time.monotonic() - _boot_t0:.1f}s")
+            break
+        time.sleep(0.5)
+    if not server:
+        msg = (f"后台启动失败：端口 {args.port} 持续被占用（可能有残留进程）。\n"
                "请用任务管理器结束残留的 python/pythonw 进程后重新打开本软件。")
+        print(f"[boot] 绑定失败放弃，共耗时 {time.monotonic() - _boot_t0:.1f}s")
         print(msg)
         try:
             import ctypes
@@ -171,8 +182,13 @@ def main():
     def on_quit():
         # 托盘「退出」必须真退：panic + 停引擎 + 销毁主窗口（否则主线程卡在
         # webview.start() 里，进程赖着不死——2026-09-19 用户实测抓的 bug）。
-        # 3s 兜底强杀：万一 destroy 后 webview 仍不返回，也保证进程退出。
+        # ⚠ 第一时间停 uvicorn：退出中的实例若还在答 /api/health，刚启动的新实例
+        # 会误判"已有实例在跑"→ 唤起一个正在死掉的窗口 → 两头都没窗口（2026-09-20）。
         _quitting["v"] = True
+        try:
+            server.should_exit = True
+        except Exception:
+            pass
         eng.panic(source="exit")
         eng.stop()
         try:
@@ -218,6 +234,7 @@ def main():
         window.events.loaded += _apply_win_icon
 
     webview.start()          # 主线程阻塞（Windows 要求；X 只隐藏，退出走角标）
+    print("[boot] webview 返回，进程收尾")
     eng.panic(source="exit")
     eng.stop()
 
