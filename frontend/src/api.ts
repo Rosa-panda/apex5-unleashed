@@ -11,7 +11,7 @@ export interface EngineSnapshot {
   proxy: { holder: string; detail: string; since: string | null }
   events: EngineEvent[]
 }
-export interface EngineEvent { ts: string; kind: string; [k: string]: unknown }
+export interface EngineEvent { ts: string; kind: string; hist?: boolean; [k: string]: unknown }
 export interface Preset {
   id: string; name: string; note: string; builtin: boolean
   actions: Array<Record<string, unknown>>; saved_at?: string

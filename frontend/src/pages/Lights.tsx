@@ -1,6 +1,6 @@
 // 灯光页（ADR-018）：写表驻留协议，效果 PC 侧展开 → 0xA8/0xA9 写入 → 读回自校验
 import { useEffect, useState } from 'react'
-import { Lightbulb, Palette, RotateCcw, Save } from 'lucide-react'
+import { Lightbulb, Moon, Palette, RotateCcw, Save } from 'lucide-react'
 import { api, type LedBean } from '../api'
 
 type Mode = 'off' | 'on' | 'breath' | 'gradient' | 'flow'
@@ -144,6 +144,11 @@ export default function Lights() {
       <div className="card p-4">
         <div className="mb-3 text-[13px] font-medium">快捷预设</div>
         <div className="flex flex-wrap gap-2">
+          <button disabled={busy} onClick={() => { setMode('off'); apply('off', []) }}
+            className="btn !px-3 !py-1.5 text-[12px] border-warn/50 text-warn"
+            title="灯表写全黑 + led_mode=0，整柄熄灯；想开回来到上方模式选「常亮」即可">
+            <Moon size={12} /> 一键关灯
+          </button>
           {PRESETS.map(p => (
             <button key={p.name} disabled={busy} onClick={() => { setMode(p.mode); setColors(p.colors); apply(p.mode, p.colors) }}
               className="btn !px-3 !py-1.5 text-[12px]">

@@ -53,6 +53,8 @@ class GameProfiles:
         self.foreground = None                # 当前前台 exe（小写）
         self.universal_vib = False            # 通用震动联动（ADR-017）：无档案前台的回落
         self._was_online = False              # 设备接入沿：attach 瞬间重放当前适配
+        self._active_game = None              # 自动切换当前生效适配的游戏名（None=无）
+        self._active_uni = False              # 通用联动是否为自动切换所套（手动设置不算）
         self._cache = ({}, 0.0)               # (档案dict, 加载时刻) —— 档案多了不能每秒全量读盘
         self._load_settings()
 
@@ -237,43 +239,53 @@ class GameProfiles:
         return (user or hits)[0]
 
     def maybe_autoswitch(self, engine):
-        """由监控线程 1Hz 调用：前台变化时匹配档案并应用；无命中回落通用联动/解绑。
-        设备刚接入（attach 沿）也走一遍：重启后/插线后把当前该生效的适配补上，
-        否则 UI 显示"通用联动已勾选"但手柄其实还没绑（重启丢应用的空窗）。"""
+        """由监控线程 1Hz 调用：前台变化时匹配档案并应用（2026-09-20 语义重设计）。
+        提示只讲"变化"：进入适配/切换适配/真离开适配，桌面闲逛不发一言。
+        设备刚接入（attach 沿）也走一遍：重启后/插线后把当前该生效的适配补上。"""
         exe = foreground_exe()
         just_online = engine.online and not self._was_online
         self._was_online = engine.online
         if exe == self.foreground and not just_online:
             return
+        prev_active = self._active_game or self._active_uni   # 之前是否真有适配在生效
+        if just_online:
+            self._active_game, self._active_uni = None, False  # attach 卫生已清账本
         self.foreground = exe
         engine._emit("foreground", exe=exe or "")
         if not self.autoswitch:
             return
         g = self.match(exe)
         if g and (g.get("vib") or g.get("preset_id")):
+            switched = self._active_game != g["name"]
+            self._active_game, self._active_uni = g["name"], False
             try:
                 self.apply_game(g, engine)
-                engine._emit("autoswitch", game=g["name"], preset=g.get("preset_id") or "",
-                             detail=f"检测到 {exe}，已应用 {g['name']} 适配")
+                if switched:                     # 适配内切窗口/回来不打扰
+                    engine._emit("autoswitch", game=g["name"], preset=g.get("preset_id") or "",
+                                 detail=f"检测到 {exe}，已应用 {g['name']} 适配")
             except Exception as e:
                 engine._emit("error", detail=f"自动应用 {g['name']} 失败: {e}")
         elif self.universal_vib:
-            # 无适配档案（或档案无 vib/预设）→ 通用震动联动兜底
-            from officialimport import UNIVERSAL_VIB
-            for side in ("left", "right"):
-                engine.bind_grip(side, dict(UNIVERSAL_VIB), source="vib:universal")
-            engine._emit("autoswitch", game="", preset="",
-                         detail="无专属适配，应用通用震动联动")
-        elif g:
-            # 命中档案但既无 vib 也无预设（如 ASB 清单条目）→ 明确告知，别装看不见
-            engine._emit("autoswitch", game=g["name"], preset="",
-                         detail=f"{g['name']} 无专属适配参数，标准模式运行")
-        elif engine.state["triggers"].get("left") or engine.state["triggers"].get("right") \
-                or engine.state["gripBind"].get("left") or engine.state["gripBind"].get("right"):
-            # 账本非空才发解绑（unbind_grip 含 trigger 清除；普通应用间切换不发命令）
-            for side in ("left", "right"):
-                engine.unbind_grip(side, source="autoswitch:leave")
-            engine._emit("autoswitch", game="", preset="", detail="离开游戏，已恢复标准状态")
+            if not self._active_uni:             # 已套着就彻底静默（固件路由全局有效）
+                from officialimport import UNIVERSAL_VIB
+                for side in ("left", "right"):
+                    engine.bind_grip(side, dict(UNIVERSAL_VIB), source="vib:universal")
+                engine._emit("autoswitch", game="", preset="",
+                             detail="无专属适配，应用通用震动联动")
+            self._active_game, self._active_uni = None, True
+        else:
+            self._active_game, self._active_uni = None, False
+            if g:
+                # 命中档案但既无 vib 也无预设（如 ASB 清单条目）→ 明确告知，别装看不见
+                engine._emit("autoswitch", game=g["name"], preset="",
+                             detail=f"{g['name']} 无专属适配参数，标准模式运行")
+            elif prev_active and (
+                    engine.state["triggers"].get("left") or engine.state["triggers"].get("right")
+                    or engine.state["gripBind"].get("left") or engine.state["gripBind"].get("right")):
+                # 真·离开适配才发解绑+提示（手动套的效果不由自动切换清）
+                for side in ("left", "right"):
+                    engine.unbind_grip(side, source="autoswitch:leave")
+                engine._emit("autoswitch", game="", preset="", detail="离开游戏，已恢复标准状态")
 
     def start_watch(self, engine, stop_evt):
         def loop():

@@ -24,7 +24,8 @@ export function useEngine() {
         if (evt.kind === 'snapshot') {
           const { ts, kind, ...rest } = evt
           setSnap(rest as EngineSnapshot)
-          setEvents((rest as EngineSnapshot).events ?? [])
+          // 历史事件打 hist 标记：toast 只认实时推送（重连/开窗重放历史不再误弹提示）
+          setEvents(((rest as EngineSnapshot).events ?? []).map(e => ({ ...e, hist: true })))
         } else if (evt.kind === 'device') {
           // 热插拔实时感知：后端 attach/detach 都会发（monitor_loop 2s 轮询）
           setSnap((s) => s ? {

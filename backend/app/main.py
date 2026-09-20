@@ -44,6 +44,13 @@ def monitor_loop(eng, force_mock):
 
 def main():
     _boot_t0 = time.monotonic()          # 启动计时（run_gui.pyw 的 [boot] 日志配套）
+    try:
+        # 任务栏图标归组身份：不显式声明 AUMID，Windows 按 pythonw.exe 归组 →
+        # 任务栏永远显示 python 默认图标（窗口图标设了也没用，2026-09-20 用户实测）
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("RosaPanda.Apex5Unleashed")
+    except Exception:
+        pass
     ap = argparse.ArgumentParser()
     ap.add_argument("--mock", action="store_true", help="无手柄 Mock 模式")
     ap.add_argument("--no-gui", action="store_true", help="无窗口（开发/CI）")
@@ -234,6 +241,9 @@ def main():
             try:
                 from System.Drawing import Icon
                 window.native.Icon = Icon(ico)
+                # 强制任务栏重取图标（WinForms 设 Icon 不主动刷新已渲染的任务栏按钮）
+                window.native.ShowInTaskbar = False
+                window.native.ShowInTaskbar = True
             except Exception:
                 pass
         window.events.loaded += _apply_win_icon

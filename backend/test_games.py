@@ -73,6 +73,15 @@ assert t2 and t2["mode"] == "normal" and "unbind" in t2["source"], t2
 assert games.foreground == "notepad.exe"
 print("leave-game unbind OK")
 
+# 5.5 桌面闲逛完全静默（离开适配后，非游戏前台间切换不发 autoswitch 事件）
+before = len(eng.events)
+for exe in ("explorer.exe", "chrome.exe", "explorer.exe"):
+    gameprofiles.foreground_exe = lambda exe=exe: exe
+    games.maybe_autoswitch(eng)
+evts = [e for e in list(eng.events)[before:] if e["kind"] == "autoswitch"]
+assert not evts, f"桌面闲逛不应发 autoswitch 事件: {evts}"
+print("desktop wandering silent OK")
+
 # 6. autoswitch 关闭时不动作
 games.autoswitch = False
 gameprofiles.foreground_exe = lambda: "gta5.exe"

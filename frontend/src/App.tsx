@@ -34,7 +34,6 @@ export default function App() {
   const [panicFlash, setPanicFlash] = useState(false)
   const [toast, setToast] = useState('')
   const lastAutoRef = useRef<EngineEvent | null>(null)
-  const mountedRef = useRef(false)
 
   const proxy = snap?.proxy
   const taken = proxy?.holder === 'external'
@@ -52,16 +51,10 @@ export default function App() {
   const presetApplied = trigSrc.startsWith('preset:') ? trigSrc.slice('preset:'.length) : null
   const adapted = !!(gameAdapted || universalVib || presetApplied)
 
-  // 自动切换 toast：autoswitch 事件 → 顶部横条 4s；首帧快照里已有的历史事件不弹
+  // 自动切换 toast：只认 WS 实时推送（hist 标记的历史事件在重连/开窗时重放，不弹）
   useEffect(() => {
-    const latest = [...events].reverse().find(e => e.kind === 'autoswitch')
-    if (!latest) return
-    if (!mountedRef.current) {
-      lastAutoRef.current = latest
-      mountedRef.current = true
-      return
-    }
-    if (latest === lastAutoRef.current) return
+    const latest = [...events].reverse().find(e => e.kind === 'autoswitch' && !e.hist)
+    if (!latest || latest === lastAutoRef.current) return
     lastAutoRef.current = latest
     setToast(typeof latest.detail === 'string' ? latest.detail : '')
     const t = setTimeout(() => setToast(''), 4000)
