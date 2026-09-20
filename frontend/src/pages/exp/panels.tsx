@@ -1,7 +1,7 @@
 // 体验区功能面板（ADR-027）：15 项软件成品的交互 UI。
 // 每个面板自治：自己拉数据、自己报错。真机类操作 mock 下会得到 400，按钮不禁用
 // （用户能看见错误文案，比灰按钮更能说明「为什么不能点」）。
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { RefreshCw, AlertTriangle } from 'lucide-react'
 import { api } from '../../api'
 
@@ -94,17 +94,32 @@ function NoDev() {
   return <div className="text-[11px] text-text-low">需要真机连接（右上角连接手柄后使用）。</div>
 }
 
+// 面板级错误边界：单个面板渲染炸了只显示自己的错误，不连坐整页
+// （此前页面级 ErrorBoundary 一接管，用户看到的就是「点了展不开」，2026-09-20）
+class PanelBoundary extends Component<{ children: ReactNode }, { err: string | null }> {
+  state = { err: null as string | null }
+  static getDerivedStateFromError(e: Error) { return { err: String(e?.message ?? e) } }
+  render() {
+    return this.state.err
+      ? <div className="flex items-center gap-1 text-[11px] text-red-300"><AlertTriangle size={12} /> 面板出错：{this.state.err}</div>
+      : this.props.children
+  }
+}
+const Safe = (C: React.FC): React.FC => props => (
+  <PanelBoundary><C {...props} /></PanelBoundary>
+)
+
 // ==================== #1 体感瞄准（软件层） ====================
 export function GyroPanel() {
   const [st, setSt] = useState<any>(null)
   const [msg, flash] = useFlash()
-  const load = useCallback(() => { api.expGyro().then(setSt).catch(() => { }) }, [])
+  const load = useCallback(() => { api.expGyro().then(setSt).catch(e => flash('', e)) }, [])
   useEffect(() => {
     load()
     const t = setInterval(load, 1000)
     return () => clearInterval(t)
   }, [load])
-  if (!st) return <NoDev />
+  if (!st) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   const c = st.cfg
   const set = (patch: Record<string, unknown>) =>
     api.expGyroSet(patch).then((r: any) => { setSt(r); flash('✓ 已保存') }).catch(e => flash('', e))
@@ -167,7 +182,7 @@ export function TurboPanel() {
   const [msg, flash] = useFlash()
   const load = useCallback(() => { api.expProfile().then(setP).catch(e => flash('', e)) }, [flash])
   useEffect(() => { load() }, [load])
-  if (!p) return <NoDev />
+  if (!p) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   const apply = (k: any) =>
     api.expTurbo(k.kid, k.turbo, k.freq)
       .then((r: any) => { setP(r); flash('✓ 已写入并保存（flash，稍慢属正常）') })
@@ -213,7 +228,7 @@ export function StickCfgPanel() {
   const [msg, flash] = useFlash()
   const load = useCallback(() => { api.expProfile().then(setP).catch(e => flash('', e)) }, [flash])
   useEffect(() => { load() }, [load])
-  if (!p) return <NoDev />
+  if (!p) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   const s = p.sticks[side] ?? { type: 0, center: 0, edge: 0, points: [63, 63, 127, 127], bank: [50, 62, 75, 87, 100, 112, 125, 137, 150], is_round: 0 }
   const pt: [[number, number], [number, number]] = [[s.points[0], s.points[1]], [s.points[2], s.points[3]]]
   const setLocal = (patch: any) => setP({ ...p, sticks: { ...p.sticks, [side]: { ...s, ...patch } } })
@@ -298,7 +313,7 @@ export function DevCfgPanel() {
   const [msg, flash] = useFlash()
   const load = useCallback(() => { api.expDevCfg().then((r: any) => { setD(r); setNick(r.nickname ?? '') }).catch(e => flash('', e)) }, [flash])
   useEffect(() => { load() }, [load])
-  if (!d) return <NoDev />
+  if (!d) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   const f = d.settings?.flags ?? {}
   const setBit = (sub: number, on: boolean) =>
     api.expSetting('bit', { sub, on }).then((r: any) => { setD({ ...d, settings: r.settings }); flash('✓ 已写入并读回复核') }).catch(e => flash('', e))
@@ -425,7 +440,7 @@ export function GyroFwPanel() {
   const [msg, flash] = useFlash()
   const load = useCallback(() => { api.expProfile().then(setP).catch(e => flash('', e)) }, [flash])
   useEffect(() => { load() }, [load])
-  if (!p) return <NoDev />
+  if (!p) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   const m = p.motion
   const save = (patch: any) =>
     api.expMotion({ ...m, ...patch }).then((r: any) => { setP(r); flash('✓ motion 块已写入并保存') }).catch(e => { flash('', e); load() })
@@ -473,9 +488,9 @@ export function GyroFwPanel() {
 export function StickMapPanel() {
   const [st, setSt] = useState<any>(null)
   const [msg, flash] = useFlash()
-  const load = useCallback(() => { api.expStickMap().then(setSt).catch(() => { }) }, [])
+  const load = useCallback(() => { api.expStickMap().then(setSt).catch(e => flash('', e)) }, [])
   useEffect(() => { load() }, [load])
-  if (!st) return <NoDev />
+  if (!st) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   const c = st.cfg
   const set = (patch: Record<string, unknown>) =>
     api.expStickMapSet(patch).then((r: any) => { setSt(r); flash('✓ 已保存') }).catch(e => flash('', e))
@@ -533,13 +548,13 @@ export function StickMapPanel() {
 export function RgbBridgePanel() {
   const [st, setSt] = useState<any>(null)
   const [msg, flash] = useFlash()
-  const load = useCallback(() => { api.expRgb().then(setSt).catch(() => { }) }, [])
+  const load = useCallback(() => { api.expRgb().then(setSt).catch(e => flash('', e)) }, [])
   useEffect(() => {
     load()
     const t = setInterval(load, 2000)
     return () => clearInterval(t)
   }, [load])
-  if (!st) return <NoDev />
+  if (!st) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   const toggle = () =>
     api.expRgbSet(!st.enabled, st.port).then((r: any) => { setSt(r); flash(r.enabled ? '✓ 桥已启动' : '已停止') }).catch(e => flash('', e))
   return (
@@ -565,7 +580,7 @@ export function DiagnosticsPanel() {
   const [d, setD] = useState<any>(null)
   const [msg, flash] = useFlash()
   const ref = useRef<HTMLCanvasElement>(null)
-  const load = useCallback(() => { api.expDiagData().then(setD).catch(() => { }) }, [])
+  const load = useCallback(() => { api.expDiagData().then(setD).catch(e => flash('', e)) }, [])
   useEffect(() => { load() }, [load])
   useEffect(() => {
     if (!d?.running) { const t = setTimeout(load, 700); return () => clearTimeout(t) }
@@ -629,7 +644,7 @@ export function SlotsPanel() {
   const [msg, flash] = useFlash()
   const load = useCallback(() => { api.expSlots().then(setD).catch(e => flash('', e)) }, [flash])
   useEffect(() => { load() }, [load])
-  if (!d) return <NoDev />
+  if (!d) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
@@ -691,7 +706,7 @@ export function SwitchBankPanel() {
   const [msg, flash] = useFlash()
   const load = useCallback(() => { api.expSlots().then(setD).catch(e => flash('', e)) }, [flash])
   useEffect(() => { load() }, [load])
-  if (!d) return <NoDev />
+  if (!d) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   return (
     <div className="space-y-2">
       <Row label="源槽">
@@ -734,7 +749,7 @@ export function GripVibPanel() {
   const [msg, flash] = useFlash()
   const load = useCallback(() => { api.expProfile().then(setP).catch(e => flash('', e)) }, [flash])
   useEffect(() => { load() }, [load])
-  if (!p) return <NoDev />
+  if (!p) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   const g = p.grip_vib
   const save = (ng: any) =>
     api.expGripVib(ng.enabled, ng.left, ng.right).then((r: any) => { setP(r); flash('✓ 握把震动已写入') }).catch(e => { flash('', e); load() })
@@ -835,19 +850,19 @@ export function FactoryResetPanel() {
 
 // ==================== 注册表：feature id → 面板 ====================
 export const PANELS: Record<string, React.FC> = {
-  gyro: GyroPanel,
-  turbo: TurboPanel,
-  stickcfg: StickCfgPanel,
-  devcfg: DevCfgPanel,
-  arbitration: ArbitrationPanel,
-  gyrofw: GyroFwPanel,
-  stickmap: StickMapPanel,
-  rgbbridge: RgbBridgePanel,
-  diagnostics: DiagnosticsPanel,
-  slots: SlotsPanel,
-  sharecode: ShareCodePanel,
-  switchbank: SwitchBankPanel,
-  gripvib: GripVibPanel,
-  screenplus: ScreenPlusPanel,
-  factoryreset: FactoryResetPanel,
+  gyro: Safe(GyroPanel),
+  turbo: Safe(TurboPanel),
+  stickcfg: Safe(StickCfgPanel),
+  devcfg: Safe(DevCfgPanel),
+  arbitration: Safe(ArbitrationPanel),
+  gyrofw: Safe(GyroFwPanel),
+  stickmap: Safe(StickMapPanel),
+  rgbbridge: Safe(RgbBridgePanel),
+  diagnostics: Safe(DiagnosticsPanel),
+  slots: Safe(SlotsPanel),
+  sharecode: Safe(ShareCodePanel),
+  switchbank: Safe(SwitchBankPanel),
+  gripvib: Safe(GripVibPanel),
+  screenplus: Safe(ScreenPlusPanel),
+  factoryreset: Safe(FactoryResetPanel),
 }

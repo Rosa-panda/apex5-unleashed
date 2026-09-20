@@ -36,6 +36,15 @@ async function post(url: string, body?: unknown) {
   return j
 }
 
+// GET 同款守门：后端 400 会带 {error}，不抛的话错误对象会灌进 state 炸渲染
+// （体验区面板「展不开」的根因，2026-09-20）
+async function get(url: string) {
+  const r = await fetch(url)
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok || j.error) throw new Error(j.error ?? `${r.status}`)
+  return j
+}
+
 export const api = {
   uiError: (msg: string, stack: string, where: string) =>
     fetch('/api/ui-error', {
@@ -157,7 +166,7 @@ export const api = {
     }>,
 
   // 体验区功能端点（ADR-027）
-  expProfile: () => fetch('/api/exp/profile').then(r => r.json()) as Promise<any>,
+  expProfile: () => get('/api/exp/profile') as Promise<any>,
   expTurbo: (kid: number, mode: number, freq = 10) =>
     post('/api/exp/profile/turbo', { kid, mode, freq }) as Promise<any>,
   expStick: (side: string, body: Record<string, unknown>) =>
@@ -170,27 +179,27 @@ export const api = {
     post('/api/exp/profile/gripvib', { enabled, left, right }) as Promise<any>,
   expTitle: (title: string) => post('/api/exp/profile/title', { title }) as Promise<any>,
   expSwitchSync: (slot: number) => post('/api/exp/profile/switch', { slot }) as Promise<any>,
-  expSlots: () => fetch('/api/exp/slots').then(r => r.json()) as Promise<any>,
+  expSlots: () => get('/api/exp/slots') as Promise<any>,
   expSlotApply: (slot: number) => post('/api/exp/slots/apply', { slot }) as Promise<any>,
   expFactorySlot: (slot: number, confirm: string) =>
     post('/api/exp/factoryreset/slot', { slot, confirm }) as Promise<any>,
   expFactoryAll: (confirm: string) => post('/api/exp/factoryreset/all', { confirm }) as Promise<any>,
-  expDevCfg: () => fetch('/api/exp/devcfg').then(r => r.json()) as Promise<any>,
+  expDevCfg: () => get('/api/exp/devcfg') as Promise<any>,
   expSetting: (op: string, body: Record<string, unknown> = {}) =>
     post('/api/exp/devcfg/setting', { op, ...body }) as Promise<any>,
   expNickname: (name: string) => post('/api/exp/devcfg/nickname', { name }) as Promise<any>,
   expReboot: () => post('/api/exp/devcfg/reboot') as Promise<any>,
-  expOwner: () => fetch('/api/exp/owner').then(r => r.json()) as Promise<any>,
+  expOwner: () => get('/api/exp/owner') as Promise<any>,
   expAcquire: () => post('/api/exp/owner/acquire') as Promise<any>,
-  expGyro: () => fetch('/api/exp/gyro').then(r => r.json()) as Promise<any>,
+  expGyro: () => get('/api/exp/gyro') as Promise<any>,
   expGyroSet: (patch: Record<string, unknown>) => post('/api/exp/gyro', { patch }) as Promise<any>,
-  expStickMap: () => fetch('/api/exp/stickmap').then(r => r.json()) as Promise<any>,
+  expStickMap: () => get('/api/exp/stickmap') as Promise<any>,
   expStickMapSet: (patch: Record<string, unknown>) => post('/api/exp/stickmap', { patch }) as Promise<any>,
-  expRgb: () => fetch('/api/exp/rgbbridge').then(r => r.json()) as Promise<any>,
+  expRgb: () => get('/api/exp/rgbbridge') as Promise<any>,
   expRgbSet: (enabled: boolean, port = 7878) => post('/api/exp/rgbbridge', { enabled, port }) as Promise<any>,
   expDiag: (op: string, body: Record<string, unknown> = {}) =>
     post('/api/exp/diagnostics', { op, ...body }) as Promise<any>,
-  expDiagData: () => fetch('/api/exp/diagnostics').then(r => r.json()) as Promise<any>,
+  expDiagData: () => get('/api/exp/diagnostics') as Promise<any>,
   expShareEncode: (kind = 'profile', blob_hex = '') =>
     post('/api/exp/sharecode/encode', { kind, blob_hex }) as Promise<any>,
   expShareDecode: (code: string) => post('/api/exp/sharecode/decode', { code }) as Promise<any>,
