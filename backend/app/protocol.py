@@ -24,12 +24,15 @@ KEY32_NAMES = {0: "十字上", 1: "十字右", 2: "十字下", 3: "十字左", 4
                14: "L3", 15: "R3", 16: "C", 17: "Z", 18: "M1", 19: "M2", 20: "M3",
                21: "M4", 22: "M5", 23: "M6", 24: "Fn", 25: "连发", 27: "Home"}
 
-# 六模式参数布局（官方 SetForceTriggerCommandFactory 反编译，钳位照抄）
+# 六模式参数布局（官方 SetForceTriggerCommandFactory 反编译，钳位照抄）。
+# ⚠ 2026-09-20 勘误（ADR-022，依据 ApexSenseBridge 实测）：固件 wire 枚举 2/3 与官方
+# SDK 字面名相反——wire2 实际手感=后坐力回弹，wire3=狙击突破。字段布局跟 wire 走，
+# 名字按真实手感标注（待实机复核，若推翻回滚本交换即可）。
 TRIGGER_MODES = {
     "normal":    dict(fields=[]),
     "race":      dict(fields=[("stroke", 1, 255), ("resistance", 1, 255), ("match", 0, 1)]),
-    "sniper":    dict(fields=[("stroke", 1, 255), ("press", 1, 255), ("strength", 1, 255), ("freq", 1, 255), ("match", 0, 1)]),
-    "recoil":    dict(fields=[("stroke", 1, 255), ("recoil_stroke", 1, 255), ("strength", 1, 255), ("match", 0, 1)]),
+    "recoil":    dict(fields=[("stroke", 1, 255), ("press", 1, 255), ("strength", 1, 255), ("freq", 1, 255), ("match", 0, 1)]),   # wire2（原误标 sniper）
+    "sniper":    dict(fields=[("stroke", 1, 255), ("recoil_stroke", 1, 255), ("strength", 1, 255), ("match", 0, 1)]),            # wire3（原误标 recoil）
     "lock":      dict(fields=[("stroke", 1, 255), ("strength", 1, 255), ("match", 0, 1)]),
     "vibration": dict(fields=[("stroke", 1, 255), ("press", 1, 255), ("strength", 1, 255), ("freq", 1, 255), ("match", 0, 1)]),
 }

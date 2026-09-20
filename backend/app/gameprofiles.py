@@ -184,17 +184,26 @@ class GameProfiles:
         return (exe or "").lower().removesuffix(".exe")
 
     def match(self, exe):
-        """exe（小写）→ 命中的游戏档案，无则 None。用户档案优先于同名内置（自定义/升级副本遮蔽内置）。"""
+        """exe（小写）→ 命中的游戏档案，无则 None。
+        优先级：带适配（vib/preset）的条目 > 用户副本 > 内置。
+        2026-09-20 修复：官方导入生成的用户副本（preset 空、无 vib）曾整条遮蔽
+        同名内置（内置带 fps-sniper 等），导致 7 款游戏的预设从未自动生效——
+        与 RE9 僵尸档案（ADR-022 时期发现）同类病根。"""
         if not exe:
             return None
         want = self._norm(exe)
-        builtin_hit = None
-        for g in self.all().values():
-            if any(self._norm(e) == want for e in g["exe"]):
-                if not g.get("builtin"):
-                    return g
-                builtin_hit = builtin_hit or g
-        return builtin_hit
+        hits = [g for g in self.all().values()
+                if any(self._norm(e) == want for e in g["exe"])]
+        if not hits:
+            return None
+        adapted = [g for g in hits if g.get("vib") or g.get("preset_id")]
+        if len(adapted) == 1:
+            return adapted[0]
+        if adapted:                              # 多条都带适配：用户优先
+            user = [g for g in adapted if not g.get("builtin")]
+            return (user or adapted)[0]
+        user = [g for g in hits if not g.get("builtin")]
+        return (user or hits)[0]
 
     def maybe_autoswitch(self, engine):
         """由监控线程 1Hz 调用：前台变化时匹配档案并应用；无命中回落通用联动/解绑。"""
@@ -220,6 +229,10 @@ class GameProfiles:
                 engine.bind_grip(side, dict(UNIVERSAL_VIB), source="vib:universal")
             engine._emit("autoswitch", game="", preset="",
                          detail="无专属适配，应用通用震动联动")
+        elif g:
+            # 命中档案但既无 vib 也无预设（如 ASB 清单条目）→ 明确告知，别装看不见
+            engine._emit("autoswitch", game=g["name"], preset="",
+                         detail=f"{g['name']} 无专属适配参数，标准模式运行")
         elif engine.state["triggers"].get("left") or engine.state["triggers"].get("right") \
                 or engine.state["gripBind"].get("left") or engine.state["gripBind"].get("right"):
             # 账本非空才发解绑（unbind_grip 含 trigger 清除；普通应用间切换不发命令）

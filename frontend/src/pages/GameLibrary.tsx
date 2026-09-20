@@ -19,6 +19,7 @@ interface GameProfile {
   vib?: VibParams | null
   official?: boolean
   mod_only?: boolean
+  asb?: boolean
 }
 
 interface GamesResp {
@@ -151,6 +152,11 @@ export default function GameLibrary() {
               <Zap size={9} /> 官方适配
             </div>
           )}
+          {g.asb && (
+            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-violet-300" title="原生支持 DualSense 自适应扳机（ASB/PCGamingWiki 清单）：事件级效果需 ASB 桥，本工具提供震动联动兜底">
+              DS 原生
+            </div>
+          )}
           {g.mod_only && (
             <div className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-amber-400/90" title="官方深度Mod条目：本工具仅震动联动兜底">
               Mod条目
@@ -161,7 +167,7 @@ export default function GameLibrary() {
           <button className="w-full truncate text-left font-mono text-[10px] text-text-low hover:text-accent"
             title={(g.note || '') + '\n' + g.exe.join(' · ')}
             onClick={() => setDetail(g)}>
-            {g.exe.slice(0, 3).join(' · ')}{g.exe.length > 3 ? ` +${g.exe.length - 3}` : ''}
+            {g.exe.length ? `${g.exe.slice(0, 3).join(' · ')}${g.exe.length > 3 ? ` +${g.exe.length - 3}` : ''}` : '（清单未录进程名 · 可手动定位）'}
           </button>
           {/* 扳机预设绑定：「走/不走」表达——未启用时是按钮，点了展开选择；启用后显示所选预设 */}
           <div className="mt-2 flex items-center gap-1.5">

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "Tony Hawk's Pro Skater 3 + 4",
+  "en": "Tony Hawk's Pro Skater 3 + 4",
+  "exe": [],
+  "preset_id": "",
+  "note": "原生支持 DualSense 自适应扳机（ASB/PCGamingWiki 清单）。事件级效果需 ApexSenseBridge 桥；本工具提供震动联动兜底。",
+  "image": "",
+  "asb": true,
+  "source": "asb-list",
+  "steam_appid": 0
+}

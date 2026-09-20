@@ -49,7 +49,13 @@ assert not eng._ext_cmds, f"不应有外部命令计数: {eng._ext_cmds}"
 sent = [e for e in eng.events if e["kind"] == "command"]
 assert not any(c["result"] == "timeout" for c in sent), sent
 
-# 构造真孤儿：pending 为空时收到协议 ACK 帧 → 应判 external（这才是真外部活动）
+# 宽限窗内（自己刚发过 cmd51）：迟到孤儿 ACK 应被吸收，不误判外部（REPLY_GRACE 设计）
+eng._classify(protocol.mock_ack_frame(0x51))
+assert eng.proxy["holder"] == "self", f"宽限窗内迟到 ACK 应被吸收: {eng.proxy}"
+assert eng._orphan_replies.get(0x51, 0) >= 1, eng._orphan_replies
+
+# 宽限窗过期（模拟长时间无发送）：真孤儿 → external（这才是真外部活动）
+eng._last_tx.clear()
 eng._classify(protocol.mock_ack_frame(0x51))
 assert eng.proxy["holder"] == "external", "真外部命令应被识别"
 

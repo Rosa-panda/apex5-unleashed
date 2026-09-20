@@ -3,6 +3,6 @@
   "name": "射击 · 后坐力反馈",
   "note": "RT 扣到底触发一次回弹冲击，模拟击发后坐。",
   "actions": [
-    {"kind": "trigger", "side": "right", "mode": "recoil", "params": {"stroke": 200, "recoil_stroke": 80, "strength": 200, "match": 1}}
+    {"kind": "trigger", "side": "right", "mode": "recoil", "params": {"stroke": 200, "press": 80, "strength": 200, "freq": 20, "match": 1}}
   ]
 }

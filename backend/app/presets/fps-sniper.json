@@ -3,6 +3,6 @@
   "name": "FPS · 狙击二段",
   "note": "LT 轻推到 40% 即锁定（开镜），松手回弹；RT 保持原样。",
   "actions": [
-    {"kind": "trigger", "side": "left", "mode": "sniper", "params": {"stroke": 100, "press": 60, "strength": 180, "freq": 20, "match": 1}}
+    {"kind": "trigger", "side": "left", "mode": "sniper", "params": {"stroke": 100, "recoil_stroke": 60, "strength": 180, "match": 1}}
   ]
 }
