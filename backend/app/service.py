@@ -573,6 +573,31 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     def autoswitch_set(req: AutoswitchReq):
         return {"ok": True, "autoswitch": games.set_autoswitch(req.enabled)}
 
+    # ---------- 游戏震动修复（飞智虚拟手柄抢 XInput 0 号槽，2026-09-20 原神案例） ----------
+    # 不是开关是检测：state 反映设备树实况；enabled(活跃)才有"修复"动作，
+    # disabled(已禁用)才显示"恢复"；absent=没装空间站驱动，整卡无事发生。
+    @app.get("/api/vibfix")
+    def vibfix_get():
+        import vibfix
+        return {"state": vibfix.status(), "service": vibfix.SERVICE,
+                "auto": bool(games.vibfix_auto) if games else False}
+
+    @app.post("/api/vibfix/set")
+    def vibfix_set(req: AutoswitchReq):
+        import vibfix
+        try:
+            if not vibfix.set_enabled(req.enabled):
+                return err(RuntimeError("未获得系统授权（UAC 点了「否」），未做任何更改"))
+            return {"ok": True, "state": vibfix.status()}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/vibfix/auto")
+    def vibfix_auto_set(req: AutoswitchReq):
+        if games is None:
+            return err(RuntimeError("游戏档案模块未初始化"))
+        return {"ok": True, "auto": games.set_vibfix_auto(req.enabled)}
+
     # ---------- Mod 管家（ADR-025：官方事件级适配的下载/安装/生命周期） ----------
     @app.get("/api/mods")
     def mods_status():

@@ -144,6 +144,28 @@ def main():
         # 端口被占大概率是飞智空间站服务在跑——只报一次，不挡主流程
         print(f"[boot] DSX ingress 未启动: {ingress.error}")
         eng._emit("error", detail=ingress.error)
+
+    # 飞智虚拟手柄抢 XInput 0 号槽（原神等只认 0 号槽的游戏不震，2026-09-20 实锤）。
+    # 检测驱动，不是开关：开了「自动修复」后，启动时 + 每次进游戏时查一次设备树，
+    # 检测到它活跃才提权禁用；禁用状态持久 → 通常整个生命周期只弹一次 UAC。
+    import vibfix as vibfix_mod
+
+    def vibfix_watch(_exe):
+        if not (games.vibfix_auto and vibfix_mod.auto_fix_allowed()):
+            return
+        if vibfix_mod.status() != "enabled":
+            return
+        eng._emit("vibfix", state="fixing",
+                  detail="检测到飞智虚拟手柄占用 XInput 0 号槽（会吞游戏震动），正在请求授权修复…")
+        if vibfix_mod.auto_disable():
+            eng._emit("vibfix", state="fixed", detail="已请求禁用虚拟手柄，授权通过后真手柄独占震动")
+        else:
+            eng._emit("vibfix", state="denied",
+                      detail="未获授权，虚拟手柄仍在抢震动；可到设置页手动修复，或关闭自动修复避免再次询问")
+
+    games.subscribers.append(vibfix_watch)
+    if games.vibfix_auto:
+        vibfix_watch(None)                 # 启动时也查一次（游戏内启动本工具的场景）
     try:                                       # 封面图后台预下载（gameimg，失败不影响主流程）
         import gameimg
         gameimg.start_prefetch(games)

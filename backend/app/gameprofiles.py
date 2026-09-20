@@ -59,6 +59,7 @@ class GameProfiles:
         self.autoswitch = True
         self.foreground = None                # 当前前台 exe（小写）
         self.universal_vib = False            # 通用震动联动（ADR-017）：无档案前台的回落
+        self.vibfix_auto = False              # 震动修复自动出手（检测到虚拟手柄抢 0 号槽才动）
         self._was_online = False              # 设备接入沿：attach 瞬间重放当前适配
         self._active_game = None              # 自动切换当前生效适配的游戏名（None=无）
         self._active_uni = False              # 通用联动是否为自动切换所套（手动设置不算）
@@ -90,7 +91,8 @@ class GameProfiles:
                 "user": list(self._load(games_dir(), False).values()),
                 "foreground": self.foreground,
                 "autoswitch": self.autoswitch,
-                "universal_vib": self.universal_vib}
+                "universal_vib": self.universal_vib,
+                "vibfix_auto": self.vibfix_auto}
 
     def all(self):
         d, ts = self._cache
@@ -117,6 +119,7 @@ class GameProfiles:
                 s = json.load(f)
             self.autoswitch = bool(s.get("autoswitch", True))
             self.universal_vib = bool(s.get("universal_vib", False))
+            self.vibfix_auto = bool(s.get("vibfix_auto", False))
         except Exception:
             pass                              # 无文件/坏文件 → 默认值
 
@@ -124,7 +127,8 @@ class GameProfiles:
         try:
             with open(self._settings_path(), "w", encoding="utf-8") as f:
                 json.dump({"autoswitch": self.autoswitch,
-                           "universal_vib": self.universal_vib}, f)
+                           "universal_vib": self.universal_vib,
+                           "vibfix_auto": self.vibfix_auto}, f)
         except Exception:
             pass
 
@@ -132,6 +136,11 @@ class GameProfiles:
         self.autoswitch = bool(enabled)
         self._save_settings()
         return self.autoswitch
+
+    def set_vibfix_auto(self, enabled):
+        self.vibfix_auto = bool(enabled)
+        self._save_settings()
+        return self.vibfix_auto
 
     def save(self, data):
         from presets import safe_name

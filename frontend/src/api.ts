@@ -12,6 +12,8 @@ export interface EngineSnapshot {
   events: EngineEvent[]
 }
 export interface EngineEvent { ts: string; kind: string; hist?: boolean; [k: string]: unknown }
+// 游戏震动修复（飞智虚拟手柄抢 XInput 0 号槽）：absent=没装 / enabled=活跃会吞震动 / disabled=已禁用
+export interface VibFixStatus { state: 'absent' | 'enabled' | 'disabled'; service: string; auto: boolean }
 export interface Preset {
   id: string; name: string; note: string; builtin: boolean
   actions: Array<Record<string, unknown>>; saved_at?: string
@@ -72,6 +74,13 @@ export const api = {
   modStop: () => post('/api/mods/stop'),
   setUniversalVib: (enabled: boolean) => post('/api/vib/universal', { enabled }),
   setAutoswitch: (enabled: boolean) => post('/api/autoswitch', { enabled }),
+  vibfix: () => fetch('/api/vibfix').then(r => r.json()) as Promise<VibFixStatus>,
+  vibfixSet: (enabled: boolean) => post('/api/vibfix/set', { enabled }) as Promise<{
+    ok: boolean; state: VibFixStatus['state']
+  }>,
+  vibfixAuto: (enabled: boolean) => post('/api/vibfix/auto', { enabled }) as Promise<{
+    ok: boolean; auto: boolean
+  }>,
   autostart: () => fetch('/api/settings/autostart').then(r => r.json()) as Promise<{
     ok: boolean; enabled: boolean; command: string
   }>,

@@ -2,9 +2,10 @@
 // 联动行为开关 / 开机自启 / 封面缓存管理 / 数据目录 / 关于与安全机制。
 import { useCallback, useEffect, useState } from 'react'
 import {
-  FolderOpen, Gamepad2, HardDrive, Info, Power, ShieldCheck, ToggleLeft, Zap,
+  FolderOpen, Gamepad2, HardDrive, Info, Power, ShieldCheck, ToggleLeft, Vibrate, Zap,
 } from 'lucide-react'
 import { api } from '../api'
+import type { VibFixStatus } from '../api'
 
 function Toggle({ on, onChange, label, desc }: {
   on: boolean
@@ -33,6 +34,7 @@ export default function Settings() {
   const [universalVib, setUniversalVib] = useState(false)
   const [autostart, setAutostart] = useState(false)
   const [cache, setCache] = useState<{ count: number; bytes: number } | null>(null)
+  const [vibfix, setVibfix] = useState<VibFixStatus | null>(null)
   const [msg, setMsg] = useState('')
 
   const load = useCallback(() => {
@@ -42,6 +44,7 @@ export default function Settings() {
     }).catch(() => {})
     api.autostart().then(r => setAutostart(r.enabled)).catch(() => {})
     api.imgCacheStatus().then(r => setCache({ count: r.count, bytes: r.bytes })).catch(() => {})
+    api.vibfix().then(setVibfix).catch(() => setVibfix(null))
   }, [])
   useEffect(() => { load() }, [load])
 
@@ -69,6 +72,62 @@ export default function Settings() {
         <div className="mt-2 text-[11px] text-text-low">
           两个开关都会记住（重启不丢）；适配优先级：官方适配 &gt; 通用联动 &gt; 标准模式。
         </div>
+      </div>
+
+      {/* ---------- 游戏震动修复（检测驱动：没装/已禁用就无事发生） ---------- */}
+      <div className="card p-5">
+        <div className="mb-3 flex items-center gap-2 text-[12px] text-text-mid">
+          <Vibrate size={14} className="text-accent" /> 游戏震动修复
+          <span className="text-text-low">· 检测到干扰源才会出手</span>
+        </div>
+        {!vibfix && <div className="text-[12px] text-text-low">检测中…</div>}
+        {vibfix?.state === 'absent' && (
+          <div className="text-[12px] text-text-low">
+            未检测到飞智空间站虚拟手柄，无干扰，无需处理。
+          </div>
+        )}
+        {vibfix?.state === 'enabled' && (
+          <div className="space-y-2">
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] leading-relaxed text-amber-200">
+              检测到 <b>飞智空间站虚拟手柄</b> 正在占用 XInput 0 号槽——原神这类只给 0
+              号槽发震动的游戏，震动会全被它吞掉（能玩、不震）。
+              修复 = 禁用该虚拟设备（飞智自家的，不碰别的硬件），真手柄独占震动。
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="btn !py-1 text-[12px]"
+                onClick={() => api.vibfixSet(false)
+                  .then(() => { flash('✓ 已授权，正在生效…'); setTimeout(load, 1500) })
+                  .catch(e => flash(`✗ ${e.message}`))}>
+                一键修复（会弹系统授权）
+              </button>
+            </div>
+          </div>
+        )}
+        {vibfix?.state === 'disabled' && (
+          <div className="space-y-2">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-[12px] leading-relaxed text-emerald-200">
+              已修复：虚拟手柄已禁用，真手柄独占 0 号槽震动（状态持久，重启不反弹）。
+            </div>
+            <button className="btn !py-1 text-[12px]"
+              onClick={() => api.vibfixSet(true)
+                .then(() => { flash('✓ 已授权，正在恢复…'); setTimeout(load, 1500) })
+                .catch(e => flash(`✗ ${e.message}`))}>
+              恢复虚拟手柄（要用空间站键鼠映射时）
+            </button>
+          </div>
+        )}
+        {(vibfix?.state === 'enabled' || vibfix?.state === 'disabled') && (
+          <div className="mt-2 space-y-2">
+            <Toggle on={vibfix.auto} label="自动修复"
+              desc="启动和进游戏时自动检测，发现虚拟手柄抢 0 号槽就请求授权修复；你点过一次授权后基本不会再弹。"
+              onChange={v => api.vibfixAuto(v)
+                .then(() => { flash('✓ 已保存'); load() })
+                .catch(() => flash('✗ 保存失败'))} />
+            <div className="text-[11px] text-text-low">
+              恢复/修复动作都要过一次 Windows 授权弹窗（UAC），这是系统要求，软件不会静默改驱动。
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ---------- 应用与系统 ---------- */}
