@@ -72,6 +72,7 @@ class DsxIngress:
         self._stop = threading.Event()
         self._last_payload = {}                # side → 上次发出的 payload bytes（去重）
         self._last_send = {}                   # side → 上次写出时刻（限频）
+        self.on_applied = None                 # 游戏事件钩子（灯效桥联动，service 接线）
         self._thread = None
 
     # ---------- 生命周期 ----------
@@ -204,6 +205,11 @@ class DsxIngress:
             "params": {f: v for f, v in zip(fields, list(payload[2:]))},
             "source": "dsx:mod", "applied_at": time.strftime("%H:%M:%S")}
         self.applied += 1
+        if self.on_applied:
+            try:
+                self.on_applied(sname, wire_mode)
+            except Exception:
+                pass
 
     def clear_ledger(self):
         """mod 停止/游戏退出时清去重缓存（下次进场立刻生效）。"""

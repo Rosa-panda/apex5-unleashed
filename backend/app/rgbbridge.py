@@ -17,13 +17,39 @@ class RgbBridge:
         self.engine = engine
         self.port = port
         self.enabled = False
+        self.flash_enabled = False             # 游戏事件（Mod 扳机流）→ 闪灯
+        self.flash_rgb = (255, 0, 0)
         self._sock = None
         self._thread = None
         self._stop = threading.Event()
         self._last_apply = 0.0
         self._last_rgb = None
+        self._last_flash = 0.0
         self.stats = {"packets": 0, "applied": 0, "throttled": 0, "unknown": 0,
-                      "last_error": None, "last_rgb": None, "note": None}
+                      "last_error": None, "last_rgb": None, "note": None,
+                      "flashes": 0}
+
+    # ---------- 游戏事件闪灯（ingress.on_applied 接线，见 service） ----------
+    # 普通 PC 游戏不会发灯色（灯条是 DualSense/PS5 特权），但装了 Mod 的游戏
+    # 有真实事件流进 ingress——这是「游戏控制灯」今天唯一能落地的通路。
+    # 0xF5 直点色语义（驻留/临时）未实测，真机验收钩子（ADR-027）。
+    def on_game_event(self, side=None, mode=None):
+        if not self.flash_enabled:
+            return
+        now = time.monotonic()
+        if now - self._last_flash < 0.6:
+            return
+        self._last_flash = now
+        try:
+            self.engine.led_test(*self.flash_rgb, source="rgbbridge:flash")
+            self.stats["flashes"] += 1
+        except Exception as e:
+            self.stats["last_error"] = f"{type(e).__name__}: {e}"
+
+    def set_flash(self, enabled, rgb=None):
+        self.flash_enabled = bool(enabled)
+        if rgb:
+            self.flash_rgb = tuple(max(0, min(255, int(c))) for c in rgb[:3])
 
     def start(self, port=None):
         if self.enabled:
@@ -112,4 +138,6 @@ class RgbBridge:
         return tuple(vals[:3])
 
     def status(self):
-        return {"enabled": self.enabled, "port": self.port, "stats": dict(self.stats)}
+        return {"enabled": self.enabled, "port": self.port,
+                "flash_enabled": self.flash_enabled,
+                "flash_rgb": list(self.flash_rgb), "stats": dict(self.stats)}

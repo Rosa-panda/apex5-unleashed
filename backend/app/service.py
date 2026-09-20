@@ -751,6 +751,8 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     _settings_writer = _devcfg.SettingsWriter(engine)
     _rgb = _rgbbridge.RgbBridge(engine)
     _diag_svc = _diag.Diagnostics(engine)
+    if ingress:
+        ingress.on_applied = _rgb.on_game_event    # Mod 扳机事件 → 闪灯联动
     engine.subscribe_motion(_softmap.HUB.on_motion)
     engine.subscribe_motion(_diag_svc.on_motion)
     engine.subscribe(_softmap.HUB.on_key)
@@ -818,8 +820,13 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     class ExpRgbReq(BaseModel):
         enabled: bool
         port: int = 7878
+        flash: bool = None            # 游戏事件（Mod 扳机流）→ 闪灯，None=不改动
 
     class ExpRgbTestReq(BaseModel):
+        rgb: list = [255, 0, 0]
+
+    class ExpRgbFlashReq(BaseModel):
+        enabled: bool
         rgb: list = [255, 0, 0]
 
     class ExpDiagReq(BaseModel):
@@ -1081,9 +1088,19 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     @app.post("/api/exp/rgbbridge")
     def exp_rgb_config(req: ExpRgbReq):
         try:
+            if req.flash is not None:
+                _rgb.set_flash(req.flash)
             if req.enabled:
                 return {"ok": True, **_rgb.start(req.port)}
             return {"ok": True, **_rgb.stop()}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/rgbbridge/flash")
+    def exp_rgb_flash(req: ExpRgbFlashReq):
+        try:
+            _rgb.set_flash(req.enabled, req.rgb)
+            return {"ok": True, **_rgb.status()}
         except Exception as e:
             return err(e)
 

@@ -576,6 +576,14 @@ export function RgbBridgePanel() {
           <span className="text-[10px] text-text-low">手柄连着工具时点一下，灯应该立即变色——这就是桥的效果</span>
         </Row>
       )}
+      <Row label="游戏事件闪灯">
+        <button
+          className={st.flash_enabled ? BTN_ACC : BTN}
+          onClick={() => api.expRgbFlash(!st.flash_enabled, [255, 0, 0]).then((r: any) => { setSt(r); flash(r.flash_enabled ? '✓ 已开启' : '已关闭') }).catch(e => flash('', e))}>
+          {st.flash_enabled ? '开启中（游戏 Mod 扳机事件时闪红）' : '已关闭（点此开启）'}
+        </button>
+        <span className="text-[10px] text-text-low">普通游戏不会发灯色；装了 Mod 的游戏（Mod 管家）事件流经过工具时灯闪一下</span>
+      </Row>
       {st.stats?.note && <div className="text-[11px] text-amber-300"><AlertTriangle size={12} className="inline" /> {st.stats.note}</div>}
       <div className="text-[10px] text-text-low">
         收包 {st.stats?.packets ?? 0} ｜ 应用 {st.stats?.applied ?? 0}（限频 ≥1s，同色不重写）｜ 未识别 {st.stats?.unknown ?? 0}
