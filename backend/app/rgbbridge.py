@@ -23,19 +23,38 @@ class RgbBridge:
         self._last_apply = 0.0
         self._last_rgb = None
         self.stats = {"packets": 0, "applied": 0, "throttled": 0, "unknown": 0,
-                      "last_error": None, "last_rgb": None}
+                      "last_error": None, "last_rgb": None, "note": None}
 
     def start(self, port=None):
         if self.enabled:
             return self.status()
-        self.port = int(port or self.port)
+        requested = int(port or self.port)
         self._stop.clear()
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._sock.bind(("127.0.0.1", self.port))
+        # 7878 常被飞智自家 SpaceStationService 独占（0.0.0.0:7878，WinError 10013），
+        # 绑不上就顺延找空位，把实际端口回显给前端（2026-09-20 真机撞上过）。
+        self._sock = None
+        last_err = None
+        for p in range(requested, requested + 20):
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.bind(("127.0.0.1", p))
+            except OSError as e:
+                last_err = e
+                continue
+            self._sock = s
+            self.port = p
+            break
+        if self._sock is None:
+            raise OSError(f"UDP {requested}..{requested + 19} 全被占用，最后错误：{last_err}")
         self._sock.settimeout(0.5)
         self._thread = threading.Thread(target=self._loop, daemon=True, name="rgbbridge")
         self._thread.start()
         self.enabled = True
+        if self.port != requested:
+            self.stats["note"] = (f"请求端口 {requested} 被占用（多半是飞智空间站服务），"
+                                  f"实际监听 {self.port}——游戏/DSX 那边请指向 {self.port}")
+        else:
+            self.stats["note"] = None
         return self.status()
 
     def stop(self):

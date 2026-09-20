@@ -565,6 +565,7 @@ export function RgbBridgePanel() {
         </button>
         <span className="text-[10px] text-text-low">DSX 等往 7878 发的 RGB 颜色 → 翻译成手柄灯效（官方静默丢弃的部分）</span>
       </Row>
+      {st.stats?.note && <div className="text-[11px] text-amber-300"><AlertTriangle size={12} className="inline" /> {st.stats.note}</div>}
       <div className="text-[10px] text-text-low">
         收包 {st.stats?.packets ?? 0} ｜ 应用 {st.stats?.applied ?? 0}（限频 ≥1s，同色不重写）｜ 未识别 {st.stats?.unknown ?? 0}
         {st.stats?.last_rgb && ` ｜ 最近 RGB(${st.stats.last_rgb.join(',')})`}
