@@ -148,6 +148,11 @@ class TestModMgr(unittest.TestCase):
             "f1": {"id": "f1", "name": "F1 23", "exe": ["f1_23.exe"],
                    "mod": {"name": "AdapterTrigger_F1Game23.exe", "version": "1",
                            "start_type": 1, "process": "F1_23"}},
+            # FH5/2077 实况：mod 档案与 asb 震动档案同 exe 并存——match 会按 vib
+            # 优先返回 asb 条目，Mod 管家必须独立找 mod 档案（_mod_profile）
+            "f1asb": {"id": "f1asb", "name": "F1 23(DS)", "exe": ["f1_23.exe"],
+                      "vib": {"filter": 1, "scale": 10, "stroke": 0, "press": 1,
+                              "strength": 100, "freq": 15}},
             "gta": {"id": "gta", "name": "GTA5", "exe": ["gta5.exe"],
                     "mod": {"name": "ScriptHookV", "start_type": 0}},
         })
@@ -176,6 +181,8 @@ class TestModMgr(unittest.TestCase):
             self.mm.on_foreground("f1_23.exe")
             self.assertEqual(self.mm.active_gid, "f1")
             self.assertIs(self.mm.proc, fake_proc)
+            # 同 exe 的 asb 震动档案不遮蔽：_mod_profile 独立找到 mod 档案
+            self.assertEqual(self.mm._mod_profile("f1_23.exe")["id"], "f1")
             # 官方参数格式："<port> name=F1_23 port=<port>"（进程名取 mod.process，
             # 端口取 ingress 实际绑定值——7878 被占时我们落 8787）
             self.assertEqual(popen.call_args[0][0][1],

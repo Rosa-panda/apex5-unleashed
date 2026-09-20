@@ -60,8 +60,11 @@ fake_path = os.path.join(_tmp, "fake_official.json")
 with open(fake_path, "w", encoding="utf-8") as f:
     json.dump(fake_lib, f, ensure_ascii=False)
 r = officialimport.import_official(games, path=fake_path)
-# EA WRC/艾尔登法环 与内置档案同名且已带官方 vib（regen_builtin 已升级）→ 跳过；守望先锋DS 新增
-assert r["imported"] == 1 and r["updated"] == 0 and r["skipped"] == 3, r
+# EA WRC 与内置同名且已带官方 vib → 跳过；艾尔登法环（mod_only 无 vib）/守望先锋DS
+# （PS5 记录条目）不再导入成壳（2026-09-20：壳曾遮蔽内置适配卡 + Mod 拉起）；
+# 没进程的 → convert None。四条全跳过，零壳产出。
+assert r["imported"] == 0 and r["updated"] == 0 and r["skipped"] == 3, r
+assert not games.match("eldenring.exe") or not games.all().get("eldenring"), "不得产出老头环壳"
 # 重复导入：已带官方 vib 的不再动
 r2 = officialimport.import_official(games, path=fake_path)
 assert r2["imported"] == 0 and r2["updated"] == 0, r2

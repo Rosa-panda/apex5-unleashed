@@ -67,7 +67,7 @@ def convert_entry(entry):
     if entry.get("Scenes"):
         parts.append(str(entry["Scenes"]).strip())
     if mod_only:
-        parts.append("官方深度Mod条目：本工具仅提供震动联动兜底（事件级手感需官方Mod）。")
+        parts.append("官方深度Mod条目：可在游戏库安装官方 Mod 获得事件级扳机手感（Mod 管家自动拉起）。")
     if entry.get("IsPS5") and not vib:
         parts.append("官方为 PS5/DS 模式条目：本工具无桥接（ADR-020 已删），该条目仅作记录。")
     return {"name": entry.get("GameName") or entry.get("EnGameName") or f"游戏{entry.get('Id')}",
@@ -92,10 +92,16 @@ def import_official(games, path=None):
     with open(path, "r", encoding="utf-8") as f:
         entries = json.load(f)
     existing = {g["name"]: g for g in games.all().values()}
-    imported = updated = 0
+    imported = updated = skipped = 0
     for entry in entries:
         g = convert_entry(entry)
         if g is None:
+            skipped += 1
+            continue
+        if not g["vib"]:
+            # 无震动参数的条目（mod_only / 纯记录）不建副本——壳曾遮蔽内置适配卡
+            # （批次⑥）；mod 能力已由 merge_mod_fields 并入内置档案 + Mod 管家接管
+            skipped += 1
             continue
         old = existing.get(g["name"])
         if old is None:
@@ -114,5 +120,4 @@ def import_official(games, path=None):
                         "vib": g["vib"], "official": True,
                         "official_id": g["official_id"], "mod_only": g["mod_only"]})
             updated += 1
-    return {"imported": imported, "updated": updated,
-            "skipped": len(entries) - imported - updated}
+    return {"imported": imported, "updated": updated, "skipped": skipped}

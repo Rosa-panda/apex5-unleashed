@@ -137,11 +137,26 @@ class ModManager:
         return self.enabled[gid]
 
     # ---------- 生命周期（前台事件驱动） ----------
+    def _mod_profile(self, exe):
+        """前台 exe → 带 mod 字段的档案。不走 games.match()：mod_only 游戏常与
+        asb 震动档案同 exe 并存（FH5/2077），match 按 vib 优先会返回 asb 条目，
+        mod 就永远拉不起了——这里独立找 mod 档案（vib 适配归 match，两不耽误）。"""
+        if not exe:
+            return None
+        want = exe.lower().removesuffix(".exe")
+        for g in self.games.all().values():
+            if not g.get("mod"):
+                continue
+            for e in g["exe"]:
+                if e.lower().removesuffix(".exe") == want:
+                    return g
+        return None
+
     def on_foreground(self, exe):
         """由 gameprofiles.maybe_autoswitch 发 'foreground' 事件后调用（exe 小写或空）。"""
-        g = self.games.match(exe) if exe else None
+        g = self._mod_profile(exe)
         want = None
-        if g and g.get("mod") and self.enabled.get(g["id"]) and self.is_installed(g):
+        if g and self.enabled.get(g["id"]) and self.is_installed(g):
             want = g
         if want and self.active_gid == want["id"] and self.proc and self.proc.poll() is None:
             return                              # 已在跑：不动

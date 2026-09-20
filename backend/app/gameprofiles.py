@@ -226,10 +226,12 @@ class GameProfiles:
 
     def match(self, exe):
         """exe（小写）→ 命中的游戏档案，无则 None。
-        优先级：带适配（vib/preset）的条目 > 用户副本 > 内置。
+        优先级：带适配（vib/preset/mod）的条目 > 用户副本 > 内置。
         2026-09-20 修复：官方导入生成的用户副本（preset 空、无 vib）曾整条遮蔽
         同名内置（内置带 fps-sniper 等），导致 7 款游戏的预设从未自动生效——
-        与 RE9 僵尸档案（ADR-022 时期发现）同类病根。"""
+        与 RE9 僵尸档案（ADR-022 时期发现）同类病根。
+        2026-09-20 二补：mod 条目也算「有适配」——否则 mod_only 游戏被无参壳
+        遮蔽后 Mod 管家永远不拉起（FH4/5/2077/老头环 四壳实锤）。"""
         if not exe:
             return None
         want = self._norm(exe)
@@ -237,7 +239,7 @@ class GameProfiles:
                 if any(self._norm(e) == want for e in g["exe"])]
         if not hits:
             return None
-        adapted = [g for g in hits if g.get("vib") or g.get("preset_id")]
+        adapted = [g for g in hits if g.get("vib") or g.get("preset_id") or g.get("mod")]
         if len(adapted) == 1:
             return adapted[0]
         if adapted:                              # 多条都带适配：用户优先
