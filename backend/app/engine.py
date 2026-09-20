@@ -270,6 +270,18 @@ class Engine:
         self._ext_cmds[cmd] = self._ext_cmds.get(cmd, 0) + 1
         if body:
             self._ext_frames[cmd] = body.hex(" ")   # 帧原文：归因到具体进程/固件行为的实锤
+        try:    # 罕见事件必须落盘：内存事件列表重启即失，归因线索不能只活在会话里
+            import json as _json, os as _os
+            _d = _os.path.join(_os.environ.get("APPDATA") or _os.path.expanduser("~"),
+                               "Apex5Unleashed")
+            _os.makedirs(_d, exist_ok=True)
+            with open(_os.path.join(_d, "proxy_hits.log"), "a", encoding="utf-8") as _f:
+                _f.write(_json.dumps({"ts": now(), "cmd": cmd,
+                                      "hex": self._ext_frames.get(cmd, ""),
+                                      "detail": self.proxy.get("detail")},
+                                     ensure_ascii=False) + "\n")
+        except Exception:
+            pass
         self._last_external = time.monotonic()
         active = time.monotonic() - self._last_external < EXTERNAL_COOLDOWN
         if active and self.proxy["holder"] == "external":
