@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 27,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/17/5ea109664dfe5b52975adb1553e0ec02.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025062301",
+    "start_type": 1,
+    "process": "ROTTR",
+    "mod_process": "XGameMonitor",
+    "game_exe": "ROTTR.exe",
+    "path": "\\mods\\rottr\\"
+  }
 }

@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 37,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://tencent-android.cdn.flydigi.com/PC/MOD/202401/Sniper5_dx12_mods_2024011701.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025073101",
+    "start_type": 1,
+    "process": "Sniper5_dx12",
+    "mod_process": "XGameMonitor",
+    "game_exe": "Sniper5_dx12.exe",
+    "path": "\\mods\\Sniper5_dx12\\"
+  }
 }

@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 60,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2026/01/27/938861e3a637cc104f4d342b8981e049.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025062304",
+    "start_type": 1,
+    "process": "HITMAN3",
+    "mod_process": "XGameMonitor",
+    "game_exe": "HITMAN3.exe",
+    "path": "\\mods\\HITMAN3\\"
+  }
 }

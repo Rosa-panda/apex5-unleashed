@@ -59,6 +59,17 @@ export const api = {
   setGameExe: (id: string, exe: string[]) => post(`/api/games/${id}/exe`, { exe }),
   importOfficial: () => post('/api/games/import-official'),
   officialSrc: () => fetch('/api/games/official-src').then(r => r.json()) as Promise<{ available: boolean; path: string }>,
+  mods: () => fetch('/api/mods').then(r => r.json()) as Promise<{
+    mods: Array<{ gid: string; name: string; mod_name: string; version: string; start_type: number;
+      installed: boolean; enabled: boolean; installing: boolean; running: boolean }>
+    active_gid: string | null
+    ingress: { enabled: boolean; port: number | null; error: string; packets: number;
+      applied: number; ignored: number; last_packet_at: string | null } | null
+  }>,
+  modInstall: (gid: string) => post(`/api/mods/${gid}/install`),
+  modUninstall: (gid: string) => post(`/api/mods/${gid}/uninstall`),
+  modEnable: (gid: string, enabled: boolean) => post(`/api/mods/${gid}/enable`, { enabled }),
+  modStop: () => post('/api/mods/stop'),
   setUniversalVib: (enabled: boolean) => post('/api/vib/universal', { enabled }),
   setAutoswitch: (enabled: boolean) => post('/api/autoswitch', { enabled }),
   autostart: () => fetch('/api/settings/autostart').then(r => r.json()) as Promise<{

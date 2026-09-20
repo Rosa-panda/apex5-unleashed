@@ -11,5 +11,15 @@
   ],
   "official": true,
   "official_id": 8,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/17/b2e490e2b96e4e82a238b03499278bd7.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2026091601",
+    "start_type": 1,
+    "process": "eldenring",
+    "mod_process": "XGameMonitor",
+    "game_exe": "start_game_in_offline_mode.exe",
+    "path": "\\mods\\eldenring\\"
+  }
 }

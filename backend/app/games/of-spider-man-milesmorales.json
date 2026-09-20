@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 32,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2024/07/04/86088613ced8ddb9e1655aa242eb6568.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025073101",
+    "start_type": 1,
+    "process": "MilesMorales",
+    "mod_process": "XGameMonitor",
+    "game_exe": "MilesMorales.exe",
+    "path": "\\mods\\MilesMorales\\"
+  }
 }

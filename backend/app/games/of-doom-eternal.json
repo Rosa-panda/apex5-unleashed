@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 38,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2024/08/12/de343adfa4fa87358661c2a71d956f1f.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025062301",
+    "start_type": 1,
+    "process": "DOOMEternalx64vk",
+    "mod_process": "XGameMonitor",
+    "game_exe": "DOOMEternalx64vk.exe",
+    "path": "\\mods\\DOOMEternalx64vk\\"
+  }
 }

@@ -12,5 +12,12 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 9,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://tencent-android.cdn.flydigi.com/PC/MOD/8/devil5_2022093001.zip",
+    "version": "2026091702",
+    "start_type": 0,
+    "process": "DevilMayCry5",
+    "game_exe": "DevilMayCry5.exe"
+  }
 }

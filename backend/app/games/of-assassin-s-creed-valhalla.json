@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 28,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://tencent-android.cdn.flydigi.com/PC/MOD/202308/ACValhalla-mods2023081001.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2026091601",
+    "start_type": 1,
+    "process": "ACValhalla",
+    "mod_process": "XGameMonitor",
+    "game_exe": "ACValhalla.exe",
+    "path": "\\mods\\ACValhalla\\"
+  }
 }

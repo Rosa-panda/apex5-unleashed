@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 26,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://tencent-android.cdn.flydigi.com/PC/MOD/202308/sottr_mods2023081101.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025062301",
+    "start_type": 1,
+    "process": "SOTTR",
+    "mod_process": "XGameMonitor",
+    "game_exe": "SOTTR.exe",
+    "path": "\\mods\\sottr\\"
+  }
 }

@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 40,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://tencent-android.cdn.flydigi.com/PC/MOD/202403/AtomicHeart-Win64-Shipping_mods2024031501.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025073101",
+    "start_type": 1,
+    "process": "AtomicHeart-Win64-Shipping",
+    "mod_process": "XGameMonitor",
+    "game_exe": "AtomicHeart-Win64-Shipping.exe",
+    "path": "\\mods\\AtomicHeart-Win64-Shipping\\"
+  }
 }

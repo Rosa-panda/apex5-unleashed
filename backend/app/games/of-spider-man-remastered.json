@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 33,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2024/07/04/6dc90824a7508b0461d92dc50044e35f.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025073101",
+    "start_type": 1,
+    "process": "Spider-Man",
+    "mod_process": "XGameMonitor",
+    "game_exe": "Spider-Man.exe",
+    "path": "\\mods\\Spider-Man\\"
+  }
 }

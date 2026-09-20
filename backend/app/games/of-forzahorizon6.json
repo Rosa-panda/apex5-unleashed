@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 108,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2026/05/15/06f8f2bb56b3013cc448c3d8ccb9ae42.zip",
+    "name": "ForzaDualSense.exe",
+    "version": "2026041601",
+    "start_type": 1,
+    "process": "ForzaHorizon6",
+    "mod_process": "ForzaDualSense",
+    "game_exe": "ForzaHorizon6.exe",
+    "path": "\\mods\\forza_trigger\\"
+  }
 }

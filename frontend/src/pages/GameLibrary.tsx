@@ -1,10 +1,15 @@
-// 游戏库（ADR-014 + ADR-017）：官方逐游戏适配 + 通用震动联动 + 自定义 exe
+// 游戏库（ADR-014 + ADR-017 + ADR-025）：官方逐游戏适配 + 通用震动联动 + 自定义 exe
+// + 官方事件级 Mod（DSX ingress）：安装/启用/运行态一键管理
 // 按几百款规模设计 —— 搜索(名称/英文名/进程名) + 筛选 + 封面卡 + 分段渲染
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Crosshair, Download, FolderOpen, MonitorPlay, Play, Plus, Search, Trash2, Link2, Zap } from 'lucide-react'
 import { api, type Preset } from '../api'
 
 interface VibParams { filter: number; scale: number; stroke: number; press: number; strength: number; freq: number }
+
+interface ModInfo {
+  url?: string; name?: string; version?: string; start_type?: number; process?: string
+}
 
 interface GameProfile {
   id: string
@@ -21,6 +26,13 @@ interface GameProfile {
   mod_only?: boolean
   asb?: boolean
   vib_source?: string
+  mod?: ModInfo
+}
+
+interface ModsStatus {
+  mods: Array<{ gid: string; installed: boolean; enabled: boolean; installing: boolean; running: boolean }>
+  active_gid: string | null
+  ingress: { port: number | null; error: string; packets: number; applied: number } | null
 }
 
 interface GamesResp {
@@ -70,12 +82,14 @@ export default function GameLibrary() {
   const [form, setForm] = useState({ name: '', exe: '', preset_id: '' })
   const [detail, setDetail] = useState<GameProfile | null>(null)
   const [pickFor, setPickFor] = useState<string | null>(null)   // 正在展开预设选择的卡片 id
+  const [mods, setMods] = useState<ModsStatus>({ mods: [], active_gid: null, ingress: null })
   const fileRef = useRef<HTMLInputElement | null>(null)
   const exeTarget = useRef<string | null>(null)
 
   const load = useCallback(() => {
     api.games().then(setData).catch(() => {})
     api.presets().then(p => setPresets([...p.user, ...p.builtin])).catch(() => {})
+    api.mods().then(setMods).catch(() => {})
   }, [])
   useEffect(() => { load(); const t = setInterval(load, 3000); return () => clearInterval(t) }, [load])
 
@@ -141,6 +155,24 @@ export default function GameLibrary() {
     try { await api.setUniversalVib(on) } catch (e) { setMsg(`✗ ${(e as Error).message}`) }
   }
 
+  // Mod 管家（ADR-025）：该游戏的 mod 状态行（没有 mod 条目则 null）
+  const modState = (g: GameProfile) => mods.mods.find(m => m.gid === g.id)
+  const modAction = async (g: GameProfile, what: 'install' | 'uninstall' | 'enable' | 'disable' | 'stop') => {
+    try {
+      if (what === 'install') {
+        setMsg(`⇣ 正在下载「${g.name}」官方 Mod…`)
+        await api.modInstall(g.id)
+        setMsg(`✓ 「${g.name}」Mod 安装完成`)
+      } else if (what === 'uninstall') await api.modUninstall(g.id)
+      else if (what === 'enable') {
+        await api.modEnable(g.id, true)
+        setMsg(`✓ 「${g.name}」Mod 已启用——进游戏自动拉起（事件级扳机）`)
+      } else if (what === 'disable') await api.modEnable(g.id, false)
+      else await api.modStop()
+    } catch (e) { setMsg(`✗ ${(e as Error).message}`) }
+    load()
+  }
+
   // 自定义 exe：选文件 → 录进程名（特殊版本游戏定位）
   const pickExe = (g: GameProfile) => {
     exeTarget.current = g.id
@@ -164,6 +196,8 @@ export default function GameLibrary() {
     setPicking: (v: boolean) => void
   }) => {
     const active = hit(g)
+    const ms = modState(g)
+    const pluginType = (g.mod?.start_type ?? 1) !== 1
     return (
       <div className={`card group overflow-hidden p-0 transition-colors ${active ? 'border-accent/60' : 'hover:border-accent-dim'}`}>
         {/* 封面条 */}
@@ -200,11 +234,15 @@ export default function GameLibrary() {
               DS 原生
             </div>
           )}
-          {g.mod_only && (
-            <div className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-amber-400/90" title="官方深度Mod条目：本工具仅震动联动兜底">
-              Mod条目
+          {g.mod_only && (ms?.running ? (
+            <div className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-accent" title="官方事件级 Mod 运行中：游戏遥测→扳机力反馈实时联动（ADR-025）">
+              <Zap size={9} /> Mod 运行中
             </div>
-          )}
+          ) : (
+            <div className={`absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] ${ms?.enabled ? 'text-amber-300' : 'text-amber-400/70'}`} title={pluginType ? '官方 Mod 为游戏目录插件型（F4SE/ScriptHookV），暂不支持自动安装' : '官方事件级 Mod：安装并启用后，进游戏自动拉起，扳机获得事件级力反馈'}>
+              Mod条目{ms?.enabled ? '·已启用' : ''}
+            </div>
+          ))}
         </div>
         <div className="p-3">
           <button className="w-full truncate text-left font-mono text-[10px] text-text-low hover:text-accent"
@@ -249,6 +287,32 @@ export default function GameLibrary() {
               </button>
             )}
           </div>
+          {/* Mod 管家行（ADR-025）：官方事件级适配，安装→启用→进游戏自动拉起 */}
+          {g.mod && !pluginType && (
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
+              <span className={`shrink-0 ${ms?.running ? 'text-accent' : ms?.enabled ? 'text-amber-300' : 'text-text-low'}`}>
+                {ms?.running ? '⚡运行中' : ms?.installing ? '⇣下载中…' : ms?.enabled ? '已启用' : ms?.installed ? '已装' : '未装'}
+              </span>
+              {!ms?.installed && !ms?.installing && (
+                <button className="btn !flex-1 !justify-center !py-0.5 !text-[10px]" onClick={() => modAction(g, 'install')}
+                  title={`从飞智官方 CDN 下载 Mod（${g.mod.version ?? ''}），本机安装`}>
+                  <Download size={9} /> 安装 Mod
+                </button>
+              )}
+              {ms?.installed && (
+                <button className={`btn !flex-1 !justify-center !py-0.5 !text-[10px] ${ms.enabled ? 'btn-danger' : 'btn-primary'}`}
+                  onClick={() => modAction(g, ms.enabled ? 'disable' : 'enable')}
+                  title={ms.enabled ? '停用：不再自动拉起（运行中会立即停止）' : '启用后进游戏自动拉起官方 Mod，扳机事件级联动'}>
+                  {ms.enabled ? '停用' : '启用'}
+                </button>
+              )}
+              {ms?.running && (
+                <button className="btn !py-0.5 !text-[10px]" onClick={() => modAction(g, 'stop')} title="立即停止当前 Mod">
+                  ■
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -298,7 +362,13 @@ export default function GameLibrary() {
           <span className="text-violet-300">DS转官</span>=原生 DualSense 游戏，参数按题材从官方调参学习生成 ·
           <span className="text-violet-300/70">DS转官·通用</span>=同上但未取到题材，用通用参数 ·
           <span className="text-sky-300">⚡题材适配</span>=非官方库游戏，参数按题材学习生成 ·
-          四者进游戏都自动生效；「扳机预设」=可选，绑定后自动套用</span>
+          <span className="text-amber-300">Mod条目</span>=官方事件级适配（装后进游戏扳机实时联动）·
+          前四者进游戏都自动生效；「扳机预设」=可选，绑定后自动套用</span>
+        {mods.ingress?.port && (
+          <span className="ml-auto shrink-0 text-text-low" title="DSX 事件流入口（官方 Mod 走这里）">
+            DSX :{mods.ingress.port} · 收 {mods.ingress.packets} / 出 {mods.ingress.applied}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-3 text-[12px] text-text-mid">

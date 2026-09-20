@@ -14,5 +14,12 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 12,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://tencent-android.cdn.flydigi.com/PC/MOD/11/RE7.zip",
+    "version": "2025062401",
+    "start_type": 0,
+    "process": "ResidentEvil7Biohazard",
+    "game_exe": "re7.exe"
+  }
 }

@@ -12,5 +12,14 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 76,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2025/09/24/5b5a1a9fa294263e55a7bd1d16143ad7.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025092403",
+    "start_type": 1,
+    "process": "MafiaTheOldCountry",
+    "mod_process": "XGameMonitor",
+    "path": "\\mods\\MafiaTheOldCountry\\"
+  }
 }

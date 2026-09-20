@@ -22,5 +22,13 @@
   },
   "official": true,
   "official_id": 7,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://tencent-android.cdn.flydigi.com/PC/MOD/6/f4se2022093001.zip",
+    "name": "Fallout 4",
+    "version": "2025120801",
+    "start_type": 0,
+    "process": "Fallout4",
+    "game_exe": "f4se_loader.exe"
+  }
 }

@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 16,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2024/10/08/4777df03a58da887fd8012f175941cbd.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025062401",
+    "start_type": 1,
+    "process": "GoW",
+    "mod_process": "XGameMonitor",
+    "game_exe": "GoW.exe",
+    "path": "mods\\GoW\\"
+  }
 }

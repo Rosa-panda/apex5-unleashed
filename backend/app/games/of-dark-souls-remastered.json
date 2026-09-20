@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 63,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2024/11/28/60559fbaf6996ce369f668e6b29b44d4.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025062301",
+    "start_type": 1,
+    "process": "DarkSoulsRemastered",
+    "mod_process": "XGameMonitor",
+    "game_exe": "DarkSoulsRemastered.exe",
+    "path": "\\mods\\DarkSoulsRemastered\\"
+  }
 }

@@ -15,5 +15,14 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 52,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2026/04/16/30e47a389f35c577c69ec704d6ab8667.zip",
+    "name": "ForzaDualSense.exe",
+    "version": "20260416",
+    "start_type": 1,
+    "process": "forza_gaming.desktop.x64_release_final",
+    "mod_process": "ForzaDualSense",
+    "path": "\\mods\\forza_trigger\\"
+  }
 }

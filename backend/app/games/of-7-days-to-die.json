@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 62,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2024/10/22/f28ecc4753eb7601175c7ad25ae7b00e.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025062301",
+    "start_type": 1,
+    "process": "7DaysToDie",
+    "mod_process": "XGameMonitor",
+    "game_exe": "7DaysToDie.exe",
+    "path": "\\mods\\7DaysToDie\\"
+  }
 }

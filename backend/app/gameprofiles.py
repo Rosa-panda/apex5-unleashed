@@ -12,8 +12,14 @@ _user32 = ctypes.windll.user32
 _kernel32 = ctypes.windll.kernel32
 
 
+LAST_FOREGROUND_PATH = ""          # 最近一次前台进程全路径（Mod 管家定位游戏目录用）
+
+
 def foreground_exe():
-    """当前前台窗口的进程名（小写 basename），失败返回 None。"""
+    """当前前台窗口的进程名（小写 basename），失败返回 None。
+    顺带把全路径记到模块级 LAST_FOREGROUND_PATH（XGameMonitor 的 game_folder.txt
+    需要游戏安装目录，官方 zip 里写死的是打包者的路径，拉起前要改写）。"""
+    global LAST_FOREGROUND_PATH
     hwnd = _user32.GetForegroundWindow()
     if not hwnd:
         return None
@@ -27,6 +33,7 @@ def foreground_exe():
         size = wintypes.DWORD(512)
         if not _kernel32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
             return None
+        LAST_FOREGROUND_PATH = buf.value
         return buf.value.split("\\")[-1].lower()
     finally:
         _kernel32.CloseHandle(h)
@@ -56,6 +63,7 @@ class GameProfiles:
         self._active_game = None              # 自动切换当前生效适配的游戏名（None=无）
         self._active_uni = False              # 通用联动是否为自动切换所套（手动设置不算）
         self._cache = ({}, 0.0)               # (档案dict, 加载时刻) —— 档案多了不能每秒全量读盘
+        self.subscribers = []                 # 前台变化订阅者（fn(exe)，Mod 管家挂这）
         self._load_settings()
 
     def _load(self, directory, builtin):
@@ -138,7 +146,7 @@ class GameProfiles:
              "exe": [e.strip().lower() for e in data["exe"] if e.strip()],
              "preset_id": data.get("preset_id") or "",
              "builtin": False, "id": gid}
-        for k in ("vib", "official", "official_id", "mod_only", "en", "image"):
+        for k in ("vib", "official", "official_id", "mod_only", "en", "image", "mod"):
             if data.get(k) is not None:
                 g[k] = data[k]
         with open(os.path.join(games_dir(), gid + ".json"), "w", encoding="utf-8") as f:
@@ -205,7 +213,7 @@ class GameProfiles:
             raise ValueError("exe 列表不能为空")
         data = {"name": g["name"], "exe": names, "note": g.get("note", ""),
                 "preset_id": g.get("preset_id") or ""}
-        for k in ("vib", "official", "official_id", "mod_only", "en", "image"):
+        for k in ("vib", "official", "official_id", "mod_only", "en", "image", "mod"):
             if g.get(k) is not None:
                 data[k] = g[k]
         return self.save(data)
@@ -252,6 +260,11 @@ class GameProfiles:
             self._active_game, self._active_uni = None, False  # attach 卫生已清账本
         self.foreground = exe
         engine._emit("foreground", exe=exe or "")
+        for fn in self.subscribers:           # Mod 管家等前台驱动组件（不受 autoswitch 开关影响）
+            try:
+                fn(exe)
+            except Exception:
+                pass
         if not self.autoswitch:
             return
         g = self.match(exe)

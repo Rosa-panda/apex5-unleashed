@@ -15,5 +15,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 34,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://tencent-android.cdn.flydigi.com/PC/MOD/202308/0817/u4_mods_2023081801.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025073101",
+    "start_type": 1,
+    "process": "u4",
+    "mod_process": "XGameMonitor",
+    "game_exe": "u4.exe",
+    "path": "\\mods\\u4\\"
+  }
 }

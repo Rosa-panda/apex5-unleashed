@@ -13,5 +13,13 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 6,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://tencent-android.cdn.flydigi.com/PC/MOD/202404/MonsterHunterRise_MOD_2024041901.zip",
+    "name": "Monster",
+    "version": "2026091702",
+    "start_type": 0,
+    "process": "MonsterHunterRise",
+    "game_exe": "MonsterHunterRise.exe"
+  }
 }

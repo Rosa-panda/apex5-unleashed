@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 54,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2024/07/15/457d9ad958d9b21cc46afd6d703f4461.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025062301",
+    "start_type": 1,
+    "process": "NieRAutomata",
+    "mod_process": "XGameMonitor",
+    "game_exe": "NieRAutomata.exe",
+    "path": "\\mods\\NieRAutomata\\"
+  }
 }

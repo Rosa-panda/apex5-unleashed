@@ -13,5 +13,12 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 14,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://tencent-android.cdn.flydigi.com/PC/MOD/13/ref3_2022102101.zip",
+    "version": "2025062402",
+    "start_type": 0,
+    "process": "ResidentEvil3",
+    "game_exe": "re3.exe"
+  }
 }

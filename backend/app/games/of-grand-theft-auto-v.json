@@ -14,5 +14,13 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 5,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2026/03/23/f0d3544345f5068ed5167cce0d9ea1d1.zip",
+    "name": "GTA5",
+    "version": "2026032301",
+    "start_type": 0,
+    "process": "GTA5",
+    "game_exe": "GTAVLauncher.exe"
+  }
 }

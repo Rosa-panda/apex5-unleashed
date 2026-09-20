@@ -11,5 +11,15 @@
   ],
   "official": true,
   "official_id": 1,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2025/10/16/61cbe5211400c6fbd34cf7b682038f2d.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2026091609",
+    "start_type": 1,
+    "process": "Cyberpunk2077",
+    "mod_process": "XGameMonitor",
+    "game_exe": "REDprelauncher.exe",
+    "path": "\\mods\\Cyberpunk2077\\"
+  }
 }

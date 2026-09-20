@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 55,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2024/07/01/d67e1951b641cb92a5d644b2d5c41c26.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025062301",
+    "start_type": 1,
+    "process": "DarkSoulsIII",
+    "mod_process": "XGameMonitor",
+    "game_exe": "DarkSoulsIII.exe",
+    "path": "\\mods\\DarkSoulsIII\\"
+  }
 }

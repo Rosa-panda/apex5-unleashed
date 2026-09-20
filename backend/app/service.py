@@ -11,7 +11,7 @@ import protocol
 import screenpack
 
 
-def create_app(engine, store, games=None, ui_hooks=None):
+def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None):
     app = FastAPI(title="Apex5 Unleashed", docs_url=None, redoc_url=None)
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -572,6 +572,60 @@ def create_app(engine, store, games=None, ui_hooks=None):
     @app.post("/api/autoswitch")
     def autoswitch_set(req: AutoswitchReq):
         return {"ok": True, "autoswitch": games.set_autoswitch(req.enabled)}
+
+    # ---------- Mod 管家（ADR-025：官方事件级适配的下载/安装/生命周期） ----------
+    @app.get("/api/mods")
+    def mods_status():
+        if mods is None:
+            return {"mods": [], "active_gid": None, "ingress": None}
+        out = mods.status()
+        out["ingress"] = ingress.status() if ingress else None
+        return out
+
+    class ModEnableReq(BaseModel):
+        enabled: bool
+
+    @app.post("/api/mods/{gid}/install")
+    def mods_install(gid: str):
+        if mods is None:
+            return err(RuntimeError("Mod 管家未初始化"))
+        def on_done(e):
+            if e:
+                engine._emit("error", detail=f"Mod 安装失败: {e}")
+            else:
+                engine._emit("mod", state="installed", detail="Mod 安装完成，可在游戏库启用")
+        try:
+            mods.install(gid, on_done=on_done)
+            return {"ok": True}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/mods/{gid}/uninstall")
+    def mods_uninstall(gid: str):
+        if mods is None:
+            return err(RuntimeError("Mod 管家未初始化"))
+        try:
+            mods.uninstall(gid)
+            return {"ok": True}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/mods/{gid}/enable")
+    def mods_enable(gid: str, req: ModEnableReq):
+        if mods is None:
+            return err(RuntimeError("Mod 管家未初始化"))
+        try:
+            return {"ok": True, "enabled": mods.set_enabled(gid, req.enabled)}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/mods/stop")
+    def mods_stop():
+        """手动停掉当前 Mod（应急，比如 mod 行为异常）。"""
+        if mods is None:
+            return err(RuntimeError("Mod 管家未初始化"))
+        mods.stop_mod()
+        return {"ok": True}
 
     # ---------- 系统级设置（开机自启 / 封面缓存 / 数据目录） ----------
     import os as _os

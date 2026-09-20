@@ -13,5 +13,12 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 17,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://tencent-android.cdn.flydigi.com/PC/MOD/20230726/MB2_1.1.5.21456_20230726.zip",
+    "version": "2025062401",
+    "start_type": 0,
+    "process": "TaleWorlds.MountAndBlade.Launcher",
+    "game_exe": "Launcher.Native.exe"
+  }
 }

@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 73,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2025/08/20/91ec12ca38fe128e481b8879e2ba2ae8.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025082001",
+    "start_type": 1,
+    "process": "theHunterCotW_F",
+    "mod_process": "XGameMonitor",
+    "game_exe": "theHunterCotW_F.exe",
+    "path": "\\mods\\HunterCotW\\"
+  }
 }

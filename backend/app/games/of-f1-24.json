@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 80,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2025/10/11/886b5d48b8c1f96eb80bccf28e22899d.zip",
+    "name": "AdapterTrigger_F1Game24.exe",
+    "version": "2025101101",
+    "start_type": 1,
+    "process": "F1_24",
+    "mod_process": "AdapterTrigger_F1Game24",
+    "game_exe": "F1_24.exe",
+    "path": "\\mods\\f24\\"
+  }
 }

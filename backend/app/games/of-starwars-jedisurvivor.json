@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 30,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2024/09/29/3a91967f704f15444067cbbac215bd03.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025073101",
+    "start_type": 1,
+    "process": "JediSurvivor",
+    "mod_process": "XGameMonitor",
+    "game_exe": "JediSurvivor.exe",
+    "path": "\\mods\\JediSurvivor\\"
+  }
 }

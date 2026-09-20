@@ -60,8 +60,14 @@ def main():
     eng = engine_mod.Engine(force_mock=args.mock)
     store = presets_mod.PresetStore()
     games = gameprofiles.GameProfiles(store)
+    # DSX ingress + Mod 管家（ADR-025）：7878 收官方 Mod 的 DSX 事件流 → cmd51；
+    # mod 生命周期由前台事件驱动（挂 games.subscribers，不占独立轮询线程）
+    import dsxingress as dsx_mod
+    import modmgr as modmgr_mod
+    ingress = dsx_mod.DsxIngress(lambda: eng)
+    mods = modmgr_mod.ModManager(lambda: eng, games, ingress)
     ui_hooks = {"show": None}          # main 后半段窗口就绪后填入（/api/show 二次启动唤起用）
-    app = service.create_app(eng, store, games, ui_hooks=ui_hooks)
+    app = service.create_app(eng, store, games, ui_hooks=ui_hooks, mods=mods, ingress=ingress)
 
     # 静态前端（存在才挂）
     import os
@@ -131,6 +137,13 @@ def main():
 
     threading.Thread(target=monitor_loop, args=(eng, args.mock), daemon=True, name="monitor").start()
     games.start_watch(eng, eng._stop)          # 前台游戏自动切换（ADR-014）
+    if ingress.start():                        # 7878（被占则 8787）收 DSX 事件流
+        games.subscribers.append(mods.on_foreground)
+        print(f"[boot] DSX ingress 就绪 :{ingress.port}")
+    else:
+        # 端口被占大概率是飞智空间站服务在跑——只报一次，不挡主流程
+        print(f"[boot] DSX ingress 未启动: {ingress.error}")
+        eng._emit("error", detail=ingress.error)
     try:                                       # 封面图后台预下载（gameimg，失败不影响主流程）
         import gameimg
         gameimg.start_prefetch(games)
@@ -146,6 +159,7 @@ def main():
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
+            mods.stop_mod()
             eng.panic(source="exit")
             eng.stop()
         return
@@ -201,6 +215,7 @@ def main():
             server.should_exit = True
         except Exception:
             pass
+        mods.stop_mod()                       # 退出前杀 mod 子进程（别留孤儿继续发包）
         eng.panic(source="exit")
         eng.stop()
         try:
@@ -250,6 +265,8 @@ def main():
 
     webview.start()          # 主线程阻塞（Windows 要求；X 只隐藏，退出走角标）
     print("[boot] webview 返回，进程收尾")
+    mods.stop_mod()
+    ingress.stop()
     eng.panic(source="exit")
     eng.stop()
 

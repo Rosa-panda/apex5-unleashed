@@ -15,5 +15,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 25,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2025/08/18/19eb25930704427dce13540208710f25.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2025081801",
+    "start_type": 1,
+    "process": "ds",
+    "mod_process": "XGameMonitor",
+    "game_exe": "ds.exe",
+    "path": "\\mods\\ds\\"
+  }
 }

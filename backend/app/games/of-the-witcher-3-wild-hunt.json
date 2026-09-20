@@ -13,5 +13,15 @@
   "imported_at": "2026-09-18",
   "official": true,
   "official_id": 21,
-  "mod_only": true
+  "mod_only": true,
+  "mod": {
+    "url": "https://api-web.cdn.flydigi.com/pcspacegame/2024/10/09/7242ecd550410ec7f3c7a43a96e83ffd.zip",
+    "name": "XGameMonitor.exe",
+    "version": "2026091601",
+    "start_type": 1,
+    "process": "witcher3",
+    "mod_process": "XGameMonitor",
+    "game_exe": "witcher3.exe",
+    "path": "mods\\witcher\\"
+  }
 }
