@@ -5,7 +5,6 @@
   "exe": [
     "thelostcrown.exe"
   ],
-  "preset_id": "",
   "note": "原生支持 DualSense 触觉反馈（ASB/PCGamingWiki 清单）。事件级效果需 ApexSenseBridge 桥；本工具提供震动联动兜底。",
   "image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2751000/library_600x900.jpg",
   "asb": true,

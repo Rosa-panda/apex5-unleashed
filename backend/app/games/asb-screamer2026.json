@@ -3,7 +3,6 @@
   "name": "Screamer (2026)",
   "en": "Screamer (2026)",
   "exe": [],
-  "preset_id": "",
   "note": "原生支持 DualSense 自适应扳机/触觉反馈（ASB/PCGamingWiki 清单）。事件级效果需 ApexSenseBridge 桥；本工具提供震动联动兜底。",
   "image": "",
   "asb": true,

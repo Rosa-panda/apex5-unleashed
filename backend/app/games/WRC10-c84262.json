@@ -5,7 +5,6 @@
   "exe": [
     "wrc10"
   ],
-  "preset_id": "",
   "vib": {
     "filter": 82,
     "scale": 10,

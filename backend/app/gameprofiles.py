@@ -52,7 +52,9 @@ class GameProfiles:
         self.autoswitch = True
         self.foreground = None                # 当前前台 exe（小写）
         self.universal_vib = False            # 通用震动联动（ADR-017）：无档案前台的回落
+        self._was_online = False              # 设备接入沿：attach 瞬间重放当前适配
         self._cache = ({}, 0.0)               # (档案dict, 加载时刻) —— 档案多了不能每秒全量读盘
+        self._load_settings()
 
     def _load(self, directory, builtin):
         out = {}
@@ -92,6 +94,34 @@ class GameProfiles:
 
     def _bust(self):
         self._cache = ({}, 0.0)
+
+    # ---------------- 开关持久化（重启不丢：用户勾过一次就一直算数） ----------------
+    @staticmethod
+    def _settings_path():
+        base = os.environ.get("APPDATA") or os.path.expanduser("~")
+        return os.path.join(base, "Apex5Unleashed", "settings.json")
+
+    def _load_settings(self):
+        try:
+            with open(self._settings_path(), "r", encoding="utf-8") as f:
+                s = json.load(f)
+            self.autoswitch = bool(s.get("autoswitch", True))
+            self.universal_vib = bool(s.get("universal_vib", False))
+        except Exception:
+            pass                              # 无文件/坏文件 → 默认值
+
+    def _save_settings(self):
+        try:
+            with open(self._settings_path(), "w", encoding="utf-8") as f:
+                json.dump({"autoswitch": self.autoswitch,
+                           "universal_vib": self.universal_vib}, f)
+        except Exception:
+            pass
+
+    def set_autoswitch(self, enabled):
+        self.autoswitch = bool(enabled)
+        self._save_settings()
+        return self.autoswitch
 
     def save(self, data):
         from presets import safe_name
@@ -142,6 +172,7 @@ class GameProfiles:
     def set_universal_vib(self, enabled, engine):
         """通用震动联动（ADR-017）：游戏震动→扳机反馈，任何游戏生效（设备端固件路由）。"""
         self.universal_vib = bool(enabled)
+        self._save_settings()
         if not engine:
             return self.universal_vib
         if self.universal_vib:
@@ -206,9 +237,13 @@ class GameProfiles:
         return (user or hits)[0]
 
     def maybe_autoswitch(self, engine):
-        """由监控线程 1Hz 调用：前台变化时匹配档案并应用；无命中回落通用联动/解绑。"""
+        """由监控线程 1Hz 调用：前台变化时匹配档案并应用；无命中回落通用联动/解绑。
+        设备刚接入（attach 沿）也走一遍：重启后/插线后把当前该生效的适配补上，
+        否则 UI 显示"通用联动已勾选"但手柄其实还没绑（重启丢应用的空窗）。"""
         exe = foreground_exe()
-        if exe == self.foreground:
+        just_online = engine.online and not self._was_online
+        self._was_online = engine.online
+        if exe == self.foreground and not just_online:
             return
         self.foreground = exe
         engine._emit("foreground", exe=exe or "")

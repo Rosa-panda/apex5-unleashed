@@ -32,6 +32,33 @@ interface GamesResp {
 
 const PAGE = 24
 
+// 封面图：走后端本地缓存代理（外链 CDN 直连不稳，见 gameimg.py）。
+// 404 = 后端还在下 → 指数退避重试（3s 起步封顶 30s）；骨架占位 + 加载完淡入，
+// 批量渲染不闪不卡。浏览器对 no-store 404 不缓存，重试必达。
+function GameImg({ gid }: { gid: string }) {
+  const [attempt, setAttempt] = useState(0)
+  const [ready, setReady] = useState(false)
+  const timer = useRef<number | undefined>(undefined)
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
+  return (
+    <div className="relative h-full w-full bg-[#10101a]">
+      {!ready && <div className="absolute inset-0 animate-pulse bg-white/4" />}
+      <img
+        src={`/api/game-img/${gid}?r=${attempt}`}
+        alt="" loading="lazy"
+        onLoad={() => setReady(true)}
+        onError={() => {
+          if (attempt >= 10) return
+          timer.current = window.setTimeout(
+            () => setAttempt(a => a + 1), Math.min(3000 * 2 ** attempt, 30000))
+        }}
+        className={`h-full w-full object-cover transition-opacity duration-300 ${
+          ready ? 'opacity-70 group-hover:opacity-100' : 'opacity-0'}`}
+      />
+    </div>
+  )
+}
+
 export default function GameLibrary() {
   const [data, setData] = useState<GamesResp>({ builtin: [], user: [], foreground: null, autoswitch: true, universal_vib: false })
   const [presets, setPresets] = useState<Preset[]>([])
@@ -141,7 +168,7 @@ export default function GameLibrary() {
         {/* 封面条 */}
         <div className="relative h-16 w-full overflow-hidden bg-[#0d0d14]">
           {g.image
-            ? <img src={g.image} alt="" loading="lazy" className="h-full w-full object-cover opacity-70 transition-opacity group-hover:opacity-100" />
+            ? <GameImg gid={g.id} />
             : <div className="flex h-full items-center justify-center text-text-low"><MonitorPlay size={18} /></div>}
           <div className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/80 to-transparent px-3 pb-1 pt-4">
             <span className="truncate text-[13px] font-medium">{g.name}</span>

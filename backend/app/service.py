@@ -562,8 +562,19 @@ def create_app(engine, store, games=None, ui_hooks=None):
 
     @app.post("/api/autoswitch")
     def autoswitch_set(req: AutoswitchReq):
-        games.autoswitch = req.enabled
-        return {"ok": True, "autoswitch": req.enabled}
+        return {"ok": True, "autoswitch": games.set_autoswitch(req.enabled)}
+
+    # ---------- 封面图本地代理（gameimg 后台预下载，前端不走外链 CDN） ----------
+    import gameimg
+
+    @app.get("/api/game-img/{gid}")
+    def game_img(gid: str):
+        p = gameimg.cached_path(gid)
+        if p:
+            return FileResponse(p, headers={"Cache-Control": "public, max-age=604800"})
+        # 还没下好：404 + no-store，前端拿到后延迟重试（下载完下次重试即命中）
+        return JSONResponse({"error": "pending"}, status_code=404,
+                            headers={"Cache-Control": "no-store"})
 
     # ---------- 事件流 ----------
     @app.websocket("/ws")

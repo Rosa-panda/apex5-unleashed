@@ -2,6 +2,7 @@
   "version": 1,
   "name": "只狼：影逝二度",
   "note": "格挡/义手手感，狙击二段",
-  "exe": ["sekiro.exe"],
-  "preset_id": "fps-sniper"
+  "exe": [
+    "sekiro.exe"
+  ]
 }

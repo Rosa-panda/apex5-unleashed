@@ -2,6 +2,8 @@
   "version": 1,
   "name": "GTA5 / GTA Online",
   "note": "驾驶+射击混合，全力体感",
-  "exe": ["gta5.exe", "playgtav.exe"],
-  "preset_id": "battle-vibe"
+  "exe": [
+    "gta5.exe",
+    "playgtav.exe"
+  ]
 }

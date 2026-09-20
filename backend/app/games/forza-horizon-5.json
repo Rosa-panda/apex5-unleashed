@@ -2,6 +2,7 @@
   "version": 1,
   "name": "极限竞速：地平线 5",
   "note": "油门刹车踏板阻尼，默认套赛车预设",
-  "exe": ["forzahorizon5.exe"],
-  "preset_id": "race-lt"
+  "exe": [
+    "forzahorizon5.exe"
+  ]
 }

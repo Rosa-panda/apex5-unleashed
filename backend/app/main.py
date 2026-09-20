@@ -124,6 +124,11 @@ def main():
 
     threading.Thread(target=monitor_loop, args=(eng, args.mock), daemon=True, name="monitor").start()
     games.start_watch(eng, eng._stop)          # 前台游戏自动切换（ADR-014）
+    try:                                       # 封面图后台预下载（gameimg，失败不影响主流程）
+        import gameimg
+        gameimg.start_prefetch(games)
+    except Exception as _e:
+        print(f"img prefetch 不可用（忽略）: {_e}")
     if not args.mock:
         import keymonitor
         keymonitor.KeyMonitor(eng._emit).start()   # 特殊键监听（键盘接口）
