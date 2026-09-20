@@ -55,6 +55,11 @@ FEATURES = [
     {"id": "factoryreset", "tier": 3, "plan": "#15", "title": "危险区：重置",
      "desc": "重置全部配置档案（cmd175）。双确认 + 全量备份先行。全企划最危险项。",
      "enabled": True},
+    {"id": "gamesim", "tier": 2, "plan": "#16", "title": "模拟游戏场",
+     "desc": "自己给自己当一个「游戏」：扳机场/灯场/靶场/键盘场四个测试场，"
+             "事件走和真游戏 Mod 完全相同的链路（DSX 协议→ingress→cmd51；RGB→灯表）。"
+             "靶场闭环测体感瞄准与摇杆转鼠标，键盘场测连发/宏。不用下真游戏就能联调。",
+     "enabled": True},
 ]
 
 VERDICT_LABEL = {"good": "👍 好用", "bad": "👎 不好用", "pending": "⏸ 待测"}

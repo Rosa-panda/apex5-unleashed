@@ -744,6 +744,7 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     import devcfg as _devcfg
     import diag as _diag
     import profile as _profile
+    import gamesim as _gamesim_mod
     import rgbbridge as _rgbbridge
     import sharecode as _sharecode
     import softmap as _softmap
@@ -751,6 +752,7 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     _settings_writer = _devcfg.SettingsWriter(engine)
     _rgb = _rgbbridge.RgbBridge(engine)
     _diag_svc = _diag.Diagnostics(engine)
+    _gamesim = _gamesim_mod.GameSim(lambda: ingress, lambda: _rgb)
     if ingress:
         ingress.on_applied = _rgb.on_game_event    # Mod 扳机事件 → 闪灯联动
     engine.subscribe_motion(_softmap.HUB.on_motion)
@@ -828,6 +830,9 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     class ExpRgbFlashReq(BaseModel):
         enabled: bool
         rgb: list = [255, 0, 0]
+
+    class ExpSimReq(BaseModel):
+        scenario: str = "idle"
 
     class ExpDiagReq(BaseModel):
         op: str              # sample / adccalib / autocal
@@ -1093,6 +1098,20 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
             if req.enabled:
                 return {"ok": True, **_rgb.start(req.port)}
             return {"ok": True, **_rgb.stop()}
+        except Exception as e:
+            return err(e)
+
+    @app.get("/api/exp/gamesim")
+    def exp_gamesim_status():
+        return {"ok": True, **_gamesim.status()}
+
+    @app.post("/api/exp/gamesim")
+    def exp_gamesim_run(req: ExpSimReq):
+        try:
+            if req.scenario == "stop":
+                _gamesim.stop()
+                return {"ok": True, **_gamesim.status()}
+            return {"ok": True, **_gamesim.start(req.scenario)}
         except Exception as e:
             return err(e)
 
