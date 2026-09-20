@@ -277,7 +277,7 @@ export default function Overview({ snap, events, onPanic }: {
           <Gauge size={14} className="text-accent" /> 快速操作
         </div>
         <button className="btn btn-danger !py-1 text-[12px]" onClick={onPanic}>
-          <Eraser size={12} /> 双扳机复位 + 马达归零
+          <Eraser size={12} /> 手柄复位（保险丝）
         </button>
         <button className="btn !py-1 text-[12px]" disabled={busy === 'clear'}
           onClick={() => act('clear',

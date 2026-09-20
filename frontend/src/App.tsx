@@ -70,7 +70,11 @@ export default function App() {
 
   const doPanic = async () => {
     setPanicFlash(true)
-    try { await api.panic() } catch { /* 后端事件会同步状态 */ }
+    try {
+      await api.panic()
+      setToast('已复位：马达归零，双扳机恢复出厂手感')
+      setTimeout(() => setToast(''), 3000)
+    } catch { /* 后端事件会同步状态 */ }
     setTimeout(() => setPanicFlash(false), 800)
   }
 
@@ -157,9 +161,9 @@ export default function App() {
           <button
             onClick={doPanic}
             className={`btn w-full justify-center btn-danger ${panicFlash ? 'border-err' : ''}`}
-            title="马达归零 + 扳机复位 Normal"
+            title="手感的保险丝：效果卡死 / 马达乱震 / 扳机锁住时按一下——马达立刻归零、双扳机恢复出厂 Normal。平时正常玩用不着。"
           >
-            <TriangleAlert size={13} /> 紧急复位
+            <TriangleAlert size={13} /> {panicFlash ? '已复位 ✓' : '手柄复位'}
           </button>
         </div>
       </aside>
