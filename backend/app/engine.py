@@ -44,6 +44,7 @@ class Engine:
         }
         self.proxy = {"holder": "self", "detail": "", "since": None}
         self._ext_cmds = {}                   # 外部命令计数 {cmd: n}（诊断：谁在轮询）
+        self._ext_frames = {}                 # 外部命令最近一帧原文 {cmd: hex}（归因实锤用）
         self._orphan_replies = {}             # 本方孤儿回复计数 {cmd: n}（多包/迟到/第二句柄）
         self._last_tx = {}                    # {cmd: 本方最近一次发送时刻}（孤儿回复宽限判定）
         self.events = deque(maxlen=500)                    # 事件日志（含外部命令）
@@ -89,6 +90,7 @@ class Engine:
                            "battery": self.battery},
                 "state": self.state, "proxy": self.proxy,
                 "ext_cmds": dict(self._ext_cmds),
+                "ext_frames": dict(self._ext_frames),
                 "orphan_replies": dict(self._orphan_replies),
                 "events": list(self.events)[-80:]}
 
@@ -249,7 +251,7 @@ class Engine:
             if tx and time.monotonic() - tx <= REPLY_GRACE:
                 self._orphan_replies[cmd] = self._orphan_replies.get(cmd, 0) + 1
             else:
-                self._external_hit(cmd)
+                self._external_hit(cmd, body)
 
     def _raw_frame(self, frame):
         """vendor 接口上的非协议输入帧（去抖：同内容 200ms 内只报一次）。"""
@@ -263,9 +265,11 @@ class Engine:
             self._last_raw.clear()
         self._emit("rawhid", hex=key)
 
-    def _external_hit(self, cmd):
+    def _external_hit(self, cmd, body=b""):
         # 时间戳无条件刷新（空闲恢复判定依赖它）；冷却只抑制事件刷屏
         self._ext_cmds[cmd] = self._ext_cmds.get(cmd, 0) + 1
+        if body:
+            self._ext_frames[cmd] = body.hex(" ")   # 帧原文：归因到具体进程/固件行为的实锤
         self._last_external = time.monotonic()
         active = time.monotonic() - self._last_external < EXTERNAL_COOLDOWN
         if active and self.proxy["holder"] == "external":
@@ -273,6 +277,7 @@ class Engine:
         self.proxy = {"holder": "external", "detail": self.proxy.get("detail") or "未知进程",
                       "since": now()}
         self._emit("proxy", holder="external", cmd=cmd,
+                   hex=self._ext_frames.get(cmd, ""),
                    detail=f"总线上出现外部命令 cmd={cmd}")
         self._notify_state()
 
