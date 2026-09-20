@@ -564,6 +564,68 @@ def create_app(engine, store, games=None, ui_hooks=None):
     def autoswitch_set(req: AutoswitchReq):
         return {"ok": True, "autoswitch": games.set_autoswitch(req.enabled)}
 
+    # ---------- 系统级设置（开机自启 / 封面缓存 / 数据目录） ----------
+    import os as _os
+
+    @app.get("/api/settings/autostart")
+    def autostart_get():
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                r"Software\Microsoft\Windows\CurrentVersion\Run") as k:
+                val, _ = winreg.QueryValueEx(k, "Apex5Unleashed")
+                return {"ok": True, "enabled": True, "command": val}
+        except OSError:
+            return {"ok": True, "enabled": False, "command": ""}
+
+    @app.post("/api/settings/autostart")
+    def autostart_set(req: AutoswitchReq):
+        """开机自启：HKCU\\...\\Run 写 pythonw + run_gui.pyw（用户级，不需要管理员）。"""
+        import sys
+        import winreg
+        run_key = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        try:
+            if req.enabled:
+                gui = _os.path.join(
+                    _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                    "run_gui.pyw")
+                if not _os.path.isfile(gui):
+                    raise FileNotFoundError(gui)
+                cmd = f'"{sys.executable}" "{gui}"'
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, run_key, 0,
+                                    winreg.KEY_SET_VALUE) as k:
+                    winreg.SetValueEx(k, "Apex5Unleashed", 0, winreg.REG_SZ, cmd)
+            else:
+                try:
+                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, run_key, 0,
+                                        winreg.KEY_SET_VALUE) as k:
+                        winreg.DeleteValue(k, "Apex5Unleashed")
+                except FileNotFoundError:
+                    pass
+            return autostart_get()
+        except Exception as e:
+            return err(e)
+
+    @app.get("/api/imgcache/status")
+    def imgcache_status():
+        import gameimg
+        return {"ok": True, **gameimg.cache_stats()}
+
+    @app.post("/api/imgcache/clear")
+    def imgcache_clear():
+        import gameimg
+        freed = gameimg.cache_clear()
+        return {"ok": True, "freed_bytes": freed}
+
+    @app.post("/api/open-folder")
+    def open_folder(req: dict = None):
+        """打开数据目录（资源管理器）。目录不存在则顺带创建。"""
+        base = _os.environ.get("APPDATA") or _os.path.expanduser("~")
+        d = _os.path.join(base, "Apex5Unleashed")
+        _os.makedirs(d, exist_ok=True)
+        _os.startfile(d)                     # noqa: S606 本机 GUI 行为，路径常量
+        return {"ok": True, "path": d}
+
     # ---------- 封面图本地代理（gameimg 后台预下载，前端不走外链 CDN） ----------
     import gameimg
 

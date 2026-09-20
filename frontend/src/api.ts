@@ -61,6 +61,17 @@ export const api = {
   officialSrc: () => fetch('/api/games/official-src').then(r => r.json()) as Promise<{ available: boolean; path: string }>,
   setUniversalVib: (enabled: boolean) => post('/api/vib/universal', { enabled }),
   setAutoswitch: (enabled: boolean) => post('/api/autoswitch', { enabled }),
+  autostart: () => fetch('/api/settings/autostart').then(r => r.json()) as Promise<{
+    ok: boolean; enabled: boolean; command: string
+  }>,
+  setAutostart: (enabled: boolean) => post('/api/settings/autostart', { enabled }) as Promise<{
+    ok: boolean; enabled: boolean; command?: string; error?: string
+  }>,
+  imgCacheStatus: () => fetch('/api/imgcache/status').then(r => r.json()) as Promise<{
+    ok: boolean; count: number; bytes: number
+  }>,
+  imgCacheClear: () => post('/api/imgcache/clear') as Promise<{ ok: boolean; freed_bytes: number }>,
+  openDataFolder: () => post('/api/open-folder', {}),
   attrib: () => post('/api/test/attrib'),
   extKeys: () => fetch('/api/extkeys').then(r => r.json()) as Promise<{
     ok: boolean; keys: Array<{ name: string; target: number; target_name: string; turbo: number; freq: number }>

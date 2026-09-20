@@ -23,6 +23,25 @@ def cached_path(gid):
     return hits[0] if hits else None
 
 
+def cache_stats():
+    """缓存概况：{"count": 文件数, "bytes": 总字节}。"""
+    files = glob.glob(os.path.join(cache_dir(), "*.*"))
+    return {"count": len(files),
+            "bytes": sum(os.path.getsize(f) for f in files if os.path.isfile(f))}
+
+
+def cache_clear():
+    """清空封面缓存，返回释放的字节数。预下载线程下轮会自动重下（网络好才有代价）。"""
+    freed = 0
+    for f in glob.glob(os.path.join(cache_dir(), "*.*")):
+        try:
+            freed += os.path.getsize(f)
+            os.remove(f)
+        except OSError:
+            pass
+    return freed
+
+
 # 魔数校验：防 CDN 错误页/半截文件被当图片缓存
 _MAGIC = ((b"\x89PNG", ".png"), (b"\xff\xd8", ".jpg"), (b"GIF8", ".gif"))
 

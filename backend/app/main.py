@@ -241,9 +241,9 @@ def main():
             try:
                 from System.Drawing import Icon
                 window.native.Icon = Icon(ico)
-                # 强制任务栏重取图标（WinForms 设 Icon 不主动刷新已渲染的任务栏按钮）
-                window.native.ShowInTaskbar = False
-                window.native.ShowInTaskbar = True
+                # ⚠ 只做纯赋值：ShowInTaskbar 之类会重建句柄的属性必须 UI 线程改，
+                # 在事件线程改 = 死锁（py-spy 实锤：MainThread 等 create_window、
+                # 事件线程等 UI 线程，全进程 GIL 僵死，2026-09-20）。
             except Exception:
                 pass
         window.events.loaded += _apply_win_icon
