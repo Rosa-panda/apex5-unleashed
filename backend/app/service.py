@@ -745,6 +745,7 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     import diag as _diag
     import profile as _profile
     import gamesim as _gamesim_mod
+    import maze as _maze
     import rgbbridge as _rgbbridge
     import sharecode as _sharecode
     import softmap as _softmap
@@ -752,7 +753,9 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     _settings_writer = _devcfg.SettingsWriter(engine)
     _rgb = _rgbbridge.RgbBridge(engine)
     _diag_svc = _diag.Diagnostics(engine)
+    _maze_svc = _maze.SERVICE
     _gamesim = _gamesim_mod.GameSim(lambda: ingress, lambda: _rgb)
+    engine.subscribe_motion(_maze_svc.on_motion)   # 弹珠迷宫的倾斜源（0xEF 运动流）
     if ingress:
         ingress.on_applied = _rgb.on_game_event    # Mod 扳机事件 → 闪灯联动
     engine.subscribe_motion(_softmap.HUB.on_motion)
@@ -833,6 +836,9 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
 
     class ExpSimReq(BaseModel):
         scenario: str = "idle"
+
+    class ExpMazeReq(BaseModel):
+        op: str = "calibrate"
 
     class ExpDiagReq(BaseModel):
         op: str              # sample / adccalib / autocal
@@ -1098,6 +1104,20 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
             if req.enabled:
                 return {"ok": True, **_rgb.start(req.port)}
             return {"ok": True, **_rgb.stop()}
+        except Exception as e:
+            return err(e)
+
+    @app.get("/api/exp/maze")
+    def exp_maze_status():
+        return {"ok": True, **_maze_svc.status()}
+
+    @app.post("/api/exp/maze")
+    def exp_maze_op(req: ExpMazeReq):
+        try:
+            if req.op == "calibrate":
+                _maze_svc.calibrate()
+                return {"ok": True, **_maze_svc.status()}
+            return err(f"未知操作：{req.op}")
         except Exception as e:
             return err(e)
 

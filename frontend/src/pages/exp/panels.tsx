@@ -1044,6 +1044,179 @@ export function GameSimPanel() {
   )
 }
 
+// ==================== #17 体感弹珠迷宫 ====================
+// 手柄倾斜 → 弹珠。物理在前端跑（60fps 顺滑），倾斜由后端 0xEF 运动流解算，
+// 40ms 轮询。面板同时是「手柄有没有真体感」的答案器：原始加速度/陀螺/数据源可见。
+
+const MAZE_W = 560, MAZE_H = 360, BALL_R = 7
+// 迷宫布局：外墙 + 内墙 (x,y,w,h)，3 个洞 + 右下角终点
+const MAZE_WALLS: Array<[number, number, number, number]> = [
+  [0, 0, MAZE_W, 8], [0, MAZE_H - 8, MAZE_W, 8], [0, 0, 8, MAZE_H], [MAZE_W - 8, 0, 8, MAZE_H],
+  [90, 8, 8, 220], [180, 130, 8, 222], [270, 8, 8, 220], [360, 130, 8, 222], [450, 8, 8, 220],
+  [90, 220, 200, 8], [270, 228, 8, 60],
+]
+const MAZE_HOLES = [
+  { x: 135, y: 115, r: 13 }, { x: 315, y: 240, r: 13 }, { x: 405, y: 70, r: 13 },
+]
+const MAZE_GOAL = { x: 495, y: 300, w: 56, h: 50 }
+const START = { x: 40, y: 40 }
+
+function MazeBoard({ onTelemetry, invX, invY }: { onTelemetry: (t: any) => void; invX: boolean; invY: boolean }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  const state = useRef({
+    x: START.x, y: START.y, vx: 0, vy: 0,
+    tilt: [0, 0] as [number, number],
+    falls: 0, wins: 0, flash: '', flashT: 0,
+    falling: 0,                    // >0 = 掉洞动画中（时间戳）
+  })
+  useEffect(() => {
+    const cv = ref.current
+    if (!cv) return
+    const g = cv.getContext('2d')
+    if (!g) return
+    let raf = 0
+    let last = performance.now()
+    const poll = setInterval(() => {
+      api.expMaze().then((r: any) => {
+        if (r?.tilt) state.current.tilt = r.tilt
+        if (r) onTelemetry(r)
+      }).catch(() => { })
+    }, 40)
+    const reset = () => {
+      const s = state.current
+      s.x = START.x; s.y = START.y; s.vx = 0; s.vy = 0; s.falling = 0
+    }
+    const loop = () => {
+      const now = performance.now()
+      const dt = Math.min(0.05, (now - last) / 1000)
+      last = now
+      const s = state.current
+      if (s.falling) {
+        if (now - s.falling > 600) reset()
+      } else {
+        let [tx, ty] = s.tilt
+        if (invX) tx = -tx
+        if (invY) ty = -ty
+        s.vx += tx * 1600 * dt
+        s.vy += ty * 1600 * dt
+        s.vx *= 0.995; s.vy *= 0.995
+        s.x += s.vx * dt; s.y += s.vy * dt
+        // 墙碰撞（圆 vs AABB，沿最浅轴弹出反弹）
+        for (const [wx, wy, ww, wh] of MAZE_WALLS) {
+          const cx = Math.max(wx, Math.min(s.x, wx + ww))
+          const cy = Math.max(wy, Math.min(s.y, wy + wh))
+          const dx = s.x - cx, dy = s.y - cy
+          const d2 = dx * dx + dy * dy
+          if (d2 < BALL_R * BALL_R) {
+            const d = Math.sqrt(d2) || 0.001
+            const nx = dx / d, ny = dy / d
+            s.x = cx + nx * BALL_R; s.y = cy + ny * BALL_R
+            const dot = s.vx * nx + s.vy * ny
+            s.vx -= 1.6 * dot * nx; s.vy -= 1.6 * dot * ny
+          }
+        }
+        // 掉洞
+        for (const h of MAZE_HOLES) {
+          if ((s.x - h.x) ** 2 + (s.y - h.y) ** 2 < (h.r - 2) ** 2) {
+            s.falling = now; s.falls++; s.flash = '掉洞了！'; s.flashT = now
+            break
+          }
+        }
+        // 终点
+        if (s.x > MAZE_GOAL.x && s.x < MAZE_GOAL.x + MAZE_GOAL.w &&
+            s.y > MAZE_GOAL.y && s.y < MAZE_GOAL.y + MAZE_GOAL.h) {
+          s.wins++; s.flash = '到达终点！'; s.flashT = now; reset()
+        }
+      }
+      // 绘制
+      g.fillStyle = '#101018'
+      g.fillRect(0, 0, MAZE_W, MAZE_H)
+      g.fillStyle = '#2a2a3a'
+      for (const [wx, wy, ww, wh] of MAZE_WALLS) g.fillRect(wx, wy, ww, wh)
+      for (const h of MAZE_HOLES) {
+        g.fillStyle = '#000'
+        g.beginPath(); g.arc(h.x, h.y, h.r, 0, 7); g.fill()
+        g.strokeStyle = '#444'; g.stroke()
+      }
+      g.fillStyle = 'rgba(52,211,153,0.45)'
+      g.fillRect(MAZE_GOAL.x, MAZE_GOAL.y, MAZE_GOAL.w, MAZE_GOAL.h)
+      g.fillStyle = '#34d399'
+      g.font = '10px sans-serif'; g.fillText('终点', MAZE_GOAL.x + 16, MAZE_GOAL.y + 28)
+      // 弹珠（掉洞时缩小消失）
+      const scale = s.falling ? Math.max(0, 1 - (now - s.falling) / 500) : 1
+      g.fillStyle = '#67e8f9'
+      g.beginPath(); g.arc(s.x, s.y, BALL_R * scale, 0, 7); g.fill()
+      if (s.flash && now - s.flashT < 1500) {
+        g.fillStyle = '#fbbf24'; g.font = 'bold 18px sans-serif'
+        g.fillText(s.flash, MAZE_W / 2 - 50, 30)
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => { cancelAnimationFrame(raf); clearInterval(poll) }
+  }, [onTelemetry, invX, invY])
+  return (
+    <div className="space-y-1">
+      <canvas ref={ref} width={MAZE_W} height={MAZE_H} className="w-full rounded border border-border-soft" />
+      <MazeHud state={state} />
+    </div>
+  )
+}
+
+function MazeHud({ state }: { state: React.MutableRefObject<any> }) {
+  const [, force] = useState(0)
+  useEffect(() => { const t = setInterval(() => force(n => n + 1), 500); return () => clearInterval(t) }, [])
+  const s = state.current
+  return (
+    <div className="text-[10px] text-text-low">
+      到达 {s.wins} 次 · 掉洞 {s.falls} 次
+      <button className={BTN + ' ml-2'} onClick={() => { s.wins = 0; s.falls = 0 }}>清零</button>
+    </div>
+  )
+}
+
+export function MazePanel() {
+  const [tel, setTel] = useState<any>(null)
+  const [msg, flash] = useFlash()
+  const [inv, setInv] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('maze_inv') ?? '{"x":false,"y":false}') }
+    catch { return { x: false, y: false } }
+  })
+  useEffect(() => { localStorage.setItem('maze_inv', JSON.stringify(inv)) }, [inv])
+  // 反转在物理层生效（MazeBoard 读 tilt 时取反），存 localStorage 记住偏好
+  const toggleInv = (k: 'x' | 'y') => setInv((c: any) => ({ ...c, [k]: !c[k] }))
+  const imuOk = tel?.has_imu
+  return (
+    <div className="space-y-2.5">
+      {/* 自检：回答「手柄到底有没有真体感」 */}
+      <div className={`rounded-md border p-2 text-[11px] ${imuOk ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-red-500/40 bg-red-500/10 text-red-300'}`}>
+        {tel === null ? '自检中…' : imuOk ? (
+          <>
+            ✓ 检测到体感数据流（{tel.source === 'gyro_fallback' ? '陀螺仪模式：固件未填加速度，用陀螺积分' : '加速度计+陀螺仪'}）
+            <span className="ml-2 text-text-low">帧 {tel.frames} ｜ 加速度模长 {tel.accel_mag} ｜ 陀螺 ({tel.raw_gyro.join(', ')})</span>
+          </>
+        ) : (
+          <>✗ 没有任何体感数据（加速度模长 {tel.accel_mag}，陀螺全 0）——当前模式下固件没输出运动数据，试试重启手柄或连 Switch 模式验证硬件</>
+        )}
+      </div>
+      <Row label="校准">
+        <button className={BTN_ACC} disabled={!imuOk || tel?.source === 'gyro_fallback'}
+          onClick={() => api.expMazeCal().then(() => flash('✓ 已校准：请保持手柄平放')).catch(e => flash('', e))}>
+          平放校准（手柄水平放好再点）
+        </button>
+        {!tel?.rest && <span className="text-[10px] text-text-low">未校准时以开机默认为基准，倾斜不准就点这个</span>}
+      </Row>
+      <Row label="方向">
+        <button className={inv.x ? BTN_ACC : BTN} onClick={() => toggleInv('x')}>左右 {inv.x ? '（已反转）' : '正常'}</button>
+        <button className={inv.y ? BTN_ACC : BTN} onClick={() => toggleInv('y')}>前后 {inv.y ? '（已反转）' : '正常'}</button>
+        <span className="text-[10px] text-text-low">滚反了点一下就正（记住偏好）</span>
+      </Row>
+      <MazeBoard onTelemetry={setTel} invX={inv.x} invY={inv.y} />
+      <Err e={msg} />
+    </div>
+  )
+}
+
 // ==================== 注册表：feature id → 面板 ====================
 export const PANELS: Record<string, React.FC> = {
   gyro: Safe(GyroPanel),
@@ -1062,4 +1235,5 @@ export const PANELS: Record<string, React.FC> = {
   screenplus: Safe(ScreenPlusPanel),
   factoryreset: Safe(FactoryResetPanel),
   gamesim: Safe(GameSimPanel),
+  maze: Safe(MazePanel),
 }

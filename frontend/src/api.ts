@@ -201,6 +201,8 @@ export const api = {
   expRgbFlash: (enabled: boolean, rgb: number[]) => post('/api/exp/rgbbridge/flash', { enabled, rgb }) as Promise<any>,
   expSim: () => get('/api/exp/gamesim') as Promise<any>,
   expSimRun: (scenario: string) => post('/api/exp/gamesim', { scenario }) as Promise<any>,
+  expMaze: () => get('/api/exp/maze') as Promise<any>,
+  expMazeCal: () => post('/api/exp/maze', { op: 'calibrate' }) as Promise<any>,
   expDiag: (op: string, body: Record<string, unknown> = {}) =>
     post('/api/exp/diagnostics', { op, ...body }) as Promise<any>,
   expDiagData: () => get('/api/exp/diagnostics') as Promise<any>,

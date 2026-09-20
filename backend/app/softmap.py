@@ -121,20 +121,21 @@ class GyroAim:
 
     def on_motion(self, m):
         cfg = self.cfg
-        if not cfg["enabled"]:
-            return
-        if cfg["activation"] == "key" and not self._active:
-            self._last_t = m["t"]
-            return
-        now = m["t"]
-        dt = now - self._last_t if self._last_t else 0
-        self._last_t = now
+        # 遥测常开：不管功能开没开，帧率/原始值都记录——面板上的「手柄到底有没有体感」
+        # 自检就靠它（2026-09-21，此前 enabled=False 提前 return 导致 frames 恒 0）
         with self._lock:
             self.stats["frames"] += 1
             self.stats["last_gyro"] = m["gyro"]
             self.stats["last_accel"] = m["accel"]
+            now = m["t"]
+            dt = now - self._last_t if self._last_t else 0
+            self._last_t = now
             if dt > 0:
                 self.stats["rate"] = 0.9 * self.stats["rate"] + 0.1 * (1.0 / dt) if self.stats["rate"] else 1.0 / dt
+        if not cfg["enabled"]:
+            return
+        if cfg["activation"] == "key" and not self._active:
+            return
         if dt <= 0 or dt > 0.2:
             return
         gx, gy, gz = m["gyro"]

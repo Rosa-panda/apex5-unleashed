@@ -99,3 +99,20 @@ RESET·RESET-ALL 解锁）+ ExpLab 卡片展开 + api.ts 23 个端点。
 - **键盘场**（前端本地）：keydown 真实按下计数（ev.repeat 滤掉系统重复）+ 2s 窗口
   实时频率——连发 Turbo/宏/摇杆→键盘闭环验证。
 端点 GET/POST /api/exp/gamesim（scenario=stop 停止）。0xF5 直点色语义仍是验收钩子。
+
+## 追加（2026-09-21）：#17 体感弹珠迷宫（maze）
+
+起因：用户怀疑「手柄好像没有真体感」。实测（真机）：0xEF 运动流活水——
+加速度模长 ~4094（Z 轴 1g 平放）、陀螺实时变化、帧率 ~300Hz。
+**实锤：八爪鱼5 PC 模式固件持续输出六轴数据，硬件无虚。**
+（副产品修复：GyroAim.on_motion 遥测常开——此前 enabled=False 提前 return
+导致 frames 恒 0，误判无数据。）
+
+实现：
+- `maze.py` MazeService：订阅运动流；加速度计重力向量解算倾斜（平放校准取
+  1g 基准，量程无关）；加速度模长 <50 时退化陀螺仪积分（带回中衰减）。
+  has_imu/raw_accel/raw_gyro 直出——面板即自检答案器。
+- 前端 MazePanel：物理在 JS（60fps），40ms 轮询 tilt；墙 AABB 圆碰撞反弹、
+  3 洞 + 终点、掉洞动画、左右/前后反转存 localStorage。
+- 加速度标定实测：~4094/1g（非 openflydigi 的 16384 陀螺量纲，别混用）。
+端点 GET/POST /api/exp/maze（op=calibrate）。
