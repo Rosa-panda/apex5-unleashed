@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "name": "God of War",
+  "en": "God of War",
+  "exe": [
+    "gow.exe"
+  ],
+  "note": "原生 DualSense 自适应扳机游戏（ASB/PCGamingWiki 清单）。已按题材转为本工具震动联动参数，进游戏自动生效（ADR-024）。",
+  "image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1593500/library_600x900.jpg",
+  "asb": true,
+  "source": "asb-list",
+  "steam_appid": 1593500,
+  "vib": {
+    "filter": 23,
+    "scale": 10,
+    "stroke": 2,
+    "press": 14,
+    "strength": 116,
+    "freq": 62
+  },
+  "vib_source": "asb-seed",
+  "genres": [
+    "1",
+    "25",
+    "3"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "Ratchet & Clank: Rift Apart",
+  "en": "Ratchet & Clank: Rift Apart",
+  "exe": [
+    "riftapart.exe"
+  ],
+  "note": "原生 DualSense 自适应扳机游戏（ASB/PCGamingWiki 清单）。已按题材转为本工具震动联动参数，进游戏自动生效（ADR-024）。",
+  "image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1895880/library_600x900.jpg",
+  "asb": true,
+  "source": "asb-list",
+  "steam_appid": 1895880,
+  "vib": {
+    "filter": 23,
+    "scale": 10,
+    "stroke": 1,
+    "press": 16,
+    "strength": 126,
+    "freq": 60
+  },
+  "vib_source": "asb-seed",
+  "genres": [
+    "1",
+    "25"
+  ]
+}

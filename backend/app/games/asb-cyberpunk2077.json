@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "name": "Cyberpunk 2077",
+  "en": "Cyberpunk 2077",
+  "exe": [
+    "cyberpunk2077.exe"
+  ],
+  "note": "原生 DualSense 自适应扳机游戏（ASB/PCGamingWiki 清单）。已按题材转为本工具震动联动参数，进游戏自动生效（ADR-024）。",
+  "image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/library_600x900.jpg",
+  "asb": true,
+  "source": "asb-list",
+  "steam_appid": 1091500,
+  "vib": {
+    "filter": 27,
+    "scale": 10,
+    "stroke": 9,
+    "press": 2,
+    "strength": 62,
+    "freq": 71
+  },
+  "vib_source": "asb-seed",
+  "genres": [
+    "3"
+  ]
+}
