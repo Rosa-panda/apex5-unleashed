@@ -40,6 +40,7 @@ export default function GameLibrary() {
   const [msg, setMsg] = useState('')
   const [form, setForm] = useState({ name: '', exe: '', preset_id: '' })
   const [detail, setDetail] = useState<GameProfile | null>(null)
+  const [pickFor, setPickFor] = useState<string | null>(null)   // 正在展开预设选择的卡片 id
   const fileRef = useRef<HTMLInputElement | null>(null)
   const exeTarget = useRef<string | null>(null)
 
@@ -128,7 +129,11 @@ export default function GameLibrary() {
     load()
   }
 
-  const Card = ({ g }: { g: GameProfile }) => {
+  const Card = ({ g, picking, setPicking }: {
+    g: GameProfile
+    picking: boolean
+    setPicking: (v: boolean) => void
+  }) => {
     const active = hit(g)
     return (
       <div className={`card group overflow-hidden p-0 transition-colors ${active ? 'border-accent/60' : 'hover:border-accent-dim'}`}>
@@ -158,17 +163,32 @@ export default function GameLibrary() {
             onClick={() => setDetail(g)}>
             {g.exe.slice(0, 3).join(' · ')}{g.exe.length > 3 ? ` +${g.exe.length - 3}` : ''}
           </button>
+          {/* 扳机预设绑定：「走/不走」表达——未启用时是按钮，点了展开选择；启用后显示所选预设 */}
           <div className="mt-2 flex items-center gap-1.5">
-            <Link2 size={11} className="shrink-0 text-text-low" />
-            <select
-              value={g.preset_id}
-              onChange={(e) => link(g, e.target.value)}
-              className="min-w-0 flex-1 rounded border border-border-soft bg-[#0d0d14] px-1.5 py-1 text-[11px] outline-none focus:border-accent-dim"
-            >
-              <option value="">未绑定</option>
-              {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <button className="btn !px-2 !py-1" disabled={!(g.preset_id || g.vib)} onClick={() => apply(g)} title="立即套用">
+            <Link2 size={11} className={`shrink-0 ${g.preset_id ? 'text-accent' : 'text-text-low'}`} />
+            {g.preset_id || picking ? (
+              <select
+                value={g.preset_id}
+                autoFocus={picking && !g.preset_id}
+                onChange={(e) => link(g, e.target.value)}
+                onBlur={() => setPicking(false)}   // picking 状态在父级（内联组件每 3s 随父重挂，state 放这必丢）
+                title="切进本游戏自动套用该预设的扳机配置，切出自动解绑；选「不套用」= 关闭"
+                className={`min-w-0 flex-1 rounded border bg-[#0d0d14] px-1.5 py-1 text-[11px] outline-none focus:border-accent-dim ${
+                  g.preset_id ? 'border-accent/40 text-accent' : 'border-border-soft text-text-mid'}`}
+              >
+                <option value="">不套用扳机预设</option>
+                {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            ) : (
+              <button
+                className="min-w-0 flex-1 truncate rounded border border-border-soft bg-[#0d0d14] px-1.5 py-1 text-left text-[11px] text-text-low hover:text-text-mid"
+                title="点这里为游戏选择扳机预设（进游戏自动套用，切出自动解绑）"
+                onClick={() => setPicking(true)}
+              >
+                扳机预设：不走
+              </button>
+            )}
+            <button className="btn !px-2 !py-1" disabled={!(g.preset_id || g.vib)} onClick={() => apply(g)} title="立即套用（震动联动 + 预设）">
               <Play size={11} />
             </button>
             <button className="btn !px-2 !py-1" onClick={() => pickExe(g)} title="特殊版本？选择游戏 exe 定位">
@@ -243,14 +263,17 @@ export default function GameLibrary() {
             className="w-full rounded border border-border-soft bg-[#0d0d14] px-2 py-1.5 font-mono text-[11px] outline-none focus:border-accent-dim" />
           <select value={form.preset_id} onChange={e => setForm({ ...form, preset_id: e.target.value })}
             className="w-full rounded border border-border-soft bg-[#0d0d14] px-2 py-1.5 text-[11px] outline-none focus:border-accent-dim">
-            <option value="">绑定预设…</option>
+            <option value="">扳机预设（可选，进游戏自动套用）</option>
             {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <button className="btn btn-primary w-full justify-center !py-1 text-[12px]" onClick={add}>
             <Plus size={11} /> 添加
           </button>
         </div>
-        {filtered.slice(0, limit).map(g => <Card key={g.id} g={g} />)}
+        {filtered.slice(0, limit).map(g => (
+          <Card key={g.id} g={g} picking={pickFor === g.id}
+            setPicking={(v) => setPickFor(v ? g.id : null)} />
+        ))}
       </div>
 
       {filtered.length > limit && (
