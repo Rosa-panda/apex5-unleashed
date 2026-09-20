@@ -737,6 +737,421 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
             return err(e)
         return {"ok": True, "id": req.id, **v, "summary": _exp_verdicts.summary()}
 
+    # ---------- 体验区·功能端点（ADR-027：全部 15 项软件成品） ----------
+    # 真机类操作都走 profile/devcfg（Pad 第二句柄或引擎问答），mock 模式直接 400。
+    import devcfg as _devcfg
+    import diag as _diag
+    import profile as _profile
+    import rgbbridge as _rgbbridge
+    import sharecode as _sharecode
+    import softmap as _softmap
+
+    _settings_writer = _devcfg.SettingsWriter(engine)
+    _rgb = _rgbbridge.RgbBridge(engine)
+    _diag_svc = _diag.Diagnostics(engine)
+    engine.subscribe_motion(_softmap.HUB.on_motion)
+    engine.subscribe_motion(_diag_svc.on_motion)
+    engine.subscribe(_softmap.HUB.on_key)
+
+    def _require_real():
+        if engine.force_mock or engine.dev_kind != "real":
+            raise RuntimeError("此操作需要真机连接（mock 模式不可用）")
+
+    class ExpTurboReq(BaseModel):
+        kid: int
+        mode: int            # 0 关 / 1 按住连发 / 2 开关切换
+        freq: int = 10
+
+    class ExpStickReq(BaseModel):
+        side: str
+        preset: int | None = None
+        center: int = 0
+        edge: int = 0
+        p1: list[int] = [63, 63]
+        p2: list[int] = [127, 127]
+        is_round: bool | None = None
+
+    class ExpTriggerCurveReq(BaseModel):
+        side: str
+        zero: int = 0
+        end: int = 255
+
+    class ExpMotionReq(BaseModel):
+        target: int
+        enable_key: int = 255
+        enable_type: int = 0
+        dead_zone: int = 10
+        sens_x: int = 50
+        sens_y: int = 50
+
+    class ExpGripVibReq(BaseModel):
+        enabled: bool
+        left: dict = {}
+        right: dict = {}
+
+    class ExpTitleReq(BaseModel):
+        title: str
+
+    class ExpSettingReq(BaseModel):
+        op: str              # bit / rate / precision / sensitivity / sleep
+        sub: int | None = None
+        on: bool | None = None
+        value: int | None = None
+
+    class ExpNicknameReq(BaseModel):
+        name: str
+
+    class ExpSlotReq(BaseModel):
+        slot: int
+        confirm: str = ""
+
+    class ExpShareReq(BaseModel):
+        code: str = ""
+        kind: str = "profile"
+        blob_hex: str = ""
+
+    class ExpGyroReq(BaseModel):
+        patch: dict = {}
+
+    class ExpRgbReq(BaseModel):
+        enabled: bool
+        port: int = 7878
+
+    class ExpDiagReq(BaseModel):
+        op: str              # sample / adccalib / autocal
+        seconds: float = 5.0
+        stage: str = "start"
+        on: bool = False
+
+    @app.get("/api/exp/profile")
+    def exp_profile_read():
+        try:
+            _require_real()
+            return {"ok": True, **_profile.SERVICE.read_profile()}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/profile/turbo")
+    def exp_profile_turbo(req: ExpTurboReq):
+        try:
+            _require_real()
+            return {"ok": True, **_profile.SERVICE.edit(
+                lambda b: _profile.set_turbo(b, req.kid, req.mode, req.freq))}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/profile/stick")
+    def exp_profile_stick(req: ExpStickReq):
+        try:
+            _require_real()
+            return {"ok": True, **_profile.SERVICE.edit(
+                lambda b: _profile.set_stick(b, req.side, req.preset, req.center, req.edge,
+                                             tuple(req.p1), tuple(req.p2), req.is_round))}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/profile/trigger-curve")
+    def exp_profile_trigger(req: ExpTriggerCurveReq):
+        try:
+            _require_real()
+            return {"ok": True, **_profile.SERVICE.edit(
+                lambda b: _profile.set_trigger_curve(b, req.side, req.zero, req.end))}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/profile/motion")
+    def exp_profile_motion(req: ExpMotionReq):
+        """体感固件层（与软件层体感互斥——UI 负责，后端两边各自拦 enabled）。"""
+        try:
+            _require_real()
+            if req.target != _profile.MOTION_OFF and _softmap.HUB.gyro.cfg["enabled"]:
+                raise RuntimeError("软件层体感瞄准开着，先关掉再启用固件层（互斥）")
+            return {"ok": True, **_profile.SERVICE.edit(
+                lambda b: _profile.set_motion(b, req.target, req.enable_key,
+                                              req.enable_type, req.dead_zone,
+                                              req.sens_x, req.sens_y))}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/profile/gripvib")
+    def exp_profile_gripvib(req: ExpGripVibReq):
+        try:
+            _require_real()
+            return {"ok": True, **_profile.SERVICE.edit(
+                lambda b: _profile.set_grip_vib(b, req.enabled, req.left, req.right))}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/profile/title")
+    def exp_profile_title(req: ExpTitleReq):
+        try:
+            _require_real()
+            return {"ok": True, **_profile.SERVICE.edit(
+                lambda b: _profile.set_title(b, req.title))}
+        except Exception as e:
+            return err(e)
+
+    @app.get("/api/exp/slots")
+    def exp_slots():
+        try:
+            _require_real()
+            return {"ok": True, **_profile.SERVICE.read_slots()}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/slots/apply")
+    def exp_slots_apply(req: ExpSlotReq):
+        try:
+            _require_real()
+            return {"ok": True, **_profile.SERVICE.apply_slot(req.slot)}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/profile/switch")
+    def exp_profile_switch(req: ExpSlotReq):
+        try:
+            _require_real()
+            return {"ok": True, **_profile.SERVICE.sync_switch(req.slot)}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/factoryreset/slot")
+    def exp_factory_slot(req: ExpSlotReq):
+        if req.confirm != "RESET":
+            return err(ValueError("确认字符串不符（须输入 RESET）"))
+        try:
+            _require_real()
+            _full_backup()
+            return {"ok": True, **_profile.SERVICE.factory_reset_slot(req.slot)}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/factoryreset/all")
+    def exp_factory_all(req: ExpSlotReq):
+        if req.confirm != "RESET-ALL":
+            return err(ValueError("确认字符串不符（须输入 RESET-ALL）"))
+        try:
+            _require_real()
+            _full_backup()
+            return {"ok": True, **_profile.SERVICE.factory_reset_all()}
+        except Exception as e:
+            return err(e)
+
+    def _full_backup():
+        """危险操作前的全量备份：四槽 blob + 灯表 → %APPDATA%\\Apex5Unleashed\\backup_<ts>\\。"""
+        import os
+        import time
+        base = os.environ.get("APPDATA") or os.path.expanduser("~")
+        d = os.path.join(base, "Apex5Unleashed",
+                         "backup_" + time.strftime("%Y%m%d_%H%M%S"))
+        os.makedirs(d, exist_ok=True)
+        import extkeys
+        with _profile.SERVICE._lock:
+            pad = extkeys.Pad()
+            st = pad.read_status()
+            for i in range(_profile.SLOTS):
+                blob = _profile.SERVICE._read_live(pad, i)
+                with open(os.path.join(d, f"slot{i}.bin"), "wb") as f:
+                    f.write(bytes(blob))
+        try:
+            engine.led_backup(os.path.join(d, "led.bin"))
+        except Exception:
+            pass
+        with open(os.path.join(d, "README.txt"), "w", encoding="utf-8") as f:
+            f.write(f"恢复出厂前自动全量备份 {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"slot0-3.bin=档案blob  led.bin=灯表（读不到则无此文件）\n")
+        return d
+
+    @app.get("/api/exp/devcfg")
+    def exp_devcfg_read():
+        try:
+            _require_real()
+            out = {"ok": True, "settings": _settings_writer.read(),
+                   "nickname": None, "owner": engine.owner,
+                   "versions": engine.versions}
+            for body in engine.request(_extbuild(2), 2, timeout=0.8, source="devcfg"):
+                if body[2] == 2:
+                    out["nickname"] = _devcfg.parse_nickname(body)
+                    break
+            return out
+        except Exception as e:
+            return err(e)
+
+    def _extbuild(cmd, payload=b""):
+        import extkeys
+        return extkeys.build(cmd, payload)
+
+    @app.post("/api/exp/devcfg/setting")
+    def exp_devcfg_setting(req: ExpSettingReq):
+        try:
+            _require_real()
+            if req.op == "bit":
+                if req.sub is None or not 1 <= req.sub <= 10:
+                    raise ValueError("sub 1..10")
+                s = _settings_writer.write_bit(req.sub, bool(req.on))
+            elif req.op == "rate":
+                s = _settings_writer.write_rate(req.value)
+            elif req.op == "precision":
+                s = _settings_writer.write_precision(req.value)
+            elif req.op == "sensitivity":
+                s = _settings_writer.write_sensitivity(req.value)
+            elif req.op == "sleep":
+                s = _settings_writer.write_sleep(req.value)
+            else:
+                raise ValueError("op")
+            return {"ok": True, "settings": s}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/devcfg/nickname")
+    def exp_devcfg_nickname(req: ExpNicknameReq):
+        try:
+            _require_real()
+            payload = _devcfg.nickname_packet(req.name)
+            engine.send_checked(protocol.build(24, payload), 24, source="devcfg")
+            name = None
+            for body in engine.request(_extbuild(2), 2, timeout=0.8, source="devcfg"):
+                if body[2] == 2:
+                    name = _devcfg.parse_nickname(body)
+                    break
+            return {"ok": True, "nickname": name}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/devcfg/reboot")
+    def exp_devcfg_reboot():
+        try:
+            _require_real()
+            return _settings_writer.reboot()
+        except Exception as e:
+            return err(e)
+
+    @app.get("/api/exp/owner")
+    def exp_owner():
+        try:
+            _require_real()
+            o = engine.read_owner()
+            if o is None:
+                raise RuntimeError("cmd16 无回复")
+            return {"ok": True, "owner": o}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/owner/acquire")
+    def exp_owner_acquire():
+        try:
+            _require_real()
+            return engine.acquire_control()
+        except Exception as e:
+            return err(e)
+
+    @app.get("/api/exp/gyro")
+    def exp_gyro_status():
+        return {"ok": True, **_softmap.HUB.gyro.status()}
+
+    @app.post("/api/exp/gyro")
+    def exp_gyro_config(req: ExpGyroReq):
+        try:
+            # 与固件层互斥：/exp/profile/motion 开固件层时会反向拦软件层；这里开软件层
+            # 时固件层状态读档案代价高，由 UI 提示承担（两端文案都有互斥警告）。
+            return {"ok": True, **_softmap.HUB.gyro.set_config(dict(req.patch))}
+        except Exception as e:
+            return err(e)
+
+    @app.get("/api/exp/stickmap")
+    def exp_stickmap_status():
+        return {"ok": True, **_softmap.HUB.stickmap.status()}
+
+    @app.post("/api/exp/stickmap")
+    def exp_stickmap_config(req: ExpGyroReq):
+        try:
+            return {"ok": True, **_softmap.HUB.stickmap.set_config(dict(req.patch))}
+        except Exception as e:
+            return err(e)
+
+    @app.get("/api/exp/rgbbridge")
+    def exp_rgb_status():
+        return {"ok": True, **_rgb.status()}
+
+    @app.post("/api/exp/rgbbridge")
+    def exp_rgb_config(req: ExpRgbReq):
+        try:
+            if req.enabled:
+                return {"ok": True, **_rgb.start(req.port)}
+            return {"ok": True, **_rgb.stop()}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/sharecode/encode")
+    def exp_share_encode(req: ExpShareReq):
+        try:
+            if req.kind == "profile":
+                _require_real()
+                import extkeys as _ek
+                with _profile.SERVICE._lock:
+                    pad = _ek.Pad()
+                    st = pad.read_status()
+                    blob = _profile.SERVICE._read_live(pad, req.slot if hasattr(req, "slot") else st["active"])
+                payload = {"kind": "profile", "slot": st["active"], "blob": bytes(blob).hex()}
+            elif req.kind == "blob":
+                if not req.blob_hex:
+                    raise ValueError("blob_hex 为空")
+                payload = {"kind": "profile", "blob": req.blob_hex.replace(" ", "")}
+            else:
+                raise ValueError(f"未知分享类型: {req.kind}")
+            return {"ok": True, "code": _sharecode.encode(payload)}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/sharecode/decode")
+    def exp_share_decode(req: ExpShareReq):
+        try:
+            data = _sharecode.decode(req.code)
+            out = {"ok": True, "kind": data.get("kind"), "slot": data.get("slot")}
+            if "blob" in data:
+                blob = bytes.fromhex(data["blob"])
+                if len(blob) != 840:
+                    raise ValueError(f"blob 长度异常（{len(blob)}B，应为 840）")
+                out["profile"] = _profile.parse_profile(blob)
+            return out
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/sharecode/apply")
+    def exp_share_apply(req: ExpShareReq):
+        try:
+            _require_real()
+            data = _sharecode.decode(req.code)
+            if data.get("kind") != "profile" or "blob" not in data:
+                raise ValueError("只支持档案分享码")
+            blob = bytearray(bytes.fromhex(data["blob"]))
+            if len(blob) != 840:
+                raise ValueError(f"blob 长度异常（{len(blob)}B）")
+
+            def _overwrite(b, src=bytes(blob)):
+                b[:] = src
+            return {"ok": True, **_profile.SERVICE.edit(_overwrite)}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/diagnostics")
+    def exp_diagnostics(req: ExpDiagReq):
+        try:
+            _require_real()
+            if req.op == "sample":
+                return {"ok": True, **_diag_svc.sample(req.seconds)}
+            if req.op == "adccalib":
+                return {"ok": True, **_diag_svc.adc_calib(req.stage)}
+            if req.op == "autocal":
+                return {"ok": True, **_diag_svc.autocal(req.on)}
+            raise ValueError("op")
+        except Exception as e:
+            return err(e)
+
+    @app.get("/api/exp/diagnostics")
+    def exp_diagnostics_data():
+        return {"ok": True, **_diag_svc.sampler.data()}
+
     @app.get("/api/imgcache/status")
     def imgcache_status():
         import gameimg

@@ -77,6 +77,12 @@ class Engine:
         self._led_blob_raw = b""             # 最近一次读回的原始 blob（备份用）
         self._extkey_bits = 0                # 0xEF 键位图上一次状态（变化才发事件）
         self.battery = None                  # {"level":0..5,"charging":bool}（cmd1 心跳回复 body[11]）
+        self.versions = None                 # cmd1 七模块固件版本（body[15..29)，ADR-027）
+        self.owner = None                    # cmd16 占用方读数（ADR-027 仲裁升级）
+        self.motion_subs = []                # 0xEF 运动数据订阅（体感/摇杆映射，高频不走事件日志）
+        self._motion_count = 0
+        self._rx_cmd = None                  # request() 阻塞问答的捕获槽
+        self._rx_buf = []
 
     # ---------- 事件总线 / 状态推送 ----------
     def subscribe(self, cb):
@@ -96,12 +102,76 @@ class Engine:
 
     def snapshot(self):
         return {"device": {"kind": self.dev_kind, "online": self.online,
-                           "battery": self.battery},
+                           "battery": self.battery, "versions": self.versions},
                 "state": self.state, "proxy": self.proxy,
+                "owner": self.owner,
                 "ext_cmds": dict(self._ext_cmds),
                 "ext_frames": dict(self._ext_frames),
                 "orphan_replies": dict(self._orphan_replies),
                 "events": list(self.events)[-80:]}
+
+    # ---------- 0xEF 运动数据订阅（ADR-027：体感瞄准/摇杆映射/诊断采样的信号源） ----------
+    def subscribe_motion(self, cb):
+        self.motion_subs.append(cb)
+
+    def _dispatch_motion(self, body):
+        """0xEF 帧运动段（ADR-027 D2：body 索引 = openflydigi raw-1）：
+        摇杆 LX/LY/RX/RY @3/5/7/9、陀螺 @17/19/21、加速度 @23/25/27，i16 LE。"""
+        import struct as _s
+        if len(body) < 29:
+            return
+        lx, ly, rx, ry = _s.unpack_from("<4h", body, 3)
+        gx, gy, gz = _s.unpack_from("<3h", body, 17)
+        ax, ay, az = _s.unpack_from("<3h", body, 23)
+        self._motion_count += 1
+        m = {"t": time.monotonic(), "lx": lx, "ly": ly, "rx": rx, "ry": ry,
+             "gyro": [gx, gy, gz], "accel": [ax, ay, az]}
+        for cb in list(self.motion_subs):
+            try:
+                cb(m)
+            except Exception:
+                pass
+
+    # ---------- 阻塞问答（体验区配置读：cmd3/cmd16/cmd2 等，ADR-027） ----------
+    def request(self, frame, cmd_id, timeout=1.0, source="req"):
+        """发一帧并等同命令号回复（body 列表）。超时返回已收到的（可能为空）。"""
+        self._rx_cmd = cmd_id
+        self._rx_buf = []
+        try:
+            self._send(frame, source)
+            t0 = time.monotonic()
+            while not self._rx_buf and time.monotonic() - t0 < timeout:
+                time.sleep(0.02)
+            return list(self._rx_buf)
+        finally:
+            self._rx_cmd = None
+
+    def send_checked(self, frame, cmd_id, source="req", timeout=1.0):
+        """发一帧并等 ACK；无回复/超时抛错（体验区写操作统一走这里，防静默失败）。"""
+        bodies = self.request(frame, cmd_id, timeout=timeout, source=source)
+        if not any(b[2] == cmd_id for b in bodies):
+            raise RuntimeError(f"cmd{cmd_id} 无 ACK（手柄可能休眠或被占用）")
+        return bodies
+
+    def read_owner(self):
+        """cmd16：占用方五开关 + control_by 标签（ADR-027 #5）。存快照。"""
+        import extkeys
+        bodies = self.request(extkeys.build(16), 16, timeout=1.0, source="owner")
+        for body in bodies:
+            if body[2] == 16:
+                import devcfg
+                self.owner = devcfg.parse_owner(body)
+                self._emit("owner", **{"owner": self.owner})
+                return self.owner
+        return None
+
+    def acquire_control(self, tag=b"Apex5Unleashed"):
+        """cmd28 申请仲裁（ADR-027 #5）：[23, 1, 20B 标签]。ACK 不改固件态语义待真机验。"""
+        import protocol as _p
+        tag = (tag or b"Apex5Unleashed")[:20].ljust(20, b"\x00")
+        self.send_checked(_p.build_crc(28, bytes([23, 1]) + tag), 28, source="acquire")
+        self.read_owner()
+        return {"ok": True, "owner": self.owner}
 
     # ---------- 设备生命周期 ----------
     def attach(self, dev):
@@ -121,6 +191,17 @@ class Engine:
             import extkeys
             self._send(extkeys.build(17, bytes([255, 1, 255, 255, 255])), source="attach")
         self.refresh_battery()                    # 心跳一发，电量随回复异步进账（_capture_battery）
+        if dev.kind == "real":
+            threading.Thread(target=self._post_attach, daemon=True, name="post-attach").start()
+
+    def _post_attach(self):
+        """接入后 1s：读一次占用方标签（ADR-027 #5——谁在管手柄，UI 有据可查）。"""
+        time.sleep(1.0)
+        if self.online:
+            try:
+                self.read_owner()
+            except Exception:
+                pass
 
     def detach(self, reason=""):
         if self._rumble_timer:
@@ -166,6 +247,15 @@ class Engine:
         self.battery = {**new, "updated_at": now()}
         if old is None or old["level"] != new["level"] or old["charging"] != new["charging"]:
             self._emit("battery", **new)
+
+    def _capture_versions(self, body):
+        """cmd1 心跳回复 body[15..29)：七模块固件版本 2B BCD（openflydigi motion.py
+        VERSION_OFFSET 布局，ADR-027）。随心跳刷新，P4 探针的问题就地消解。"""
+        import devcfg
+        v = devcfg.parse_versions(body)
+        if v and v != self.versions:
+            self.versions = v
+            self._emit("versions", **{"versions": v})
 
     # ---------- HID worker：唯一读写线程（ADR-012） ----------
     def _worker_loop(self):
@@ -219,10 +309,15 @@ class Engine:
                     keys = [n for i, n in EXTKEY_BITNAMES.items() if cur >> i & 1]
                     names = [protocol.KEY32_NAMES.get(i, f"k{i}") for i in range(32) if cur >> i & 1]
                     self._emit("extkey", keys=keys, names=names, bits=f"{cur:08x}")
+            if self.motion_subs:
+                self._dispatch_motion(body)
             return
+        if self._rx_cmd == cmd:
+            self._rx_buf.append(body)          # request() 问答捕获（不拦 ACK 走账）
         if cmd == protocol.CMD_INFO and len(body) > 11 and body[5] == 0x80:
             # 心跳回复（设备类型 0x80 守门，防误吃其他 cmd1 帧）：抓电量后照常走 ACK 逻辑
             self._capture_battery(body)
+            self._capture_versions(body)
         if cmd == protocol.CMD_LED_READ and self._led_rx is not None:
             # 0xA7 多包 ACK（ADR-018）：[3]=总包数 [4]=包序号 [6..26]=数据段；末包 data[3]==data[4]+1
             self._led_rx.append(body)

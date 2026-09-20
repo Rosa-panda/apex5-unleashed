@@ -1,8 +1,9 @@
 // 体验区（ADR-026）：隐藏功能孵化区。功能清单由后端注册表下发（/api/exp），
 // 前端只渲染——上架/转正/淘汰都不用改这里。真机测过判「好用」的功能才迁出体验区。
 import { useCallback, useEffect, useState } from 'react'
-import { FlaskConical, ThumbsDown, ThumbsUp, PauseCircle } from 'lucide-react'
+import { FlaskConical, ThumbsDown, ThumbsUp, PauseCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { api, type ExpFeature, type ExpList } from '../api'
+import { PANELS } from './exp/panels'
 
 const VERDICT_STYLE: Record<string, string> = {
   good: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
@@ -18,10 +19,13 @@ const TIER_STYLE: Record<number, string> = {
   3: 'border-border-soft bg-white/5 text-text-low',
 }
 
-function FeatureCard({ f, onVerdict }: {
+function FeatureCard({ f, open, onToggle, onVerdict }: {
   f: ExpFeature
+  open: boolean
+  onToggle: (id: string) => void
   onVerdict: (id: string, v: 'good' | 'bad' | 'pending') => void
 }) {
+  const Panel = PANELS[f.id]
   return (
     <div className={`card flex flex-col gap-2 p-4 ${f.verdict === 'bad' ? 'opacity-60' : ''}`}>
       <div className="flex items-center gap-2">
@@ -35,6 +39,19 @@ function FeatureCard({ f, onVerdict }: {
         <span className="ml-auto text-[10px] text-text-low">{f.plan}</span>
       </div>
       <p className="text-[11px] leading-relaxed text-text-mid">{f.desc}</p>
+      {f.id in PANELS && (
+        <button
+          className="flex items-center gap-1 self-start text-[11px] text-accent hover:underline"
+          onClick={() => onToggle(f.id)}>
+          {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          {open ? '收起面板' : '展开功能面板'}
+        </button>
+      )}
+      {open && (
+        <div className="rounded-md border border-border-soft bg-black/20 p-3">
+          <Panel />
+        </div>
+      )}
       <div className="mt-auto flex items-center gap-1.5 pt-1">
         <button
           className={`flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
@@ -68,6 +85,7 @@ function FeatureCard({ f, onVerdict }: {
 export default function ExpLab() {
   const [data, setData] = useState<ExpList | null>(null)
   const [msg, setMsg] = useState('')
+  const [openId, setOpenId] = useState<string | null>(null)
 
   const load = useCallback(() => {
     api.expList().then(setData).catch(() => setMsg('✗ 加载失败'))
@@ -112,7 +130,11 @@ export default function ExpLab() {
             {tier === 1 ? '第一梯队 · 核心玩法' : tier === 2 ? '第二梯队 · 生态与管理' : '第三梯队 · 补全与实验'}
           </div>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {list.map(f => <FeatureCard key={f.id} f={f} onVerdict={onVerdict} />)}
+            {list.map(f => (
+              <FeatureCard key={f.id} f={f} open={openId === f.id}
+                onToggle={id => setOpenId(cur => (cur === id ? null : id))}
+                onVerdict={onVerdict} />
+            ))}
           </div>
         </div>
       ))}
