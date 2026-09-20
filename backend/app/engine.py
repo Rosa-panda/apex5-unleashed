@@ -20,6 +20,14 @@ PROXY_NAMES = {
     "DSX.exe": "DualSenseX",
 }
 
+# 飞智空间站服务 init 指纹（2026-09-20 真机抓取，ADR-023）：设备接入瞬间服务
+# 一轮突发——握手/读设置块/读灯表/SyncWithGrip/开体感流，随后自己停手。
+# 命中指纹 = 熟客例行公事：代理权照旧置 external（15s 收回+账本重放不变，
+# cmd82 是真写入必须重放夺回），仅横幅柔化为中性提示，不再弹「被接管」吓人。
+SS_INIT_MARKERS = {2, 4, 7, 16, 17, 82, 161, 162, 163, 167}
+SS_INIT_WINDOW = 10.0     # 指纹统计窗口（秒）
+SS_INIT_MIN = 3           # 窗口内命中 ≥3 种标记 cmd 即判 init
+
 # 0xEF 帧 32 键物理位图（官方 OperatorDataParser 同源，映射前状态，ADR-019）：
 # body[11..14] = keyId 0-31 的实时按压；拓展键 id18-23 与固件映射无关，天然区别于老按键
 EXTKEY_BITNAMES = {18: "m1", 19: "m2", 20: "m3", 21: "m4", 22: "lm", 23: "rm"}
@@ -45,6 +53,7 @@ class Engine:
         self.proxy = {"holder": "self", "detail": "", "since": None}
         self._ext_cmds = {}                   # 外部命令计数 {cmd: n}（诊断：谁在轮询）
         self._ext_frames = {}                 # 外部命令最近一帧原文 {cmd: hex}（归因实锤用）
+        self._ext_window = deque()            # 外部命令滑动窗口 [(t, cmd)]（init 指纹统计）
         self._orphan_replies = {}             # 本方孤儿回复计数 {cmd: n}（多包/迟到/第二句柄）
         self._last_tx = {}                    # {cmd: 本方最近一次发送时刻}（孤儿回复宽限判定）
         self.events = deque(maxlen=500)                    # 事件日志（含外部命令）
@@ -282,15 +291,30 @@ class Engine:
                                      ensure_ascii=False) + "\n")
         except Exception:
             pass
-        self._last_external = time.monotonic()
-        active = time.monotonic() - self._last_external < EXTERNAL_COOLDOWN
+        t = time.monotonic()
+        self._ext_window.append((t, cmd))
+        while self._ext_window and t - self._ext_window[0][0] > SS_INIT_WINDOW:
+            self._ext_window.popleft()
+        recent = {c for _, c in self._ext_window}
+        mild = len(recent & SS_INIT_MARKERS) >= SS_INIT_MIN   # ADR-023
+        self._last_external = t
+        active = t - self._last_external < EXTERNAL_COOLDOWN
         if active and self.proxy["holder"] == "external":
+            # 已在外部状态：指纹结论变了只刷新状态，不重复发事件（防刷屏）
+            if mild != self.proxy.get("mild", False):
+                self.proxy = {**self.proxy, "mild": mild}
+                self._notify_state()
             return
-        self.proxy = {"holder": "external", "detail": self.proxy.get("detail") or "未知进程",
-                      "since": now()}
+        if mild:
+            detail = "飞智空间站（服务初始化）"
+            msg = "飞智空间站服务初始化手柄，稍后自动收回"
+        else:
+            detail = self.proxy.get("detail") or "未知进程"
+            msg = f"总线上出现外部命令 cmd={cmd}"
+        self.proxy = {"holder": "external", "detail": detail,
+                      "since": now(), "mild": mild}
         self._emit("proxy", holder="external", cmd=cmd,
-                   hex=self._ext_frames.get(cmd, ""),
-                   detail=f"总线上出现外部命令 cmd={cmd}")
+                   hex=self._ext_frames.get(cmd, ""), mild=mild, detail=msg)
         self._notify_state()
 
     # ---------- 对外 API ----------
@@ -599,7 +623,9 @@ class Engine:
             return
         if time.monotonic() - self._last_external < PROXY_RELEASE_TIMEOUT:
             return
-        self._reclaim(f"外部已停止（{PROXY_RELEASE_TIMEOUT:.0f}s 无活动），自动接管回来")
+        why = ("飞智空间站初始化结束，已自动接管回来" if self.proxy.get("mild")
+               else f"外部已停止（{PROXY_RELEASE_TIMEOUT:.0f}s 无活动），自动接管回来")
+        self._reclaim(why)
 
     def reclaim(self):
         """用户手动夺回。立即生效。"""

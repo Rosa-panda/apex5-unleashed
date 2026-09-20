@@ -146,9 +146,11 @@ export default function App() {
                 <Zap size={11} /> 标准模式（无适配）
               </div>
             ))}
-            <div className={`mt-1 flex items-center gap-1.5 ${taken ? 'text-warn' : 'text-text-low'}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${taken ? 'bg-warn' : 'bg-ok'}`} />
-              {taken ? `被接管：${proxy?.detail || '未知进程'}` : '代理权：本软件'}
+            <div className={`mt-1 flex items-center gap-1.5 ${taken && !proxy?.mild ? 'text-warn' : 'text-text-low'}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${taken && !proxy?.mild ? 'bg-warn' : 'bg-ok'}`} />
+              {taken
+                ? proxy?.mild ? '飞智空间站初始化中' : `被接管：${proxy?.detail || '未知进程'}`
+                : '代理权：本软件'}
             </div>
           </div>
           <button
@@ -170,14 +172,21 @@ export default function App() {
             <span className="text-text-low">· 127.0.0.1:18765</span>
           </div>
           {taken && (
-            <div className="flex items-center gap-2">
-              <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-1 text-[12px] text-warn">
-                手柄当前由「{proxy?.detail || '未知进程'}」代理，15s 无活动自动接管回来
+            proxy?.mild ? (
+              /* ADR-023：飞智空间站 init 指纹命中 → 中性提示，不弹「被接管」警告 */
+              <div className="rounded-md border border-border-soft bg-white/5 px-3 py-1 text-[12px] text-text-mid">
+                飞智空间站服务初始化手柄，稍后自动收回
               </div>
-              <button className="btn !py-1 text-[12px] text-warn" onClick={() => api.reclaim().catch(() => {})}>
-                立即夺回
-              </button>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-1 text-[12px] text-warn">
+                  手柄当前由「{proxy?.detail || '未知进程'}」代理，15s 无活动自动接管回来
+                </div>
+                <button className="btn !py-1 text-[12px] text-warn" onClick={() => api.reclaim().catch(() => {})}>
+                  立即夺回
+                </button>
+              </div>
+            )
           )}
         </header>
 

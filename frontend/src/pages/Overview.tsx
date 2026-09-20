@@ -202,10 +202,12 @@ export default function Overview({ snap, events, onPanic }: {
               {!adapt.active && '无适配运行——进游戏会自动套用（如已绑定）'}
             </div>
             {snap?.proxy?.holder && (
-              <div className={`mt-2 text-[11px] ${snap.proxy.holder === 'self' ? 'text-text-low' : 'text-warn'}`}>
+              <div className={`mt-2 text-[11px] ${snap.proxy.holder === 'self' || snap.proxy.mild ? 'text-text-low' : 'text-warn'}`}>
                 {snap.proxy.holder === 'self'
                   ? '代理权：本软件'
-                  : `⚠ 被接管：${snap.proxy.detail || snap.proxy.holder}`}
+                  : snap.proxy.mild
+                    ? '飞智空间站服务初始化中，稍后自动收回'
+                    : `⚠ 被接管：${snap.proxy.detail || snap.proxy.holder}`}
               </div>
             )}
           </div>

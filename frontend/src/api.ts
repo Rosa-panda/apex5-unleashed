@@ -8,7 +8,7 @@ export interface EngineSnapshot {
     rumble: { l: number; r: number; updated_at: string | null }
     gripBind: { left: GripBindState | null; right: GripBindState | null }
   }
-  proxy: { holder: string; detail: string; since: string | null }
+  proxy: { holder: string; detail: string; since: string | null; mild?: boolean }
   events: EngineEvent[]
 }
 export interface EngineEvent { ts: string; kind: string; hist?: boolean; [k: string]: unknown }
