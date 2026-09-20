@@ -147,8 +147,23 @@ def main():
 
     # 飞智虚拟手柄抢 XInput 0 号槽（原神等只认 0 号槽的游戏不震，2026-09-20 实锤）。
     # 检测驱动，不是开关：开了「自动修复」后，启动时 + 每次进游戏时查一次设备树，
-    # 检测到它活跃才提权禁用；禁用状态持久 → 通常整个生命周期只弹一次 UAC。
+    # 检测到它活跃才出手——且默认是**临时修复**（哨兵在软件退出时自动还原，
+    # 不留永久改动）；永久禁用只在设置页被显式点击时发生。
     import vibfix as vibfix_mod
+
+    if vibfix_mod.needs_selfheal():
+        # 上次会话是临时修复但软件没走正常退出（崩溃/重启杀了哨兵）。
+        # 自动修复开着 → 禁用马上还要重建，残留续用即可（省一次 UAC）；
+        # 自动修复关着 → 启动自愈还原原状，绝不留下用户不知情的禁用。
+        if games.vibfix_auto:
+            vibfix_mod.ledger_record("temporary", "disabled")
+            eng._emit("vibfix", state="carryover",
+                      detail="上次会话的临时修复残留继续生效（自动修复开启，保持禁用）")
+        else:
+            eng._emit("vibfix", state="selfheal",
+                      detail="检测到上次会话临时修复的残留（本软件未正常退出），正在请求授权恢复原状…")
+            if vibfix_mod.restore():
+                eng._emit("vibfix", state="restored", detail="虚拟手柄已恢复，系统回到原始状态")
 
     def vibfix_watch(_exe):
         if not (games.vibfix_auto and vibfix_mod.auto_fix_allowed()):
@@ -156,9 +171,10 @@ def main():
         if vibfix_mod.status() != "enabled":
             return
         eng._emit("vibfix", state="fixing",
-                  detail="检测到飞智虚拟手柄占用 XInput 0 号槽（会吞游戏震动），正在请求授权修复…")
+                  detail="检测到飞智虚拟手柄占用 XInput 0 号槽（会吞游戏震动），正在请求授权临时修复…")
         if vibfix_mod.auto_disable():
-            eng._emit("vibfix", state="fixed", detail="已请求禁用虚拟手柄，授权通过后真手柄独占震动")
+            eng._emit("vibfix", state="fixed",
+                      detail="已授权临时禁用虚拟手柄，真手柄独占震动；本软件退出后会自动恢复原状")
         else:
             eng._emit("vibfix", state="denied",
                       detail="未获授权，虚拟手柄仍在抢震动；可到设置页手动修复，或关闭自动修复避免再次询问")

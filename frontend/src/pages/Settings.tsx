@@ -93,20 +93,32 @@ export default function Settings() {
               号槽发震动的游戏，震动会全被它吞掉（能玩、不震）。
               修复 = 禁用该虚拟设备（飞智自家的，不碰别的硬件），真手柄独占震动。
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button className="btn !py-1 text-[12px]"
-                onClick={() => api.vibfixSet(false)
+                onClick={() => api.vibfixSet(false, 'temporary')
                   .then(() => { flash('✓ 已授权，正在生效…'); setTimeout(load, 1500) })
                   .catch(e => flash(`✗ ${e.message}`))}>
-                一键修复（会弹系统授权）
+                临时修复（推荐）
               </button>
+              <button className="btn !py-1 text-[12px]"
+                onClick={() => api.vibfixSet(false, 'permanent')
+                  .then(() => { flash('✓ 已授权，正在生效…'); setTimeout(load, 1500) })
+                  .catch(e => flash(`✗ ${e.message}`))}>
+                永久修复
+              </button>
+            </div>
+            <div className="text-[11px] leading-relaxed text-text-low">
+              临时修复：只在本软件运行期间生效，<b>退出后系统自动还原</b>，崩溃/重启也不留残留（启动会自愈）。
+              永久修复：重启也保持禁用，但这里永远显示状态，随时一键恢复。
             </div>
           </div>
         )}
         {vibfix?.state === 'disabled' && (
           <div className="space-y-2">
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-[12px] leading-relaxed text-emerald-200">
-              已修复：虚拟手柄已禁用，真手柄独占 0 号槽震动（状态持久，重启不反弹）。
+              {vibfix.ledger.mode === 'permanent'
+                ? <>已永久禁用（{vibfix.ledger.since} 由本软件执行）。这里永远可见、随时可恢复，不会变成无头案。</>
+                : <>临时修复中：虚拟手柄已禁用，真手柄独占震动。<b>本软件退出后系统自动还原原状</b>。</>}
             </div>
             <button className="btn !py-1 text-[12px]"
               onClick={() => api.vibfixSet(true)
@@ -118,13 +130,14 @@ export default function Settings() {
         )}
         {(vibfix?.state === 'enabled' || vibfix?.state === 'disabled') && (
           <div className="mt-2 space-y-2">
-            <Toggle on={vibfix.auto} label="自动修复"
-              desc="启动和进游戏时自动检测，发现虚拟手柄抢 0 号槽就请求授权修复；你点过一次授权后基本不会再弹。"
+            <Toggle on={vibfix.auto} label="自动修复（临时）"
+              desc="启动和进游戏时自动检测，发现虚拟手柄抢 0 号槽就请求授权做临时修复；你点过一次授权后基本不会再弹。"
               onChange={v => api.vibfixAuto(v)
                 .then(() => { flash('✓ 已保存'); load() })
                 .catch(() => flash('✗ 保存失败'))} />
             <div className="text-[11px] text-text-low">
-              恢复/修复动作都要过一次 Windows 授权弹窗（UAC），这是系统要求，软件不会静默改驱动。
+              每次出手都记录在账本（数据文件夹 vibfix.json，时间/方向/模式留痕）；
+              修复与恢复都要过一次 Windows 授权弹窗（UAC），软件不会静默改驱动。
             </div>
           </div>
         )}

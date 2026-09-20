@@ -576,17 +576,29 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     # ---------- 游戏震动修复（飞智虚拟手柄抢 XInput 0 号槽，2026-09-20 原神案例） ----------
     # 不是开关是检测：state 反映设备树实况；enabled(活跃)才有"修复"动作，
     # disabled(已禁用)才显示"恢复"；absent=没装空间站驱动，整卡无事发生。
+    # ledger 全程留痕（防"无头案"）：临时修复软件退出自动还原，永久修复仅显式点击。
     @app.get("/api/vibfix")
     def vibfix_get():
         import vibfix
         return {"state": vibfix.status(), "service": vibfix.SERVICE,
-                "auto": bool(games.vibfix_auto) if games else False}
+                "auto": bool(games.vibfix_auto) if games else False,
+                "ledger": vibfix.ledger_get()}
+
+    class VibFixSetReq(BaseModel):
+        enabled: bool
+        mode: str = "temporary"     # temporary=软件退出自动还原 / permanent=持久禁用
 
     @app.post("/api/vibfix/set")
-    def vibfix_set(req: AutoswitchReq):
+    def vibfix_set(req: VibFixSetReq):
         import vibfix
         try:
-            if not vibfix.set_enabled(req.enabled):
+            if req.enabled:
+                ok = vibfix.restore()
+            elif req.mode == "permanent":
+                ok = vibfix.fix_permanent()
+            else:
+                ok = vibfix.fix_temporary()
+            if not ok:
                 return err(RuntimeError("未获得系统授权（UAC 点了「否」），未做任何更改"))
             return {"ok": True, "state": vibfix.status()}
         except Exception as e:

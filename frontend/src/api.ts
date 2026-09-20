@@ -13,7 +13,13 @@ export interface EngineSnapshot {
 }
 export interface EngineEvent { ts: string; kind: string; hist?: boolean; [k: string]: unknown }
 // 游戏震动修复（飞智虚拟手柄抢 XInput 0 号槽）：absent=没装 / enabled=活跃会吞震动 / disabled=已禁用
-export interface VibFixStatus { state: 'absent' | 'enabled' | 'disabled'; service: string; auto: boolean }
+export interface VibFixStatus {
+  state: 'absent' | 'enabled' | 'disabled'
+  service: string
+  auto: boolean
+  ledger: { mode: 'temporary' | 'permanent' | 'restore' | null; state: string | null; since: string | null;
+    history: Array<{ ts: string; action: string; state: string }> }
+}
 export interface Preset {
   id: string; name: string; note: string; builtin: boolean
   actions: Array<Record<string, unknown>>; saved_at?: string
@@ -75,9 +81,10 @@ export const api = {
   setUniversalVib: (enabled: boolean) => post('/api/vib/universal', { enabled }),
   setAutoswitch: (enabled: boolean) => post('/api/autoswitch', { enabled }),
   vibfix: () => fetch('/api/vibfix').then(r => r.json()) as Promise<VibFixStatus>,
-  vibfixSet: (enabled: boolean) => post('/api/vibfix/set', { enabled }) as Promise<{
-    ok: boolean; state: VibFixStatus['state']
-  }>,
+  vibfixSet: (enabled: boolean, mode: 'temporary' | 'permanent' = 'temporary') =>
+    post('/api/vibfix/set', { enabled, mode }) as Promise<{
+      ok: boolean; state: VibFixStatus['state']
+    }>,
   vibfixAuto: (enabled: boolean) => post('/api/vibfix/auto', { enabled }) as Promise<{
     ok: boolean; auto: boolean
   }>,
