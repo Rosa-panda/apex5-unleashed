@@ -197,6 +197,7 @@ export const api = {
   expStickMapSet: (patch: Record<string, unknown>) => post('/api/exp/stickmap', { patch }) as Promise<any>,
   expRgb: () => get('/api/exp/rgbbridge') as Promise<any>,
   expRgbSet: (enabled: boolean, port = 7878) => post('/api/exp/rgbbridge', { enabled, port }) as Promise<any>,
+  expRgbTest: (rgb: number[]) => post('/api/exp/rgbbridge/test', { rgb }) as Promise<any>,
   expDiag: (op: string, body: Record<string, unknown> = {}) =>
     post('/api/exp/diagnostics', { op, ...body }) as Promise<any>,
   expDiagData: () => get('/api/exp/diagnostics') as Promise<any>,

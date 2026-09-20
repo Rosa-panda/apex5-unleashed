@@ -1,6 +1,8 @@
 # REST + WS 服务层（TECH-SPEC §6）。挂前端静态资源的单进程入口由 main.py 组装。
 import asyncio
 import json
+import socket
+import time
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -817,6 +819,9 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
         enabled: bool
         port: int = 7878
 
+    class ExpRgbTestReq(BaseModel):
+        rgb: list = [255, 0, 0]
+
     class ExpDiagReq(BaseModel):
         op: str              # sample / adccalib / autocal
         seconds: float = 5.0
@@ -1079,6 +1084,23 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
             if req.enabled:
                 return {"ok": True, **_rgb.start(req.port)}
             return {"ok": True, **_rgb.stop()}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/rgbbridge/test")
+    def exp_rgb_test(req: ExpRgbTestReq):
+        """本机往桥发一包颜色，走完整链路（UDP→解析→限频→写灯），让用户直接看到效果。"""
+        try:
+            if not _rgb.enabled:
+                raise RuntimeError("桥未启动，先点启动")
+            r, g, b = (int(x) for x in req.rgb)
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                s.sendto(f"{r},{g},{b}".encode("ascii"), ("127.0.0.1", _rgb.port))
+            finally:
+                s.close()
+            time.sleep(1.2)          # 越过 1s 限频窗口再看统计
+            return {"ok": True, "sent": [r, g, b], **_rgb.status()}
         except Exception as e:
             return err(e)
 
