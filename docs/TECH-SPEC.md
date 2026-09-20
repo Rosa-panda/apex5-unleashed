@@ -38,6 +38,10 @@ loop:
 - 六模式封装 race/sniper/recoil/lock/vibration/normal + grip bind/unbind + rumble(自动归零)
 - 预设 JSON：%APPDATA%\Apex5Unleashed\presets\（数据目录唯一化，ADR 纪律）；内置预设随包
 - 应用预设 = 事务：清扳机 → 逐条下发 → 失败回滚 Normal
+- 游戏适配三档（ADR-017/022/024）：官方适配（vib 手工调参，34 条）·
+  DS转官（ASB 原生 DualSense 清单 181 条，参数由官方调参做题材集 k-NN 自动生成，
+  tools/update_asb_vib.py 幂等重跑，Steam genres 缓存 %APPDATA%\genre_cache.json）·
+  通用震动联动（任意游戏兜底，cmd 0x52 固件路由）。三档同一条 autoswitch 链路。
 
 ## 5. 代理权检测
 

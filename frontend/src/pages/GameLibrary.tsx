@@ -20,6 +20,7 @@ interface GameProfile {
   official?: boolean
   mod_only?: boolean
   asb?: boolean
+  vib_source?: string
 }
 
 interface GamesResp {
@@ -174,13 +175,23 @@ export default function GameLibrary() {
             <span className="truncate text-[13px] font-medium">{g.name}</span>
             {active && <span className="tag shrink-0 border-accent/50 !text-accent">正在玩</span>}
           </div>
-          {g.vib && (
-            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-accent" title="官方手工调参：震动联动扳机">
+          {g.vib && !g.asb && (
+            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-accent" title="飞智官方手工调参：震动联动扳机，进游戏自动生效">
               <Zap size={9} /> 官方适配
             </div>
           )}
-          {g.asb && (
-            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-violet-300" title="原生支持 DualSense 自适应扳机（ASB/PCGamingWiki 清单）：事件级效果需 ASB 桥，本工具提供震动联动兜底">
+          {g.asb && g.vib_source === 'asb-seed' && (
+            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-violet-300" title="原生 DualSense 扳机游戏，参数按题材从官方调参学习生成（ADR-024），进游戏自动生效">
+              DS转官
+            </div>
+          )}
+          {g.asb && g.vib_source === 'asb-seed-fallback' && (
+            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-violet-300/70" title="原生 DualSense 扳机游戏，未取到题材标签，套用通用参数（ADR-024）">
+              DS转官·通用
+            </div>
+          )}
+          {g.asb && !g.vib && (
+            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-violet-300/70" title="原生 DualSense 扳机游戏：暂无参数，可开通用震动联动兜底">
               DS 原生
             </div>
           )}
@@ -278,9 +289,10 @@ export default function GameLibrary() {
       </div>
 
       <div className="flex items-center gap-3 text-[12px] text-text-mid">
-        <span className="text-text-low">角标说明：<span className="text-accent">⚡官方适配</span>=官方震动调参，进游戏自动生效 ·
-          <span className="text-violet-300">DS 原生</span>=原生 DualSense 扳机游戏（事件级效果需 ASB 桥）·
-          卡片下方「扳机预设」=可选，绑定后进游戏自动套用</span>
+        <span className="text-text-low">角标说明：<span className="text-accent">⚡官方适配</span>=飞智官方手工调参 ·
+          <span className="text-violet-300">DS转官</span>=原生 DualSense 游戏，参数按题材从官方调参学习生成 ·
+          <span className="text-violet-300/70">DS转官·通用</span>=同上但未取到题材，用通用参数 ·
+          三者进游戏都自动生效；「扳机预设」=可选，绑定后自动套用</span>
       </div>
 
       <div className="flex items-center gap-3 text-[12px] text-text-mid">

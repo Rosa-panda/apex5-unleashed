@@ -180,6 +180,8 @@ def main():
             g["genres"] = sorted(gs)
         if not dry:
             fn = g.pop("_fn")
+            g["note"] = ("原生 DualSense 自适应扳机游戏（ASB/PCGamingWiki 清单）。"
+                         "已按题材转为本工具震动联动参数，进游戏自动生效（ADR-024）。")
             with open(os.path.join(GAMES, fn), "w", encoding="utf-8") as f:
                 json.dump(g, f, ensure_ascii=False, indent=2)
         ok += 1

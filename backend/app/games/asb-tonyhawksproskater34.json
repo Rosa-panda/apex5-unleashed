@@ -3,7 +3,7 @@
   "name": "Tony Hawk's Pro Skater 3 + 4",
   "en": "Tony Hawk's Pro Skater 3 + 4",
   "exe": [],
-  "note": "原生支持 DualSense 自适应扳机（ASB/PCGamingWiki 清单）。事件级效果需 ApexSenseBridge 桥；本工具提供震动联动兜底。",
+  "note": "原生 DualSense 自适应扳机游戏（ASB/PCGamingWiki 清单）。已按题材转为本工具震动联动参数，进游戏自动生效（ADR-024）。",
   "image": "",
   "asb": true,
   "source": "asb-list",
