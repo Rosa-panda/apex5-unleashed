@@ -111,3 +111,4 @@
 - **ADR-023** spacestation-init-fingerprint：飞智空间站服务 init 突发（实机抓取 10 cmd 指纹）判 mild——代理权仍 external（收回/重放照旧），仅横幅柔化为中性提示；真陌生接管照旧红色警告
 - **ADR-024** asb-vib-seed-generation：ASB 181 条「DS 原生」档案全自动生成 vib 种子参数——官方 34 条调参做题材集 k-NN（Steam genres 特征），回写内置档案走既有 autoswitch 链路；无桥前提下事件级不可转换（机理墙），转的是体验不是配置
 - **ADR-025** official-mod-impersonation：官方 Mod 路线**已实现**（2026-09-20 同日侦察+落地）——DSX ingress（7878/8787，飞智包直通 cmd51 + DSX 社区包近似翻译）+ Mod 管家（CDN 下载/安装/前台驱动拉起/退出收尾）+ 44 条官方 mod 字段并入档案 + /api/mods + 游戏库 Mod 卡（安装/启用/运行态）。插件型（F4SE/ScriptHookV 7 条）v1 拒绝。待真机实测 F1 23 收包
+- **ADR-026** experience-lab：体验区（隐藏功能孵化区）——功能挖掘 16 项全部先进实验专区，注册表驱动前端卡片 + /api/exp/* 前缀 + exp_verdicts.json 判定持久化；真机测过判「好用」才写转正 ADR 迁正式导航。数据流类功能挂 engine 帧分发（单读线程红线）

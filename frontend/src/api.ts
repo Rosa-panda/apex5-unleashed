@@ -148,7 +148,21 @@ export const api = {
   }>,
   macroBackup: () => post('/api/macro/backup') as Promise<{ ok: boolean; path: string; macros: number }>,
   macroRestore: () => post('/api/macro/restore') as Promise<{ ok: boolean; warnings?: string[] }>,
+
+  // 体验区（ADR-026：隐藏功能孵化区）
+  expList: () => fetch('/api/exp').then(r => r.json()) as Promise<ExpList>,
+  expVerdict: (id: string, verdict: 'good' | 'bad' | 'pending', note = '') =>
+    post('/api/exp/verdict', { id, verdict, note }) as Promise<{
+      ok: boolean; id: string; verdict: string; ts: number; summary: ExpSummary
+    }>,
 }
+
+export interface ExpFeature {
+  id: string; tier: 1 | 2 | 3; plan: string; title: string; desc: string
+  enabled: boolean; tierLabel: string; verdict: 'good' | 'bad' | 'pending'; note: string
+}
+export interface ExpSummary { good: number; bad: number; pending: number }
+export interface ExpList { ok: boolean; features: ExpFeature[]; summary: ExpSummary }
 export interface MacroAction { t: number; key: number; ev: number }
 export interface Macro {
   key_id: number; type: number; interval: number; actions: MacroAction[]

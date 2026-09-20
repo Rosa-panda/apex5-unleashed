@@ -706,6 +706,37 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
         except Exception as e:
             return err(e)
 
+    # ---------- 体验区（ADR-026：隐藏功能孵化区） ----------
+    import explab as _explab
+    _exp_verdicts = _explab.Verdicts()
+
+    class ExpVerdictReq(BaseModel):
+        id: str
+        verdict: str          # good / bad / pending
+        note: str = ""
+
+    @app.get("/api/exp")
+    def exp_list():
+        """注册表 + 判定合并下发：前端卡片全靠这里渲染，不硬编码。"""
+        feats = []
+        for f in _explab.FEATURES:
+            v = _exp_verdicts.get(f["id"])
+            feats.append({**f, "tierLabel": _explab.TIER_LABEL[f["tier"]],
+                          "verdict": v.get("verdict", "pending"),
+                          "note": v.get("note", "")})
+        return {"ok": True, "features": feats, "summary": _exp_verdicts.summary()}
+
+    @app.post("/api/exp/verdict")
+    def exp_verdict(req: ExpVerdictReq):
+        """真机测试后的判定留痕：转正/淘汰的证据链。"""
+        if not any(f["id"] == req.id for f in _explab.FEATURES):
+            return err(ValueError(f"未知体验区功能: {req.id}"))
+        try:
+            v = _exp_verdicts.set(req.id, req.verdict, req.note)
+        except Exception as e:
+            return err(e)
+        return {"ok": True, "id": req.id, **v, "summary": _exp_verdicts.summary()}
+
     @app.get("/api/imgcache/status")
     def imgcache_status():
         import gameimg

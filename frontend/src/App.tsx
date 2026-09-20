@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Gamepad, Gamepad2, LayoutDashboard, LibraryBig, Lightbulb, MonitorPlay, Settings as SettingsIcon, SlidersHorizontal, TriangleAlert, Wand2, Zap } from 'lucide-react'
+import { Activity, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, FlaskConical, Gamepad, Gamepad2, LayoutDashboard, LibraryBig, Lightbulb, MonitorPlay, Settings as SettingsIcon, SlidersHorizontal, TriangleAlert, Wand2, Zap } from 'lucide-react'
 import { api, type EngineEvent } from './api'
 import { useEngine } from './useEngine'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -12,9 +12,10 @@ import GameLibrary from './pages/GameLibrary'
 import Macros from './pages/Macros'
 import Lights from './pages/Lights'
 import Screen from './pages/Screen'
+import ExpLab from './pages/ExpLab'
 import Settings from './pages/Settings'
 
-type PageId = 'overview' | 'lab' | 'presets' | 'games' | 'macros' | 'lights' | 'screen' | 'padtest' | 'settings'
+type PageId = 'overview' | 'lab' | 'presets' | 'games' | 'macros' | 'lights' | 'screen' | 'padtest' | 'explab' | 'settings'
 
 const NAV: Array<{ id: PageId; label: string; icon: typeof Activity }> = [
   { id: 'overview', label: '总览', icon: LayoutDashboard },
@@ -25,6 +26,7 @@ const NAV: Array<{ id: PageId; label: string; icon: typeof Activity }> = [
   { id: 'lights', label: '灯光', icon: Lightbulb },
   { id: 'screen', label: '屏幕', icon: MonitorPlay },
   { id: 'padtest', label: '手柄测试', icon: Gamepad },
+  { id: 'explab', label: '体验区', icon: FlaskConical },
   { id: 'settings', label: '设置', icon: SettingsIcon },
 ]
 
@@ -224,6 +226,7 @@ export default function App() {
             {page === 'lights' && <DeviceGate online={online}><Lights /></DeviceGate>}
             {page === 'screen' && <DeviceGate online={online}><Screen events={events} /></DeviceGate>}
             {page === 'padtest' && <PadTest events={events} />}
+            {page === 'explab' && <ExpLab />}
             {page === 'settings' && <Settings />}
           </ErrorBoundary>
         </div>
