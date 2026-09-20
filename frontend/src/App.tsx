@@ -34,6 +34,7 @@ export default function App() {
   const [panicFlash, setPanicFlash] = useState(false)
   const [toast, setToast] = useState('')
   const lastAutoRef = useRef<EngineEvent | null>(null)
+  const toastTimer = useRef(0)
 
   const proxy = snap?.proxy
   const taken = proxy?.holder === 'external'
@@ -51,14 +52,17 @@ export default function App() {
   const presetApplied = trigSrc.startsWith('preset:') ? trigSrc.slice('preset:'.length) : null
   const adapted = !!(gameAdapted || universalVib || presetApplied)
 
-  // 自动切换 toast：只认 WS 实时推送（hist 标记的历史事件在重连/开窗时重放，不弹）
+  // 自动切换 toast：只认 WS 实时推送（hist 标记的历史事件在重连/开窗时重放，不弹）。
+  // ⚠ 定时器必须放 ref、不能当 effect cleanup：cleanup 在 effect 每次重跑（任意其他
+  // WS 事件到达）时都会执行，若在这里清了 4s 定时器又提前 return 不重排 → 弹窗
+  // 永不消失（2026-09-20 用户实测「离开游戏」提示赖着不走）。
   useEffect(() => {
     const latest = [...events].reverse().find(e => e.kind === 'autoswitch' && !e.hist)
     if (!latest || latest === lastAutoRef.current) return
     lastAutoRef.current = latest
     setToast(typeof latest.detail === 'string' ? latest.detail : '')
-    const t = setTimeout(() => setToast(''), 4000)
-    return () => clearTimeout(t)
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(''), 4000)
   }, [events])
 
   const doPanic = async () => {
