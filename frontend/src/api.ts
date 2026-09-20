@@ -1,11 +1,12 @@
 // 后端 REST 封装（同源部署，走相对路径；dev 由 vite proxy）
 export interface TriggerState { mode: string; params: Record<string, number>; source: string; applied_at: string }
+export interface GripBindState { source?: string; applied_at?: string }
 export interface EngineSnapshot {
   device: { kind: string | null; online: boolean; battery?: { level: number; charging: boolean } | null }
   state: {
     triggers: { left: TriggerState | null; right: TriggerState | null }
     rumble: { l: number; r: number; updated_at: string | null }
-    gripBind: { left: Record<string, unknown> | null; right: Record<string, unknown> | null }
+    gripBind: { left: GripBindState | null; right: GripBindState | null }
   }
   proxy: { holder: string; detail: string; since: string | null }
   events: EngineEvent[]

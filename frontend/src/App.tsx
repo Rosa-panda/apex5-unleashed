@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Activity, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Gamepad, Gamepad2, LayoutDashboard, LibraryBig, Lightbulb, MonitorPlay, Settings as SettingsIcon, SlidersHorizontal, TriangleAlert, Wand2, Zap } from 'lucide-react'
-import { api } from './api'
+import { api, type EngineEvent } from './api'
 import { useEngine } from './useEngine'
 import { ErrorBoundary } from './ErrorBoundary'
 import { DeviceGate } from './Offline'
@@ -32,12 +32,41 @@ export default function App() {
   const [page, setPage] = useState<PageId>('overview')
   const { snap, connected, events } = useEngine()
   const [panicFlash, setPanicFlash] = useState(false)
+  const [toast, setToast] = useState('')
+  const lastAutoRef = useRef<EngineEvent | null>(null)
+  const mountedRef = useRef(false)
 
   const proxy = snap?.proxy
   const taken = proxy?.holder === 'external'
   const online = snap?.device.online ?? false
   const mock = snap?.device.kind === 'mock'
   const batt = snap?.device.battery
+
+  // 适配状态推导：gripBind/triggers 的 source 是工具行为的事实记录（game:名称 / preset:名称 / vib:universal）
+  const gripSrc = snap?.state.gripBind.left?.source ?? snap?.state.gripBind.right?.source ?? ''
+  const trigSrc = snap?.state.triggers.left?.source ?? snap?.state.triggers.right?.source ?? ''
+  const gameAdapted = gripSrc.startsWith('game:') && !gripSrc.endsWith(':novib')
+    ? gripSrc.slice('game:'.length)
+    : null
+  const universalVib = gripSrc.startsWith('vib:universal')
+  const presetApplied = trigSrc.startsWith('preset:') ? trigSrc.slice('preset:'.length) : null
+  const adapted = !!(gameAdapted || universalVib || presetApplied)
+
+  // 自动切换 toast：autoswitch 事件 → 顶部横条 4s；首帧快照里已有的历史事件不弹
+  useEffect(() => {
+    const latest = [...events].reverse().find(e => e.kind === 'autoswitch')
+    if (!latest) return
+    if (!mountedRef.current) {
+      lastAutoRef.current = latest
+      mountedRef.current = true
+      return
+    }
+    if (latest === lastAutoRef.current) return
+    lastAutoRef.current = latest
+    setToast(typeof latest.detail === 'string' ? latest.detail : '')
+    const t = setTimeout(() => setToast(''), 4000)
+    return () => clearTimeout(t)
+  }, [events])
 
   const doPanic = async () => {
     setPanicFlash(true)
@@ -93,6 +122,21 @@ export default function App() {
                 {batt.charging ? `充电中 · ${batt.level}/5` : `电量 ${batt.level}/5`}
               </div>
             )}
+            {/* 适配状态：工具行为可视化——当前套用了哪个游戏适配/预设，一眼可见 */}
+            {online && (adapted ? (
+              <div className="mt-1 flex items-center gap-1.5 text-accent" title="自动切换已应用的适配">
+                <Zap size={11} />
+                <span className="truncate">
+                  {gameAdapted ? `适配中：${gameAdapted}`
+                    : universalVib ? '通用震动联动' : ''}
+                  {presetApplied ? ` · 预设 ${presetApplied}` : ''}
+                </span>
+              </div>
+            ) : (
+              <div className="mt-1 flex items-center gap-1.5 text-text-low">
+                <Zap size={11} /> 标准模式（无适配）
+              </div>
+            ))}
             <div className={`mt-1 flex items-center gap-1.5 ${taken ? 'text-warn' : 'text-text-low'}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${taken ? 'bg-warn' : 'bg-ok'}`} />
               {taken ? `被接管：${proxy?.detail || '未知进程'}` : '代理权：本软件'}
@@ -109,7 +153,7 @@ export default function App() {
       </aside>
 
       {/* 主区 */}
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="relative flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-border-soft px-6 py-3">
           <div className="flex items-center gap-2 text-[13px] text-text-mid">
             <Activity size={14} className={connected ? 'text-ok' : 'text-err'} />
@@ -138,6 +182,15 @@ export default function App() {
               <Gamepad size={13} /> 手柄未连接 —— 请检查 USB 线或重新插拔手柄；接上后设备功能自动恢复
             </div>
           ) : null}
+
+        {/* 自动切换 toast：进入/离开游戏时全页面可见的工具行为提示 */}
+        {toast && (
+          <div className="pointer-events-none absolute left-1/2 top-12 z-50 -translate-x-1/2">
+            <div className="flex items-center gap-2 rounded-lg border border-accent/50 bg-[#0d0d14] px-4 py-2 text-[13px] text-accent shadow-lg">
+              <Zap size={13} /> {toast}
+            </div>
+          </div>
+        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
           <ErrorBoundary page={page}>

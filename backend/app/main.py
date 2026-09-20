@@ -193,6 +193,20 @@ def main():
     window = webview.create_window("Apex5 Unleashed", f"http://127.0.0.1:{args.port}/",
                                    width=1180, height=760, min_size=(960, 620))
     window.events.closing += _on_closing
+
+    # 窗口/任务栏图标：自绘手柄 .ico（icon.py，零版权风险）。native Form 在 webview
+    # 启动后才存在，挂 loaded 事件设置；失败静默（缺图标可容忍）。
+    import icon as icon_mod
+    ico = icon_mod.ensure_ico()
+    if ico:
+        def _apply_win_icon():
+            try:
+                from System.Drawing import Icon
+                window.native.Icon = Icon(ico)
+            except Exception:
+                pass
+        window.events.loaded += _apply_win_icon
+
     webview.start()          # 主线程阻塞（Windows 要求；X 只隐藏，退出走角标）
     eng.panic(source="exit")
     eng.stop()

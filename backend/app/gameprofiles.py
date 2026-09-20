@@ -218,11 +218,14 @@ class GameProfiles:
             from officialimport import UNIVERSAL_VIB
             for side in ("left", "right"):
                 engine.bind_grip(side, dict(UNIVERSAL_VIB), source="vib:universal")
+            engine._emit("autoswitch", game="", preset="",
+                         detail="无专属适配，应用通用震动联动")
         elif engine.state["triggers"].get("left") or engine.state["triggers"].get("right") \
                 or engine.state["gripBind"].get("left") or engine.state["gripBind"].get("right"):
             # 账本非空才发解绑（unbind_grip 含 trigger 清除；普通应用间切换不发命令）
             for side in ("left", "right"):
                 engine.unbind_grip(side, source="autoswitch:leave")
+            engine._emit("autoswitch", game="", preset="", detail="离开游戏，已恢复标准状态")
 
     def start_watch(self, engine, stop_evt):
         def loop():

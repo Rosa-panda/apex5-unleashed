@@ -1,21 +1,17 @@
-# 托盘（线程T）：3 态图标 + 菜单。pystray 需要 PIL 生成图标。
+# 托盘（线程T）：3 态图标 + 菜单。图形统一走 icon.py 的自绘手柄（与窗口图标同源）。
 import threading
 
-from PIL import Image, ImageDraw
+import icon
 
 
-def _icon_png(bg, dot):
-    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle([4, 4, 60, 60], radius=14, fill=bg)
-    d.ellipse([24, 24, 40, 40], fill=dot)
-    return img
+def _icon_png(status):
+    return icon.pad_image(status, 64)
 
 
 ICONS = {
-    "self": _icon_png("#0a0a0f", "#22d3ee"),        # 正常：青点
-    "external": _icon_png("#0a0a0f", "#f59e0b"),    # 被接管：橙点
-    "offline": _icon_png("#1f1f2e", "#6b7280"),     # 无设备：灰点
+    "self": _icon_png("self"),        # 正常：青手柄
+    "external": _icon_png("external"),  # 被接管：橙手柄
+    "offline": _icon_png("offline"),    # 无设备：灰手柄
 }
 
 TIPS = {"self": "Apex5 Unleashed — 代理中", "external": "Apex5 Unleashed — 已被外部接管",
