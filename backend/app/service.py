@@ -17,12 +17,21 @@ def create_app(engine, store, games=None, ui_hooks=None):
 
     @app.get("/favicon.ico")
     def favicon():
-        """页内图标：与窗口/托盘同源的自绘手柄（icon.py，静态挂载前注册故优先命中）。"""
+        """页内图标：与窗口/托盘同源的自绘手柄（icon.py，静态挂载前注册故优先命中）。
+        ⚠ 必须全内存生成，禁止碰 app.ico 文件——窗口 loaded 事件里 Icon(path) 在读
+        同一文件，favicon 每次重写会和它撞车：.NET 原生读卡死不释放 GIL，全进程僵死
+        （py-spy 实锤两线程冻结数分钟、uvicorn 拒应答，2026-09-20）。"""
+        import io
+        from fastapi.responses import Response
         import icon
-        p = icon.ensure_ico()
-        if not p:
+        try:
+            buf = io.BytesIO()
+            icon.pad_image("self", 64).save(buf, format="ICO",
+                                            sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
+            return Response(content=buf.getvalue(), media_type="image/x-icon",
+                            headers={"Cache-Control": "public, max-age=86400"})
+        except Exception:
             raise HTTPException(404)
-        return FileResponse(p, media_type="image/x-icon")
 
     clients = set()
     loop_ref = {"loop": None}
