@@ -4,16 +4,26 @@
   "en": "OVERWATCH",
   "note": "官方适配清单 · steam",
   "exe": [
-    "horizonforbiddenwest.exe",
     "overwatch.exe",
-    "riftapart.exe",
-    "overwatch",
-    "horizonforbiddenwest",
-    "riftapart"
+    "overwatch"
   ],
   "image": "https://api-web.cdn.flydigi.com/pcspacegame/2025/06/24/502f3056d3b0baadf3621f43a0ca08bc.png",
   "source": "official-list",
   "imported_at": "2026-09-18",
   "official": true,
-  "official_id": 51
+  "official_id": 51,
+  "vib": {
+    "filter": 26,
+    "scale": 10,
+    "stroke": 2,
+    "press": 15,
+    "strength": 114,
+    "freq": 56
+  },
+  "vib_source": "genre-seed",
+  "genres": [
+    "1",
+    "37"
+  ],
+  "steam_appid": 2357570
 }

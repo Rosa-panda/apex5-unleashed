@@ -175,9 +175,14 @@ export default function GameLibrary() {
             <span className="truncate text-[13px] font-medium">{g.name}</span>
             {active && <span className="tag shrink-0 border-accent/50 !text-accent">正在玩</span>}
           </div>
-          {g.vib && !g.asb && (
+          {g.vib && !g.asb && !g.vib_source && (
             <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-accent" title="飞智官方手工调参：震动联动扳机，进游戏自动生效">
               <Zap size={9} /> 官方适配
+            </div>
+          )}
+          {g.vib && !g.asb && g.vib_source === 'genre-seed' && (
+            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-sky-300" title="无官方参数，按游戏题材从官方调参学习生成（ADR-024），进游戏自动生效">
+              <Zap size={9} /> 题材适配
             </div>
           )}
           {g.asb && g.vib_source === 'asb-seed' && (
@@ -292,7 +297,8 @@ export default function GameLibrary() {
         <span className="text-text-low">角标说明：<span className="text-accent">⚡官方适配</span>=飞智官方手工调参 ·
           <span className="text-violet-300">DS转官</span>=原生 DualSense 游戏，参数按题材从官方调参学习生成 ·
           <span className="text-violet-300/70">DS转官·通用</span>=同上但未取到题材，用通用参数 ·
-          三者进游戏都自动生效；「扳机预设」=可选，绑定后自动套用</span>
+          <span className="text-sky-300">⚡题材适配</span>=非官方库游戏，参数按题材学习生成 ·
+          四者进游戏都自动生效；「扳机预设」=可选，绑定后自动套用</span>
       </div>
 
       <div className="flex items-center gap-3 text-[12px] text-text-mid">

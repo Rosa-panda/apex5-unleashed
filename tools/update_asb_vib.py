@@ -99,6 +99,120 @@ def avg_round(vals):
     return int(round(sum(vals) / len(vals))) if vals else 0
 
 
+def load(fn):
+    with open(os.path.join(GAMES, fn), "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def dump(fn, g):
+    with open(os.path.join(GAMES, fn), "w", encoding="utf-8") as f:
+        json.dump(g, f, ensure_ascii=False, indent=2)
+
+
+# ---------------- Pass 0：冗余壳合并 + exe 污染清洗（幂等，2026-09-20 全量体检产物） ----------------
+# 背景：早期手作档案（forza-horizon-5 等）与官方空壳（of-call-of-duty 等）无参数无角标，
+# 却与 asb 卡撞 exe（match 不确定性）或挡住 asb 卡的中文搜索入口；of-overwatch 官方数据
+# 混入了他游戏进程名（horizonforbiddenwest/riftapart），前台误匹配。合并后删壳。
+MERGE_INTO_ASB = {
+    # 壳文件: (asb目标slug, 追加exe, 中文名覆盖, 补appid)
+    "forza-horizon-4.json": ("asb-forzahorizon4", ["forzahorizon4.exe"],
+                             "极限竞速：地平线 4", 1293830),
+    "forza-horizon-5.json": ("asb-forzahorizon5", [],
+                             "极限竞速：地平线 5", None),
+    "gta5.json": ("asb-grandtheftautov", ["gta5.exe", "playgtav.exe"],
+                  "GTA5 / GTA Online", None),
+    "of-call-of-duty.json": ("asb-callofduty",
+                             ["cod22-cod.exe", "cod23-cod.exe", "cod24-cod.exe",
+                              "sp22-cod.exe", "sp23-cod.exe", "sp24-cod.exe",
+                              "cod22-cod", "cod23-cod", "cod24-cod",
+                              "sp22-cod", "sp23-cod", "sp24-cod"],
+                             "使命召唤", None),
+    "of-the-last-of-us-part-ii.json": ("asb-thelastofuspartiiremastered", [],
+                                       "最后生还者2", None),
+}
+DELETE_COVERED = {"sekiro.json"}          # exe 已被 of-sekiro（mod_only 卡）覆盖
+CLEAN_EXE_PREFIX = {"of-overwatch.json": {"horizonforbiddenwest", "riftapart"}}
+MANUAL_APPID = {"mhw": 582010, "of-gta-5-enhanced": 3240220, "of-overwatch": 2357570}
+
+
+def merge_pass():
+    changed = 0
+    for src, (slug, exes, zh, appid) in MERGE_INTO_ASB.items():
+        p = os.path.join(GAMES, src)
+        if not os.path.isfile(p):
+            continue                       # 幂等：壳已删过
+        dst_fn = slug + ".json"
+        d = load(dst_fn)                   # asb 目标必在（同仓生成物）
+        for e in exes:
+            if e not in d["exe"]:
+                d["exe"].append(e)
+        if zh:
+            d["name"] = zh
+        if appid and not d.get("steam_appid"):
+            d["steam_appid"] = appid
+        dump(dst_fn, d)
+        os.remove(p)
+        changed += 1
+        print(f"  [合并] {src} → {dst_fn}")
+    for fn in DELETE_COVERED:
+        p = os.path.join(GAMES, fn)
+        if os.path.isfile(p):
+            os.remove(p)
+            changed += 1
+            print(f"  [删壳] {fn}（exe 已被官方 mod_only 卡覆盖）")
+    for fn, bad in CLEAN_EXE_PREFIX.items():
+        p = os.path.join(GAMES, fn)
+        if os.path.isfile(p):
+            g = load(fn)
+            clean = [e for e in g["exe"]
+                     if e.removesuffix(".exe") not in bad]
+            if clean != g["exe"]:
+                g["exe"] = clean
+                dump(fn, g)
+                changed += 1
+                print(f"  [清污] {fn} 移除他游戏进程名 {sorted(bad)}")
+    return changed
+
+
+# ---------------- Pass 2：非 asb 无参数条目题材种子化（Mod条目语义不动） ----------------
+def seed_plain_pass(labeled, bounds, fallback, dry, cache, refresh):
+    out = []
+    for fn in sorted(os.listdir(GAMES)):
+        if not fn.endswith(".json"):
+            continue
+        g = load(fn)
+        if g.get("asb") or g.get("vib") or g.get("mod_only"):
+            continue
+        appid = g.get("steam_appid") or MANUAL_APPID.get(fn[:-5]) \
+            or search_appid(g.get("en") or g.get("name") or "")
+        gs = fetch_genres(appid, cache, refresh) if appid else []
+        if gs:
+            hit = [(len(set(gs) & og), v) for og, v in labeled if len(set(gs) & og) > 0]
+            if hit:
+                tot = sum(w for w, _ in hit)
+                vib = {k: int(round(sum(w * v[k] for w, v in hit) / tot)) for k in VIB_KEYS}
+            else:
+                vib = dict(fallback)
+            gs = sorted(set(gs))
+        else:
+            vib = dict(fallback)
+            gs = None
+        for k in VIB_KEYS:
+            lo, hi = bounds[k]
+            vib[k] = max(lo, min(hi, vib[k]))
+        g["vib"] = vib
+        g["vib_source"] = "genre-seed"
+        if gs:
+            g["genres"] = gs
+        if appid and not g.get("steam_appid"):
+            g["steam_appid"] = appid
+        if not dry:
+            dump(fn, g)
+        out.append(fn[:-5])
+        print(f"  [种子] {fn[:-5]}: {vib}")
+    return out
+
+
 def main():
     dry = "--dry" in sys.argv
     refresh = "--refresh" in sys.argv
@@ -116,6 +230,10 @@ def main():
     print(f"官方 vib 条目 {len(official)} · ASB 条目 {len(asb)}")
 
     cache = load_cache()
+    if not dry:
+        n = merge_pass()
+        if n:
+            print(f"合并清洗 {n} 处")
     # ---- 官方条目补 appid + genres（标注数据）----
     labeled = []
     for g in official:
@@ -189,6 +307,13 @@ def main():
     if not dry:
         save_cache(cache)
     print(f"\n生成 {ok}/{len(asb)}（回落 {miss_genre}）· 聚类: {cluster_stat}")
+
+    # ---- 非asb无参数条目（Mod条目除外）题材种子化 ----
+    seeded = seed_plain_pass(labeled, bounds, fallback, dry, cache, refresh)
+    if seeded:
+        print(f"普通条目种子化 {len(seeded)}: {seeded}")
+    if not dry:
+        save_cache(cache)
     print("值域 clamp:", {k: bounds[k] for k in VIB_KEYS})
     print("回落簇参数:", fallback)
     return 0

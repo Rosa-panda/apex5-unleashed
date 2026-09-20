@@ -11,5 +11,20 @@
   "source": "official-list",
   "imported_at": "2026-09-18",
   "official": true,
-  "official_id": 69
+  "official_id": 69,
+  "vib": {
+    "filter": 27,
+    "scale": 10,
+    "stroke": 4,
+    "press": 13,
+    "strength": 122,
+    "freq": 68
+  },
+  "vib_source": "genre-seed",
+  "genres": [
+    "1",
+    "25",
+    "9"
+  ],
+  "steam_appid": 3240220
 }
