@@ -251,6 +251,12 @@ export default function GameLibrary() {
       </div>
 
       <div className="flex items-center gap-3 text-[12px] text-text-mid">
+        <span className="text-text-low">角标说明：<span className="text-accent">⚡官方适配</span>=官方震动调参，进游戏自动生效 ·
+          <span className="text-violet-300">DS 原生</span>=原生 DualSense 扳机游戏（事件级效果需 ASB 桥）·
+          卡片下方「扳机预设」=可选，绑定后进游戏自动套用</span>
+      </div>
+
+      <div className="flex items-center gap-3 text-[12px] text-text-mid">
         <span>前台：<span className="font-mono text-accent">{fg ?? '—'}</span></span>
         <span className="text-text-low">{filtered.length} / {pool.length} 款</span>
         {msg && <span className="ml-auto">{msg}</span>}

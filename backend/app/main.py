@@ -75,22 +75,32 @@ def main():
     except Exception:
         pass
 
-    # 起 uvicorn 并**实等就绪**：绑定失败（旧实例退出中端口未放/被占用）时 uvicorn
-    # 是在子线程里静默死掉的，主流程若不核实就会带着死后台开窗 → 白屏
-    # （2026-09-19 用户实测：退出/重启竞态 → 10048 → "主界面打不开"）。
+    # 起 uvicorn 并**实等自家就绪**：绑定失败（旧实例退出中/竞态双开）时 uvicorn
+    # 在子线程里 sys.exit 静默死亡，主流程若只探 health 会把**别人家的**后台当成
+    # 自己的 → 双开两个窗口（2026-09-20 用户实测）。必须认 server.started（自家标志）。
     cfg = uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="warning")
     server = uvicorn.Server(cfg)
     threading.Thread(target=server.run, daemon=True, name="uvicorn").start()
 
-    ready = False
+    own_ready = False
+    foreign_up = False
     for _ in range(100):               # 最多 ~10s：给退出中的旧进程留足放端口时间
-        try:
+        if server.started:
+            own_ready = True
+            break
+        try:                            # 端口上有别人（先启动的实例）→ 唤起它，本进程退出
             urllib.request.urlopen(f"http://127.0.0.1:{args.port}/api/health", timeout=0.5)
-            ready = True
+            foreign_up = True
             break
         except Exception:
             time.sleep(0.1)
-    if not ready:
+    if foreign_up:
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{args.port}/api/show", timeout=1.0)
+        except Exception:
+            pass
+        return
+    if not own_ready:
         msg = (f"后台启动失败：端口 {args.port} 迟迟不可用（可能有残留进程未退出）。\n"
                "请用任务管理器结束残留的 python/pythonw 进程后重新打开本软件。")
         print(msg)

@@ -79,9 +79,21 @@ export default function App() {
       {/* 侧栏 */}
       <aside className="flex w-52 shrink-0 flex-col border-r border-border-soft bg-[#0d0d14]">
         <div className="flex items-center gap-2.5 px-5 py-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/15 text-accent">
-            <Zap size={17} strokeWidth={2.2} />
-          </div>
+          {/* 品牌图标：与窗口/托盘同源的自绘手柄（icon.py 的 SVG 版） */}
+          <svg viewBox="0 0 64 64" className="h-8 w-8 shrink-0" aria-label="Apex5 Unleashed">
+            <rect x="3" y="3" width="58" height="58" rx="14" fill="#0a0a0f" />
+            <rect x="13" y="23" width="38" height="18" rx="9" fill="#22d3ee" />
+            <ellipse cx="19" cy="37" rx="10" ry="11" fill="#22d3ee" />
+            <ellipse cx="45" cy="37" rx="10" ry="11" fill="#22d3ee" />
+            <rect x="19.5" y="27" width="5" height="12" rx="1.5" fill="#0a0a0f" />
+            <rect x="16" y="30.5" width="12" height="5" rx="1.5" fill="#0a0a0f" />
+            <circle cx="42.5" cy="28.5" r="2.2" fill="#0a0a0f" />
+            <circle cx="46.5" cy="32.5" r="2.2" fill="#0a0a0f" />
+            <circle cx="42.5" cy="36.5" r="2.2" fill="#0a0a0f" />
+            <circle cx="38.5" cy="32.5" r="2.2" fill="#0a0a0f" />
+            <circle cx="30.5" cy="28.6" r="1.4" fill="#0a0a0f" />
+            <circle cx="33.5" cy="28.6" r="1.4" fill="#0a0a0f" />
+          </svg>
           <div>
             <div className="text-[13px] font-semibold tracking-wide">Apex5 Unleashed</div>
             <div className="text-[10px] text-text-low">v0.1 · 八爪鱼5 工具箱</div>
@@ -196,7 +208,7 @@ export default function App() {
           <ErrorBoundary page={page}>
             {page === 'overview' && <Overview snap={snap} events={events} onPanic={doPanic} />}
             {page === 'lab' && <TriggerLab snap={snap} />}
-            {page === 'presets' && <PresetLibrary />}
+            {page === 'presets' && <PresetLibrary snap={snap} />}
             {page === 'games' && <GameLibrary />}
             {page === 'macros' && <Macros events={events} online={online} />}
             {page === 'lights' && <DeviceGate online={online}><Lights /></DeviceGate>}

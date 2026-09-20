@@ -2,9 +2,9 @@
 import asyncio
 import json
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 import protocol
@@ -14,6 +14,15 @@ import screenpack
 def create_app(engine, store, games=None, ui_hooks=None):
     app = FastAPI(title="Apex5 Unleashed", docs_url=None, redoc_url=None)
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+    @app.get("/favicon.ico")
+    def favicon():
+        """页内图标：与窗口/托盘同源的自绘手柄（icon.py，静态挂载前注册故优先命中）。"""
+        import icon
+        p = icon.ensure_ico()
+        if not p:
+            raise HTTPException(404)
+        return FileResponse(p, media_type="image/x-icon")
 
     clients = set()
     loop_ref = {"loop": None}
