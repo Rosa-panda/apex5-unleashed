@@ -109,3 +109,4 @@
 
 - **ADR-022** asb-collaboration：引入 ASB 211 款 DS 原生清单（官方优先去重）+ 协作定位（事件级扳机归 ASB 桥）+ 扳机模式 wire2/3 枚举勘误（sniper/recoil 名字互换，待实机复核）
 - **ADR-023** spacestation-init-fingerprint：飞智空间站服务 init 突发（实机抓取 10 cmd 指纹）判 mild——代理权仍 external（收回/重放照旧），仅横幅柔化为中性提示；真陌生接管照旧红色警告
+- **ADR-024** asb-vib-seed-generation：ASB 181 条「DS 原生」档案全自动生成 vib 种子参数——官方 34 条调参做题材集 k-NN（Steam genres 特征），回写内置档案走既有 autoswitch 链路；无桥前提下事件级不可转换（机理墙），转的是体验不是配置

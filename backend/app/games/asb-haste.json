@@ -9,5 +9,20 @@
   "image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1796470/library_600x900.jpg",
   "asb": true,
   "source": "asb-list",
-  "steam_appid": 1796470
+  "steam_appid": 1796470,
+  "vib": {
+    "filter": 25,
+    "scale": 10,
+    "stroke": 3,
+    "press": 12,
+    "strength": 120,
+    "freq": 70
+  },
+  "vib_source": "asb-seed",
+  "genres": [
+    "1",
+    "23",
+    "25",
+    "9"
+  ]
 }
