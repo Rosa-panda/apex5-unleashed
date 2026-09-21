@@ -18,9 +18,9 @@ GYRO_DPS_PER_LSB = 0.05     # 陀螺量纲假设（openflydigi 同款，未实�
 DEG2G = math.pi / 180.0     # 小角度下 tilt(g 单位) ≈ 角度(rad)
 DT_MAX = 0.05               # dt 钳制：运动流断流后回来的第一帧不许跳变
 AUTOCAL_GYRO_QUIET = 30.0   # |陀螺| 低于此 ≈ 静止（raw 量纲，实测平放 ~1）
-AUTOCAL_ALPHA = 0.04        # 静止时基线低通收敛系数/帧（~1s 收敛）
-BIAS_ALPHA = 0.05           # 陀螺零偏低通系数/帧（静止期跟踪）
-FLAT_Z_RATIO = 0.7          # 重力锚点只在此姿态更新：|az|/mag 超过它 ≈ 平放
+ANCHOR_CAPTURE_FRAMES = 40  # 平放静止连续 ~0.15s 即采锚（一次采准，之后冻结）
+BIAS_ALPHA = 0.05           # 陀螺零偏低通系数/帧（静止期跟踪，姿态无关、用户无感）
+FLAT_Z_RATIO = 0.7          # 平放判定：|az|/mag 超过它 ≈ 平放（锚点只在此姿态采）
 # 符号约定（芯片坐标系推导，平放 Z=+1g 已实测）：右倾 → ax 负向变化；
 # 前倾（离身） → ay 正向变化。屏幕 x 右正 / y 下正，故 tilt=( -Δax, -Δay )/g；
 # 陀螺积分沿用 v1 退化模式实测映射：tilt_x ← gy、tilt_y ← gx。
@@ -51,21 +51,20 @@ class MazeService:
             ax, ay, az = self._accel
             mag = math.hypot(ax, ay, az)
             quiet = mag > 2000.0 and math.hypot(*self._gyro) < AUTOCAL_GYRO_QUIET
-            # 平放判定：重力主要沿 +Z（与采集时的锚点姿态一致）。
-            # 真机教训（用户实测）：锚点若在任何静止姿态下都刷新，竖放一会儿
-            # 就变成新的「平地」——迷宫要绝对重力锚点，陀螺零偏才与姿态无关。
+            # 平放判定：重力主要沿 +Z。
+            # 真机教训（用户实测两轮）：锚点自动刷新=「竖放一会儿变新平地」，
+            # 使用中偷换锚点更是错——校准是采一次就焊死的动作，不是持续过程。
             flat = az > FLAT_Z_RATIO * mag
 
             if quiet:
                 self._quiet_frames += 1
-                # 重力锚点：只在平放且静止时收敛（竖放/侧放静止只算陀螺零偏采样）
-                if flat:
-                    if self.rest is None:
+                # 重力锚点：平放静止一次性采集（采够帧数落位），之后冻结。
+                # 只有「立即校准」按钮才重设——锚点是用户锚定的，软件不替用户改。
+                if flat and self.rest is None:
+                    if self._quiet_frames >= ANCHOR_CAPTURE_FRAMES:
                         self.rest = self._accel
-                    else:
-                        k = AUTOCAL_ALPHA if self._quiet_frames > 30 else 0.2
-                        self.rest = tuple(r + k * (a - r) for r, a in zip(self.rest, self._accel))
-                # 陀螺零偏：任何静止姿态都有效（零偏与姿态无关）
+                # 陀螺零偏：任何静止姿态持续跟踪（与姿态无关、不影响「哪里是平」，
+                # 只让融合不漂——这不是校准，用户无感）
                 if self.gyro_bias is None:
                     self.gyro_bias = self._gyro
                 else:
@@ -140,7 +139,8 @@ class MazeService:
                 "rest": list(self.rest) if self.rest else None,
                 "gyro_bias": [round(v, 2) for v in self.gyro_bias] if self.gyro_bias else None,
                 "anchor": self._anchor,
-                "autocal": self._quiet_frames >= 30,
+                "anchor_locked": self.rest is not None,
+                "autocal": self.rest is not None,
                 "has_imu": mag > 50.0 or any(abs(v) > 5 for v in self._gyro),
             }
 

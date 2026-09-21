@@ -1204,10 +1204,12 @@ export function MazePanel() {
         <div className="mb-1 flex items-center gap-2 text-[10px] text-text-low">
           实时倾斜
           <span className={tel?.autocal ? 'text-emerald-300' : 'text-amber-300'}>
-            {tel?.autocal ? '自动校准已稳定（手柄放平不动即可）' : '自动校准中…把手柄平放静止 1 秒'}
+            {tel?.autocal
+              ? '锚点已锁定（软件不会再动它）'
+              : tel?.anchor === 'flat' ? '平放静止中，正在锚定平地…' : '把手柄平放静止 1 秒以锚定平地'}
           </span>
           <span className="ml-2">
-            锚点{tel?.anchor === 'flat' ? '：平放校准中' : tel?.anchor === 'held' ? '：非平放保持（竖放不会变成新「平地」）' : tel?.anchor === 'moving' ? '：运动中' : '：…'}
+            {tel?.anchor === 'held' ? '（非平放：锚点保持不动）' : tel?.anchor === 'moving' ? '（运动中）' : ''}
           </span>
         </div>
         {(['x', 'y'] as const).map(k => {
@@ -1229,10 +1231,10 @@ export function MazePanel() {
       </div>
       <Row label="校准">
         <button className={BTN_ACC} disabled={!imuOk || tel?.source === 'gyro_fallback'}
-          onClick={() => api.expMazeCal().then(() => flash('✓ 已立即校准（自动校准仍在后台持续微调）')).catch(e => flash('', e))}>
-          立即校准（放平静止时点）
+          onClick={() => api.expMazeCal().then(() => flash('✓ 锚点已重设为当前姿态')).catch(e => flash('', e))}>
+          重设锚点为当前姿态
         </button>
-        <span className="text-[10px] text-text-low">平时不用点——静止 1 秒会自动校准；此前方向颠倒/两轴手感不一，就是被「拿着手柄时点的校准」污染的</span>
+        <span className="text-[10px] text-text-low">锚点只在第一次平放静止时自动采一次，之后软件不会再动它；只有你在这里手动点才会重设</span>
       </Row>
       <Row label="方向">
         <button className={inv.x ? BTN_ACC : BTN} onClick={() => toggleInv('x')}>左右 {inv.x ? '（已反转）' : '正常'}</button>
