@@ -73,7 +73,21 @@ def main():
     import os
     web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
     if os.path.isdir(web_dir):
+        from fastapi.responses import FileResponse
         from fastapi.staticfiles import StaticFiles
+
+        _index = os.path.join(os.path.abspath(web_dir), "index.html")
+        # index.html 必须 no-cache：它引用带 hash 的 assets（可长缓存），但自身一旦被
+        # WebView2/浏览器缓存，发新版后窗口还拿旧入口 → 404 或跑旧 JS——「改了没生效」
+        # 的元凶（2026-09-21 用户实测：部署多轮界面始终旧版）。
+        @app.get("/index.html", include_in_schema=False)
+        def _index_nc():
+            return FileResponse(_index, headers={"Cache-Control": "no-cache"})
+
+        @app.get("/", include_in_schema=False)
+        def _root_nc():
+            return FileResponse(_index, headers={"Cache-Control": "no-cache"})
+
         app.mount("/", StaticFiles(directory=os.path.abspath(web_dir), html=True), name="web")
 
     # 单实例（TECH-SPEC §7）：已有实例在跑 → 唤起它的窗口后退出。
