@@ -1206,6 +1206,9 @@ export function MazePanel() {
           <span className={tel?.autocal ? 'text-emerald-300' : 'text-amber-300'}>
             {tel?.autocal ? '自动校准已稳定（手柄放平不动即可）' : '自动校准中…把手柄平放静止 1 秒'}
           </span>
+          <span className="ml-2">
+            锚点{tel?.anchor === 'flat' ? '：平放校准中' : tel?.anchor === 'held' ? '：非平放保持（竖放不会变成新「平地」）' : tel?.anchor === 'moving' ? '：运动中' : '：…'}
+          </span>
         </div>
         {(['x', 'y'] as const).map(k => {
           const v = Math.max(-1, Math.min(1, tel?.tilt?.[k === 'x' ? 0 : 1] ?? 0))

@@ -20,6 +20,7 @@ DT_MAX = 0.05               # dt 钳制：运动流断流后回来的第一帧�
 AUTOCAL_GYRO_QUIET = 30.0   # |陀螺| 低于此 ≈ 静止（raw 量纲，实测平放 ~1）
 AUTOCAL_ALPHA = 0.04        # 静止时基线低通收敛系数/帧（~1s 收敛）
 BIAS_ALPHA = 0.05           # 陀螺零偏低通系数/帧（静止期跟踪）
+FLAT_Z_RATIO = 0.7          # 重力锚点只在此姿态更新：|az|/mag 超过它 ≈ 平放
 # 符号约定（芯片坐标系推导，平放 Z=+1g 已实测）：右倾 → ax 负向变化；
 # 前倾（离身） → ay 正向变化。屏幕 x 右正 / y 下正，故 tilt=( -Δax, -Δay )/g；
 # 陀螺积分沿用 v1 退化模式实测映射：tilt_x ← gy、tilt_y ← gx。
@@ -38,6 +39,7 @@ class MazeService:
         self._tilt = [0.0, 0.0]           # 融合倾斜输出（g 单位小角近似）
         self._last_t = 0.0
         self._mode = "boot"               # boot / fusion / accel / gyro_fallback
+        self._anchor = "boot"             # flat=平放收敛锚点 / held=非平放保持 / moving=运动中
 
     # ---------- engine.subscribe_motion 回调 ----------
     def on_motion(self, m):
@@ -49,17 +51,21 @@ class MazeService:
             ax, ay, az = self._accel
             mag = math.hypot(ax, ay, az)
             quiet = mag > 2000.0 and math.hypot(*self._gyro) < AUTOCAL_GYRO_QUIET
+            # 平放判定：重力主要沿 +Z（与采集时的锚点姿态一致）。
+            # 真机教训（用户实测）：锚点若在任何静止姿态下都刷新，竖放一会儿
+            # 就变成新的「平地」——迷宫要绝对重力锚点，陀螺零偏才与姿态无关。
+            flat = az > FLAT_Z_RATIO * mag
 
-            # 静止自动校准：重力基线 + 陀螺零偏一起低通收敛（~1s）。
-            # 真机教训：手动校准点在被拿着/移动的时刻，基线 X 分量高达 1g，
-            # 方向颠倒 + 两轴增益不对称都是它导致的（2026-09-21）。
             if quiet:
                 self._quiet_frames += 1
-                if self.rest is None:
-                    self.rest = self._accel
-                else:
-                    k = AUTOCAL_ALPHA if self._quiet_frames > 30 else 0.2
-                    self.rest = tuple(r + k * (a - r) for r, a in zip(self.rest, self._accel))
+                # 重力锚点：只在平放且静止时收敛（竖放/侧放静止只算陀螺零偏采样）
+                if flat:
+                    if self.rest is None:
+                        self.rest = self._accel
+                    else:
+                        k = AUTOCAL_ALPHA if self._quiet_frames > 30 else 0.2
+                        self.rest = tuple(r + k * (a - r) for r, a in zip(self.rest, self._accel))
+                # 陀螺零偏：任何静止姿态都有效（零偏与姿态无关）
                 if self.gyro_bias is None:
                     self.gyro_bias = self._gyro
                 else:
@@ -67,15 +73,17 @@ class MazeService:
                                            for b, g in zip(self.gyro_bias, self._gyro))
             else:
                 self._quiet_frames = 0
+            self._anchor = ("flat" if flat else "held") if quiet else "moving"
 
             dt = min(max(self._t - self._last_t, 0.0), DT_MAX) if self._last_t else 0.0
             self._last_t = self._t
 
             if mag > 2000.0 and self.rest:
-                # ---- 主路径：互补滤波融合 ----
-                rx, ry, rz = self.rest
-                g = math.hypot(rx, ry, rz) or 1.0
-                accel_tilt = (-(ax - rx) / g, -(ay - ry) / g)
+                # ---- 主路径：互补滤波融合，绝对重力角 ----
+                # 倾角 = 重力水平分量/1g = sin(倾角)：平放 0、竖直 ±1（90°），
+                # 与「当前姿态」无关；rest 只扣安装面小偏差（ax/ay 各 <0.1g）。
+                rx, ry, _ = self.rest
+                accel_tilt = (-(ax - rx) / mag, -(ay - ry) / mag)
                 bias = self.gyro_bias or (0.0, 0.0, 0.0)
                 gx = self._gyro[0] - bias[0]
                 gy = self._gyro[1] - bias[1]
@@ -131,6 +139,7 @@ class MazeService:
                 "frames": self.frames,
                 "rest": list(self.rest) if self.rest else None,
                 "gyro_bias": [round(v, 2) for v in self.gyro_bias] if self.gyro_bias else None,
+                "anchor": self._anchor,
                 "autocal": self._quiet_frames >= 30,
                 "has_imu": mag > 50.0 or any(abs(v) > 5 for v in self._gyro),
             }
