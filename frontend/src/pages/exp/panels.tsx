@@ -6,6 +6,7 @@ import { Component, useCallback, useEffect, useRef, useState, type ReactNode } f
 import { RefreshCw, AlertTriangle } from 'lucide-react'
 import { Bodies, Body, Composite, Engine, Events } from 'matter-js'
 import { api } from '../../api'
+import { motionStore } from '../../motionStore'
 
 const BTN = 'rounded-md border border-border-soft px-2 py-1 text-[11px] transition-colors hover:border-accent/40 hover:text-accent'
 const BTN_ACC = 'rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] text-accent transition-colors hover:bg-accent/20'
@@ -1061,25 +1062,26 @@ export function GameSimPanel() {
 // 面板同时是「手柄有没有真体感」的答案器：原始加速度/陀螺/数据源可见。
 
 const MAZE_W = 560, MAZE_H = 360, BALL_R = 7
-// 迷宫布局：外墙 + 内墙 (x,y,w,h)，3 个洞 + 右下角终点
+// 迷宫布局（v2，2026-09-21）：旧布局被 BFS 实锤结构性死路（H1 横墙切断 C2 上下，
+// 而 C1 只能从底部进 C2，C2/C3 上半区永远进不去——用户实测到不了终点是对的）。
+// v2 = 开阔蛇形五柱（每柱 ~100px 宽，通道远大于球径），S 形路线：下→上→下→上→下。
+// 已用 backend/app/_maze_check.py BFS（含球半径净空+洞避让）验证全通。
 const MAZE_WALLS: Array<[number, number, number, number]> = [
   [0, 0, MAZE_W, 8], [0, MAZE_H - 8, MAZE_W, 8], [0, 0, 8, MAZE_H], [MAZE_W - 8, 0, 8, MAZE_H],
-  [90, 8, 8, 220], [180, 130, 8, 222], [270, 8, 8, 220], [360, 130, 8, 222], [450, 8, 8, 220],
-  [90, 220, 200, 8], [270, 228, 8, 60],
+  [110, 8, 8, 230], [220, 122, 8, 230], [330, 8, 8, 230], [440, 122, 8, 230],
 ]
 const MAZE_HOLES = [
-  { x: 135, y: 115, r: 13 }, { x: 315, y: 240, r: 13 }, { x: 405, y: 70, r: 13 },
+  { x: 60, y: 160, r: 13 }, { x: 170, y: 85, r: 13 }, { x: 280, y: 200, r: 13 },
 ]
-const MAZE_GOAL = { x: 495, y: 300, w: 56, h: 50 }
-const START = { x: 40, y: 40 }
+const MAZE_GOAL = { x: 495, y: 296, w: 52, h: 50 }
+const START = { x: 55, y: 45 }
 
-function MazeBoard({ onTelemetry, invX, invY }: { onTelemetry: (t: any) => void; invX: boolean; invY: boolean }) {
+function MazeBoard({ invX, invY }: { invX: boolean; invY: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const state = useRef({
     x: START.x, y: START.y, vx: 0, vy: 0,
     tx: 0, ty: 0,                  // 低通后的倾斜（进物理的值，防手柄微抖直灌）
     spin: 0,                       // 滚动相位（自转视觉）
-    tilt: [0, 0] as [number, number],
     falls: 0, wins: 0, flash: '', flashT: 0,
     falling: 0,                    // >0 = 掉洞动画中（时间戳）
     t0: performance.now(), best: 0, reset: null as null | ((full?: boolean) => void),
@@ -1118,12 +1120,8 @@ function MazeBoard({ onTelemetry, invX, invY }: { onTelemetry: (t: any) => void;
       const k = Math.min(1, impact / 700)
       api.rumble(Math.max(0.12, k * 0.8), Math.max(0.12, k * 0.8), 110).catch(() => { })
     }
-    const poll = setInterval(() => {
-      api.expMaze().then((r: any) => {
-        if (r?.tilt) state.current.tilt = r.tilt
-        if (r) onTelemetry(r)
-      }).catch(() => { })
-    }, 40)
+    // tilt 数据源：WS 推送 → motionStore（30Hz，零 HTTP 轮询、零 React 渲染）。
+    // 旧版 40ms HTTP 轮询是「很卡、半天动一下」的根因之一。
     const reset = (full = false) => {
       const s = state.current
       Body.setPosition(ball, { x: START.x, y: START.y })
@@ -1170,7 +1168,7 @@ function MazeBoard({ onTelemetry, invX, invY }: { onTelemetry: (t: any) => void;
       last = now
       const s = state.current
       // 目标倾斜（面板反转在物理层生效）→ 一阶低通（时间常数 ~70ms）
-      let gx = s.tilt[0], gy = s.tilt[1]
+      let gx = motionStore.tilt[0], gy = motionStore.tilt[1]
       if (invX) gx = -gx
       if (invY) gy = -gy
       const klp = Math.min(1, dt * 14)
@@ -1291,8 +1289,8 @@ function MazeBoard({ onTelemetry, invX, invY }: { onTelemetry: (t: any) => void;
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
-    return () => { cancelAnimationFrame(raf); clearInterval(poll); window.removeEventListener('pointerdown', unlock) }
-  }, [onTelemetry, invX, invY])
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('pointerdown', unlock) }
+  }, [invX, invY])
   return (
     <div className="space-y-1">
       <canvas ref={ref} width={MAZE_W} height={MAZE_H} className="w-full rounded border border-border-soft" />
@@ -1324,6 +1322,11 @@ export function MazePanel() {
     catch { return { x: false, y: false } }
   })
   useEffect(() => { localStorage.setItem('maze_inv', JSON.stringify(inv)) }, [inv])
+  // 遥测自检轮询（慢速 300ms，只喂诊断显示；实时 tilt 走 WS→motionStore，弹珠物理直读）
+  useEffect(() => {
+    const t = setInterval(() => { api.expMaze().then(setTel).catch(() => { }) }, 300)
+    return () => clearInterval(t)
+  }, [])
   // 反转在物理层生效（MazeBoard 读 tilt 时取反），存 localStorage 记住偏好
   const toggleInv = (k: 'x' | 'y') => setInv((c: any) => ({ ...c, [k]: !c[k] }))
   const imuOk = tel?.has_imu
@@ -1382,7 +1385,7 @@ export function MazePanel() {
         <button className={inv.y ? BTN_ACC : BTN} onClick={() => toggleInv('y')}>前后 {inv.y ? '（已反转）' : '正常'}</button>
         <span className="text-[10px] text-text-low">滚反了点一下就正（记住偏好）</span>
       </Row>
-      <MazeBoard onTelemetry={setTel} invX={inv.x} invY={inv.y} />
+      <MazeBoard invX={inv.x} invY={inv.y} />
       <Err e={msg} />
     </div>
   )

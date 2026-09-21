@@ -39,6 +39,11 @@ export default function Motion() {
     api.motionMaster().then(setSt).catch(() => setErr('✗ 状态加载失败'))
   }, [])
   useEffect(() => { load() }, [load])
+  // 状态定时同步：后台/别处改了开关（甚至手柄休眠导致流断）这里 2s 内可见
+  useEffect(() => {
+    const t = setInterval(load, 2000)
+    return () => clearInterval(t)
+  }, [load])
 
   const toggle = () => {
     const on = !st?.master
@@ -52,14 +57,20 @@ export default function Motion() {
   const master = !!st?.master
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      {/* 总闸大卡 */}
-      <div className={`card p-5 ${master ? 'border-accent/40' : ''}`}>
+      {/* 总闸大卡：开/关状态必须一眼可辨（大字 + 整卡变色 + 徽标），切换后立即可见 */}
+      <div className={`card p-5 ${master ? 'border-accent/50 bg-accent/8' : 'opacity-90'}`}>
         <div className="flex items-center gap-3">
           <div className={`rounded-lg border p-2 ${master ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-soft bg-white/5 text-text-low'}`}>
             <Orbit size={20} />
           </div>
           <div>
-            <div className="text-[15px] font-semibold text-text-hi">体感总闸</div>
+            <div className="flex items-center gap-2">
+              <span className="text-[15px] font-semibold text-text-hi">体感总闸</span>
+              {/* 状态大字：不靠按钮文字判断开没开 */}
+              <span className={`rounded-md px-2 py-0.5 text-[12px] font-bold ${master ? 'bg-accent/15 text-accent' : 'bg-white/5 text-text-low'}`}>
+                {master ? '● 已开启' : '○ 已关闭'}
+              </span>
+            </div>
             <div className="text-[11px] text-text-low">
               运动流 + 模拟器桥（+ 陀螺瞄准）一键联动；状态自动保存，重开软件不用再开一次
             </div>
@@ -69,7 +80,7 @@ export default function Motion() {
             disabled={busy}
             className={`btn ml-auto justify-center ${master ? 'btn-danger' : 'btn-primary'}`}
             style={{ minWidth: 96 }}>
-            {master ? '关闭体感' : '开启体感'}
+            {busy ? '切换中…' : master ? '关闭体感' : '开启体感'}
           </button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">

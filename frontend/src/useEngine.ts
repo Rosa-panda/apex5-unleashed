@@ -3,6 +3,7 @@
 // 3s /api/health 轮询兜底（事件万一丢包也能在 3s 内追平）。
 import { useEffect, useRef, useState } from 'react'
 import { api, type EngineEvent, type EngineSnapshot } from './api'
+import { motionApply } from './motionStore'
 
 export function useEngine() {
   const [snap, setSnap] = useState<EngineSnapshot | null>(null)
@@ -33,6 +34,10 @@ export function useEngine() {
             device: { kind: (evt.dev_kind as string | null) ?? s.device.kind, online: !!evt.online },
           } : s)
           setEvents((e) => [...e.slice(-199), evt])
+        } else if (evt.kind === 'motion') {
+          // 体感帧（30Hz）：只进 motionStore（普通对象），绝不 setEvents/setSnap——
+          // 30Hz 渲染风暴会卡死整页；物理 rAF 循环自己读 store
+          motionApply(evt)
         } else if (evt.kind === 'battery') {
           // 电量心跳（~30s 一次，变化才发）：level 0..5，charging=充电中
           setSnap((s) => s ? {

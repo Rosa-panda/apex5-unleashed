@@ -760,6 +760,26 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     engine.subscribe_motion(_maze_svc.on_motion)   # 弹珠迷宫的倾斜源（0xEF 运动流）
     engine.subscribe_motion(_dsu_svc.on_motion)    # 模拟器体感桥（DSU/Cemuhook，#18）
 
+    # ---------- 体感帧 WS 推送（ADR-028 补丁：替代前端 40ms HTTP 轮询） ----------
+    # 0xEF 流 ~370Hz 全在 HID 线程，HTTP 轮询 25Hz 延迟高且挤占请求队列——弹珠「半天动
+    # 一下」的根因。改为 WS 推 tilt：30Hz 节流（体感 UI 足够顺滑），走 bus_to_ws 线程
+    # 安全投递，不进 events 历史（不撑爆事件流，不触发前端重渲染）。总闸关闭时流停，
+    # 这里自然静默。
+    _motion_ws_last = {"t": 0.0}
+
+    def motion_to_ws(_m):
+        n = time.monotonic()
+        if n - _motion_ws_last["t"] < 1 / 30:
+            return
+        _motion_ws_last["t"] = n
+        st = _maze_svc.status()
+        bus_to_ws({"ts": "", "kind": "motion", "tilt": st["tilt"],
+                   "source": st["source"], "frames": st["frames"],
+                   "has_imu": st["has_imu"], "autocal": st["autocal"],
+                   "anchor": st["anchor"]})
+
+    engine.subscribe_motion(motion_to_ws)
+
     # ---- 体感中心总闸（ADR-028）：状态持久化，上次开着本次启动自动恢复 ----
     def _hub_file():
         import os as _os
