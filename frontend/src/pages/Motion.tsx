@@ -48,10 +48,13 @@ export default function Motion() {
   const toggle = () => {
     const on = !st?.master
     setBusy(true)
+    // 6s 兜底：后台重启窗口期 fetch 可能永久挂起（连接建立后进程被杀 → TCP 不回包），
+    // busy 不能卡死在「切换中」。fetch 正常返回则提前清掉兜底。
+    const timer = window.setTimeout(() => setBusy(false), 6000)
     api.motionMasterSet(on)
       .then(() => { setErr(''); load() })
-      .catch(() => setErr('✗ 切换失败（手柄未连接时运动流开不了，其余开关仍生效）'))
-      .finally(() => setBusy(false))
+      .catch(() => setErr('✗ 切换失败（后台未响应或手柄未连接，2 秒后状态自动刷新为准）'))
+      .finally(() => { window.clearTimeout(timer); setBusy(false) })
   }
 
   const master = !!st?.master

@@ -21,9 +21,10 @@ AUTOCAL_GYRO_QUIET = 30.0   # |陀螺| 低于此 ≈ 静止（raw 量纲，实�
 ANCHOR_CAPTURE_FRAMES = 40  # 平放静止连续 ~0.15s 即采锚（一次采准，之后冻结）
 BIAS_ALPHA = 0.05           # 陀螺零偏低通系数/帧（静止期跟踪，姿态无关、用户无感）
 FLAT_Z_RATIO = 0.7          # 平放判定：|az|/mag 超过它 ≈ 平放（锚点只在此姿态采）
-# 符号约定（芯片坐标系推导，平放 Z=+1g 已实测）：右倾 → ax 负向变化；
-# 前倾（离身） → ay 正向变化。屏幕 x 右正 / y 下正，故 tilt=( -Δax, -Δay )/g；
-# 陀螺积分沿用 v1 退化模式实测映射：tilt_x ← gy、tilt_y ← gx。
+# 符号约定（芯片坐标系推导，平放 Z=+1g 已实测；2026-09-21 真机校准：y 轴默认
+# 反了——用户实测前倾球应向下滚，故 tilt_y 取 +Δay / -gx）：右倾 → ax 负向变化；
+# 前倾（离身） → ay 正向变化。屏幕 x 右正 / y 下正，故 tilt=( -Δax, +Δay )/g；
+# 陀螺积分沿用 v1 退化模式实测映射：tilt_x ← gy、tilt_y ← -gx。
 
 
 class MazeService:
@@ -82,7 +83,7 @@ class MazeService:
                 # 倾角 = 重力水平分量/1g = sin(倾角)：平放 0、竖直 ±1（90°），
                 # 与「当前姿态」无关；rest 只扣安装面小偏差（ax/ay 各 <0.1g）。
                 rx, ry, _ = self.rest
-                accel_tilt = (-(ax - rx) / mag, -(ay - ry) / mag)
+                accel_tilt = (-(ax - rx) / mag, (ay - ry) / mag)
                 bias = self.gyro_bias or (0.0, 0.0, 0.0)
                 gx = self._gyro[0] - bias[0]
                 gy = self._gyro[1] - bias[1]
@@ -93,7 +94,7 @@ class MazeService:
                 else:
                     w = COMP_ALPHA
                 for i, (gyro_term, a_t) in enumerate(
-                        ((gy * rate, accel_tilt[0]), (gx * rate, accel_tilt[1]))):
+                        ((gy * rate, accel_tilt[0]), (-gx * rate, accel_tilt[1]))):
                     pred = self._tilt[i] + gyro_term * dt
                     self._tilt[i] = a_t * w + pred * (1.0 - w)
                 self._mode = "fusion"
@@ -109,7 +110,7 @@ class MazeService:
                     gx = self._gyro[0] - bias[0]
                     rate = GYRO_DPS_PER_LSB * DEG2G
                     self._tilt[0] = (self._tilt[0] + gy * rate * dt) * 0.90
-                    self._tilt[1] = (self._tilt[1] + gx * rate * dt) * 0.90
+                    self._tilt[1] = (self._tilt[1] - gx * rate * dt) * 0.90
                 self._mode = "gyro_fallback"
 
     # ---------- 手动校准（立即落位；自动校准仍在后台持续微调） ----------
