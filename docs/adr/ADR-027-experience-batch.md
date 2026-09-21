@@ -167,3 +167,35 @@ RESET·RESET-ALL 解锁）+ ExpLab 卡片展开 + api.ts 23 个端点。
 - status 新增 anchor_locked；autocal 语义改为「锚点已锁定」；前端文案
   去掉「自动校准中」改为「平放静止中正在锚定/已锁定（软件不会再动它）」。
 - 冒烟：anchor_locked=true、锚点单帧采定、tilt≈0 ✓
+
+## 追加（2026-09-21）：#18 模拟器体感桥（DSU/Cemuhook UDP）
+
+起因：用户 Yuzu 用 XInput 认到手柄了，但 Motion 映射点不进去——根因是
+**XInput 协议没有体感字段**，不是 Yuzu 的问题。方案：不装任何新软件，
+在工具后端自己实现 DSU/Cemuhook UDP 服务端（DS4Windows/BetterJoy 喂模拟器的
+标准通路），把 0xEF 运动流翻译出去。协议字节级规范来自
+v1993.github.io/cemuhook-protocol/（v1001）：二进制包、DSUC/DSUS 魔数、
+CRC32（整包、字段置零）、数据包 100B、accel 单位 g / gyro deg/s / 时间戳 µs。
+
+实现 `dsu.py` DsuServer（与 rgbbridge 同范式：127.0.0.1 绑定、端口顺延、
+开关/统计/错误账本）：
+- 26760 端口（Yuzu 默认），收发线程分离：rx 解析四类请求（版本/控制器信息/
+  数据订阅/非官方马达与震动），tx 100Hz 推数据流（客户端 5s 超时踢除）
+- 数据包只填体感：按钮/摇杆/触摸全零（按键走 XInput 直连）、双摇杆中立 128
+- ident：slot0/已连接/全陀螺/USB + 固定假 MAC（跨启动稳定即可）+ 真机电量
+  （charging→0xEE，level 1..5）
+- **震动回传**：非官方 0x110002 → engine.set_rumble（motor0→左/motor1→右，
+  变化才下发；5s 无包归零；停桥归零）——Yuzu/Cemu 的震动也能喂回手柄
+- 轴向映射默认（推导自迷宫实测符号：平放 az=+1g、前倾 ay 增、右倾 ax 减；
+  DSU 期望 DS4 系 x右/y上/z朝用户）：accel=(-ax,az,ay)/4096、
+  gyro pitch/yaw/roll=(g0,g2,g1)*0.05；三轴 invert 开关留给真机手感调
+  （同 #1 gain 的验收钩子）
+- 端点 GET/POST /api/exp/dsu；explab #18；前端 DsuPanel（Yuzu 配置指引文案、
+  服务开关、模拟器视角实时预览、三轴反转）
+
+冒烟（本地假 engine + 模拟 Yuzu 客户端，`backend/app/_smoke_dsu.py`）：
+版本 1001 ✓、信息包 32B/CRC ✓、数据包 100B/包号递增/accel+gyro 数值逐字段 ✓、
+invert 即时生效 ✓、震动 motor0=200→set_rumble ✓、马达数=2 ✓、无错误账本 ✓。
+教训两条：struct 格式串位数手数一遍；tx 异步流下测试要先排空缓冲再断言。
+
+真机验收钩子：Yuzu 实际绑定 Motion + 轴向符号手感（invert 三键现场翻）。

@@ -203,6 +203,9 @@ export const api = {
   expSimRun: (scenario: string) => post('/api/exp/gamesim', { scenario }) as Promise<any>,
   expMaze: () => get('/api/exp/maze') as Promise<any>,
   expMazeCal: () => post('/api/exp/maze', { op: 'calibrate' }) as Promise<any>,
+  expDsu: () => get('/api/exp/dsu') as Promise<any>,
+  expDsuSet: (enabled: boolean, port = 26760, invert: boolean[] | null = null) =>
+    post('/api/exp/dsu', { enabled, port, invert }) as Promise<any>,
   expDiag: (op: string, body: Record<string, unknown> = {}) =>
     post('/api/exp/diagnostics', { op, ...body }) as Promise<any>,
   expDiagData: () => get('/api/exp/diagnostics') as Promise<any>,

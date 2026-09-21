@@ -743,6 +743,7 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     # 真机类操作都走 profile/devcfg（Pad 第二句柄或引擎问答），mock 模式直接 400。
     import devcfg as _devcfg
     import diag as _diag
+    import dsu as _dsu
     import profile as _profile
     import gamesim as _gamesim_mod
     import maze as _maze
@@ -754,8 +755,10 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     _rgb = _rgbbridge.RgbBridge(engine)
     _diag_svc = _diag.Diagnostics(engine)
     _maze_svc = _maze.SERVICE
+    _dsu_svc = _dsu.DsuServer(engine)
     _gamesim = _gamesim_mod.GameSim(lambda: ingress, lambda: _rgb)
     engine.subscribe_motion(_maze_svc.on_motion)   # 弹珠迷宫的倾斜源（0xEF 运动流）
+    engine.subscribe_motion(_dsu_svc.on_motion)    # 模拟器体感桥（DSU/Cemuhook，#18）
     if ingress:
         ingress.on_applied = _rgb.on_game_event    # Mod 扳机事件 → 闪灯联动
     engine.subscribe_motion(_softmap.HUB.on_motion)
@@ -839,6 +842,11 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
 
     class ExpMazeReq(BaseModel):
         op: str = "calibrate"
+
+    class ExpDsuReq(BaseModel):
+        enabled: bool
+        port: int = 26760
+        invert: list = None           # [pitch, yaw, roll]，None=不改动
 
     class ExpDiagReq(BaseModel):
         op: str              # sample / adccalib / autocal
@@ -1118,6 +1126,25 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
                 _maze_svc.calibrate()
                 return {"ok": True, **_maze_svc.status()}
             return err(f"未知操作：{req.op}")
+        except Exception as e:
+            return err(e)
+
+    @app.get("/api/exp/dsu")
+    def exp_dsu_status():
+        return {"ok": True, **_dsu_svc.status()}
+
+    @app.post("/api/exp/dsu")
+    def exp_dsu_config(req: ExpDsuReq):
+        try:
+            if req.invert is not None:
+                if len(req.invert) != 3:
+                    return err("invert 需要 [pitch, yaw, roll] 三个布尔值")
+                _dsu_svc.set_invert(*req.invert)
+            if req.enabled:
+                _dsu_svc.start(req.port)
+            else:
+                _dsu_svc.stop()
+            return {"ok": True, **_dsu_svc.status()}
         except Exception as e:
             return err(e)
 

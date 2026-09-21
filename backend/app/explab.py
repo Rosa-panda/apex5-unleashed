@@ -64,6 +64,11 @@ FEATURES = [
      "desc": "手柄倾斜控制弹珠走迷宫（加速度计重力向量解算，陀螺仪积分兜底），"
              "同时是「手柄到底有没有真体感」的答案器：原始加速度/陀螺数值实时可见。",
      "enabled": True},
+    {"id": "dsu", "tier": 2, "plan": "#18", "title": "模拟器体感桥（DSU/Cemuhook）",
+     "desc": "本机起 DSU/Cemuhook UDP 服务端（26760），把 0xEF 运动流翻译成标准体感"
+             "协议喂给 Yuzu/Cemu/Dolphin/PCSX2——DS4Windows/BetterJoy 的同款通路。"
+             "手柄留在 XInput 模式，模拟器的 Motion 映射即可绑定，顺带回传震动。",
+     "enabled": True},
 ]
 
 VERDICT_LABEL = {"good": "👍 好用", "bad": "👎 不好用", "pending": "⏸ 待测"}
