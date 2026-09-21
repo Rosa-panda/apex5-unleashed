@@ -1199,12 +1199,37 @@ export function MazePanel() {
           <>✗ 没有任何体感数据（加速度模长 {tel.accel_mag}，陀螺全 0）——当前模式下固件没输出运动数据，试试重启手柄或连 Switch 模式验证硬件</>
         )}
       </div>
+      {/* 实时倾斜条：不用玩迷宫，放平→倾斜立刻能验证方向与增益是否对称 */}
+      <div className="rounded-md border border-border-soft p-2">
+        <div className="mb-1 flex items-center gap-2 text-[10px] text-text-low">
+          实时倾斜
+          <span className={tel?.autocal ? 'text-emerald-300' : 'text-amber-300'}>
+            {tel?.autocal ? '自动校准已稳定（手柄放平不动即可）' : '自动校准中…把手柄平放静止 1 秒'}
+          </span>
+        </div>
+        {(['x', 'y'] as const).map(k => {
+          const v = Math.max(-1, Math.min(1, tel?.tilt?.[k === 'x' ? 0 : 1] ?? 0))
+          return (
+            <div key={k} className="mb-1 flex items-center gap-2 text-[10px] text-text-low">
+              <span className="w-10">{k === 'x' ? '左右' : '前后'}</span>
+              <div className="relative h-2 flex-1 rounded bg-white/10">
+                <div className="absolute left-1/2 top-0 h-full w-px bg-white/30" />
+                <div className={`absolute top-0 h-full rounded ${v >= 0 ? 'bg-cyan-400' : 'bg-amber-400'}`}
+                  style={v >= 0
+                    ? { left: '50%', width: `${v * 50}%` }
+                    : { left: `${50 + v * 50}%`, width: `${-v * 50}%` }} />
+              </div>
+              <span className="w-14 text-right">{k === 'x' ? (v > 0.05 ? '偏右' : v < -0.05 ? '偏左' : '居中') : (v > 0.05 ? '偏后(向下滚)' : v < -0.05 ? '偏前(向上滚)' : '居中')}</span>
+            </div>
+          )
+        })}
+      </div>
       <Row label="校准">
         <button className={BTN_ACC} disabled={!imuOk || tel?.source === 'gyro_fallback'}
-          onClick={() => api.expMazeCal().then(() => flash('✓ 已校准：请保持手柄平放')).catch(e => flash('', e))}>
-          平放校准（手柄水平放好再点）
+          onClick={() => api.expMazeCal().then(() => flash('✓ 已立即校准（自动校准仍在后台持续微调）')).catch(e => flash('', e))}>
+          立即校准（放平静止时点）
         </button>
-        {!tel?.rest && <span className="text-[10px] text-text-low">未校准时以开机默认为基准，倾斜不准就点这个</span>}
+        <span className="text-[10px] text-text-low">平时不用点——静止 1 秒会自动校准；此前方向颠倒/两轴手感不一，就是被「拿着手柄时点的校准」污染的</span>
       </Row>
       <Row label="方向">
         <button className={inv.x ? BTN_ACC : BTN} onClick={() => toggleInv('x')}>左右 {inv.x ? '（已反转）' : '正常'}</button>
