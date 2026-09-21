@@ -116,3 +116,29 @@ RESET·RESET-ALL 解锁）+ ExpLab 卡片展开 + api.ts 23 个端点。
   3 洞 + 终点、掉洞动画、左右/前后反转存 localStorage。
 - 加速度标定实测：~4094/1g（非 openflydigi 的 16384 陀螺量纲，别混用）。
 端点 GET/POST /api/exp/maze（op=calibrate）。
+
+## 追加（2026-09-21）：#17 v2 姿态融合 + 出厂标定逆向结论
+
+用户质疑：「飞智做了出厂标定，为什么我们不能逆向拿数据？迷宫纯加速度计是死路。」
+
+**逆向结论：出厂标定公开渠道拿不到，且没必要。** 三层证据：
+1. openflydigi 全仓库（本地通读 motion.py/PROTOCOL.md/device-settings.md）：无任何 IMU
+   标定读取命令；accel 4096/g 是作者硬编码实测，陀螺量纲原文写明「无参照、靠手感调」。
+2. Linux 内核 6.17（Phoronix 确认）：Apex5 支持走 xpad（摇杆/按键），驱动完全不碰 IMU。
+3. DS5 模拟路径：openflydigi 的 DualSense 模式是 usbip 用户态虚拟设备，feature 0x05
+   标定 blob 抄自真索尼手柄（ds5-dump-features 工具原文），不经过飞智固件 NVM。
+
+出厂标定本质 = 每轴零偏+增益一组常量；主机用它是没法跑在线估计。我们在线估计
+（静止低通收敛）随温漂更新，比 NVM 常量更准——这正是 Switch/PS5「开机平放校准」
+的原理，不是妥协。
+
+**maze.py v2：互补滤波姿态解算**（替代 v1 加速度计裸倾角——静止完美、一动就被
+线加速度污染，即「死路」）：
+- 陀螺零偏自动跟踪（静止期低通 BIAS_ALPHA=0.05，全部模式统一去零偏）
+- 融合主路径 `source="fusion"`：tilt = accel 倾角·w + (tilt+陀螺积分)·(1-w)，
+  w=0.03/帧（~300Hz → 时间常数 ~0.11s）；静止期 w=1 直接收敛重力向量
+- 陀螺量纲假设 GYRO_DPS_PER_LSB=0.05（openflydigi 同款，未实测，可调钩子）
+- dt 钳制 0.05s 防断流跳帧；v1 陀螺退化模式保留（加速度缺失时，带回中衰减）
+- status 新增 gyro_bias 字段；前端 source 判断只区分 gyro_fallback，无需改
+- 真机冒烟：source=fusion、rest=(-3.29,1.23,4093.6) 自动收敛、
+  gyro_bias=(0.80,0.13,0.98)、静止 tilt≈0 ✓
