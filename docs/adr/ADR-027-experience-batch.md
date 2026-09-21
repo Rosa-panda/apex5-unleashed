@@ -199,3 +199,18 @@ invert 即时生效 ✓、震动 motor0=200→set_rumble ✓、马达数=2 ✓�
 教训两条：struct 格式串位数手数一遍；tx 异步流下测试要先排空缓冲再断言。
 
 真机验收钩子：Yuzu 实际绑定 Motion + 轴向符号手感（invert 三键现场翻）。
+
+## 追加（2026-09-21）：运动流省电开关——体感流常开 = 手柄永不断电
+
+用户实测：体感功能用上后，手柄闲置再也不会超时断电。根因：attach 无条件
+cmd17 raw=1 常开 0xEF 流（engine.py 既有行为），固件把持续上报当活动，
+休眠计时器永不清零。
+
+实现：`engine.set_raw_motion(on)`（cmd17 raw 位，语义实锤自 openflydigi
+gyro-probe/motion.py：1=开 0=关 0xFF=不动，用完 raw=0 恢复是作者的常规操作）；
+端点 POST /api/exp/imu；GyroPanel 顶部「运动流」总闸（说明副作用：迷宫/
+体感桥/陀螺瞄准/拓展键监测/宏录制同流全停）。
+
+**真机验证（用户确认 + 帧数计）**：关流 → maze frames 冻结 ✓ → 手柄在
+关闭窗口内按时自动断电（用户亲测，online=false）✓。流是 RAM 态：手柄
+唤醒/重连走 attach 自动 raw=1 恢复体感，无需用户操作。

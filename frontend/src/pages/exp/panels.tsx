@@ -113,6 +113,7 @@ const Safe = (C: React.FC): React.FC => props => (
 export function GyroPanel() {
   const [st, setSt] = useState<any>(null)
   const [msg, flash] = useFlash()
+  const [imu, setImu] = useState(true)   // 0xEF 运动流开关（省电，attach 后默认开）
   const load = useCallback(() => { api.expGyro().then(setSt).catch(e => flash('', e)) }, [])
   useEffect(() => {
     load()
@@ -133,6 +134,18 @@ export function GyroPanel() {
         ② 原生体感游戏（Steam Input / DS5 移植 / NSO）→ <b>手柄拨硬件模式键切 Switch 模式</b>，
         切换后手柄在 USB 层变成任天堂设备（057e:2009），本工具和飞智空间站都看不见它，由游戏/Steam 自己接管——软件开关对此无解，不是功能缺失。
       </div>
+      <Row label="运动流">
+        <button className={imu ? BTN_ACC : BTN}
+          onClick={() => api.expImu(!imu)
+            .then((r: any) => { setImu(r.enabled); flash(r.enabled ? '✓ 运动流已开' : '✓ 已关——手柄恢复超时自动断电') })
+            .catch((e: any) => flash('', e))}>
+          {imu ? '开着（点此关闭省电）' : '已关（点此恢复体感）'}
+        </button>
+        <span className="text-[10px] text-text-low">
+          总闸：关掉后迷宫/体感桥/陀螺瞄准全没数据，拓展键监测与宏录制也停（同一流），
+          换来手柄闲置超时正常断电。手柄休眠或重连后会自动复位为开
+        </span>
+      </Row>
       <Row label="总开关">
         <button className={c.enabled ? BTN_ACC : BTN} onClick={() => set({ enabled: !c.enabled })}>
           {c.enabled ? '开启中（点此关闭）' : '已关闭（点此开启）'}

@@ -80,6 +80,7 @@ class Engine:
         self.versions = None                 # cmd1 七模块固件版本（body[15..29)，ADR-027）
         self.owner = None                    # cmd16 占用方读数（ADR-027 仲裁升级）
         self.motion_subs = []                # 0xEF 运动数据订阅（体感/摇杆映射，高频不走事件日志）
+        self.raw_motion = True               # 0xEF 流开关（省电：关掉固件恢复自动休眠；attach 会重开）
         self._motion_count = 0
         self._rx_cmd = None                  # request() 阻塞问答的捕获槽
         self._rx_buf = []
@@ -113,6 +114,18 @@ class Engine:
     # ---------- 0xEF 运动数据订阅（ADR-027：体感瞄准/摇杆映射/诊断采样的信号源） ----------
     def subscribe_motion(self, cb):
         self.motion_subs.append(cb)
+
+    def set_raw_motion(self, on, source="ui"):
+        """cmd17 raw 位开关（语义实锤：openflydigi gyro-probe enable_raw(raw=1/0)，
+        0xFF=不动）。用户实测：流常开时固件把上报当活动，手柄永不断电休眠——
+        关掉即恢复自动休眠。代价：迷宫/体感桥/陀螺瞄准没数据，拓展键监测与
+        宏录制同流也停。RAM 态：手柄休眠/重启后本开关态作废，attach 会重开。"""
+        import extkeys
+        self._send(extkeys.build(17, bytes([255, 1 if on else 0, 255, 255, 255])),
+                   source=source)
+        self.raw_motion = bool(on)
+        self._emit("raw_motion", enabled=bool(on))
+        return {"ok": True, "enabled": bool(on)}
 
     def _dispatch_motion(self, body):
         """0xEF 帧运动段（ADR-027 D2：body 索引 = openflydigi raw-1）：

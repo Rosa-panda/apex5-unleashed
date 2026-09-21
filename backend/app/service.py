@@ -848,6 +848,9 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
         port: int = 26760
         invert: list = None           # [pitch, yaw, roll]，None=不改动
 
+    class ExpImuReq(BaseModel):
+        enabled: bool
+
     class ExpDiagReq(BaseModel):
         op: str              # sample / adccalib / autocal
         seconds: float = 5.0
@@ -1145,6 +1148,15 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
             else:
                 _dsu_svc.stop()
             return {"ok": True, **_dsu_svc.status()}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/exp/imu")
+    def exp_imu_toggle(req: ExpImuReq):
+        """0xEF 运动流总开关（省电）：关掉固件恢复自动休眠。"""
+        try:
+            _require_real()
+            return engine.set_raw_motion(req.enabled)
         except Exception as e:
             return err(e)
 

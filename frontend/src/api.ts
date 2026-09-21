@@ -206,6 +206,7 @@ export const api = {
   expDsu: () => get('/api/exp/dsu') as Promise<any>,
   expDsuSet: (enabled: boolean, port = 26760, invert: boolean[] | null = null) =>
     post('/api/exp/dsu', { enabled, port, invert }) as Promise<any>,
+  expImu: (enabled: boolean) => post('/api/exp/imu', { enabled }) as Promise<any>,
   expDiag: (op: string, body: Record<string, unknown> = {}) =>
     post('/api/exp/diagnostics', { op, ...body }) as Promise<any>,
   expDiagData: () => get('/api/exp/diagnostics') as Promise<any>,
