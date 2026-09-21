@@ -218,6 +218,13 @@ def main():
 
     import tray as tray_mod
 
+    # WebView2 默认遵循系统代理。用户系统代理若半死（监听着但转发不了），会出现
+    # 诡异症状：GET 能过、带 body 的 POST 永不返回（2026-09-21 用户实测总闸
+    # 「切换中」卡死）。本应用窗口只访问自家的 127.0.0.1 后台——直接禁代理，
+    # 彻底拔掉这个变量。必须在 webview 创建浏览器进程前设置。
+    import os as _os
+    _os.environ.setdefault("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--no-proxy-server")
+
     import webview
 
     window = None

@@ -48,9 +48,8 @@ export default function Motion() {
   const toggle = () => {
     const on = !st?.master
     setBusy(true)
-    // 6s 兜底：后台重启窗口期 fetch 可能永久挂起（连接建立后进程被杀 → TCP 不回包），
-    // busy 不能卡死在「切换中」。fetch 正常返回则提前清掉兜底。
-    const timer = window.setTimeout(() => setBusy(false), 6000)
+    // 15s 兜底：post 自带 6s 超时+一次重试（最坏 ~12.4s），这里保证 busy 最终一定释放
+    const timer = window.setTimeout(() => setBusy(false), 15000)
     api.motionMasterSet(on)
       .then(() => { setErr(''); load() })
       .catch(() => setErr('✗ 切换失败（后台未响应或手柄未连接，2 秒后状态自动刷新为准）'))
@@ -88,8 +87,8 @@ export default function Motion() {
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Chip on={!!st?.raw}>运动流（0xEF）</Chip>
-          <Chip on={!!st?.dsu?.running}>
-            模拟器桥{st?.dsu?.running ? ` :${st.dsu.port ?? 26760}` : ''}
+          <Chip on={!!st?.dsu?.enabled}>
+            模拟器桥{st?.dsu?.enabled ? ` :${st.dsu.port ?? 26760}` : ''}
           </Chip>
           <Chip on={!!st?.gyro?.enabled}>陀螺瞄准</Chip>
           {err && <span className="text-[11px] text-err">{err}</span>}

@@ -38,6 +38,16 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     clients = set()
     loop_ref = {"loop": None}
 
+    # ---------- API 响应头：no-store ----------
+    # FastAPI JSONResponse 不带缓存头，WebView2 会启发式缓存 GET——轮询永远读到
+    # 死状态（开关「分不出开没开」的帮凶）。API 一律禁缓存；静态资源（带 hash）不受影响。
+    @app.middleware("http")
+    async def _api_no_store(request, call_next):
+        resp = await call_next(request)
+        if request.url.path.startswith("/api"):
+            resp.headers["Cache-Control"] = "no-store"
+        return resp
+
     def bus_to_ws(evt):
         """引擎线程 → 事件循环线程安全投递。"""
         loop = loop_ref["loop"]
@@ -1216,18 +1226,39 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
             return err(e)
 
     # ---- 体感中心总闸（ADR-028）：一关全关（流+桥+瞄准），一开流和桥就位 ----
+    # 请求探针：页面 POST 挂死排查（2026-09-21）——GET 到达但 POST 失踪时，
+    # 计数器与落盘日志能立刻分辨「请求没到后端」还是「后端处理挂了」。
+    import os as _os
+    _motion_hits = {"get": 0, "post": 0, "last": "-"}
+
+    def _motion_log(msg):
+        _motion_hits["last"] = msg
+        try:
+            base = _os.path.join(_os.environ.get("APPDATA", "."), "Apex5Unleashed")
+            _os.makedirs(base, exist_ok=True)
+            with open(_os.path.join(base, "motion_api.log"), "a", encoding="utf-8") as f:
+                f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+        except Exception:
+            pass
+
     def _motion_master_status(note=None):
         return {"ok": True, "master": bool(engine.raw_motion),
                 "raw": bool(engine.raw_motion), "note": note,
                 "dsu": _dsu_svc.status(),
-                "gyro": {"enabled": bool(_softmap.HUB.gyro.cfg.get("enabled"))}}
+                "gyro": {"enabled": bool(_softmap.HUB.gyro.cfg.get("enabled"))},
+                "ui_get": _motion_hits["get"], "ui_post": _motion_hits["post"],
+                "ui_last": _motion_hits["last"]}
 
     @app.get("/api/motion/master")
     def motion_master_get():
+        _motion_hits["get"] += 1
         return _motion_master_status()
 
     @app.post("/api/motion/master")
     def motion_master_set(req: MotionMasterReq):
+        t0 = time.monotonic()
+        _motion_hits["post"] += 1
+        _motion_log(f"POST enabled={req.enabled}")
         note = None
         try:
             if req.enabled:
@@ -1244,8 +1275,10 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
                     pass
                 engine.set_raw_motion(False, source="master")
             _hub_save(req.enabled)
+            _motion_log(f"POST done {req.enabled} in {(time.monotonic() - t0) * 1000:.0f}ms")
             return _motion_master_status(note)
         except Exception as e:
+            _motion_log(f"POST error {req.enabled}: {e}")
             return err(e)
 
     @app.get("/api/exp/gamesim")
