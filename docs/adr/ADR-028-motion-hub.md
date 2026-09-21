@@ -79,3 +79,14 @@ Super Monkey Ball（WebMonkeyBall 重制）、A-maze Ball（matter.js 木盒迷�
   （Orbit 图标）；panels.tsx PANELS 注册表移除四项（组件保留导出）；
   MazeBoard 物理核心换 matter.js（240Hz 子步 + collisionStart 反馈）
 - npm 依赖：matter-js + @types/matter-js（构建时打包进 bundle，终端用户零感知）
+
+## 修订（2026-09-22）：总闸与 0xEF 位图流解耦
+
+- **实锤**：总闸「关闭」连带 set_raw_motion(False) → 0xEF 流停 → 手柄测试页
+  拓展键直读（EXT_CHIP 吃 0xEF 键位图）+ 宏录制信号源全瞎——用户实测「拓展键
+  全部不能用了」。0xEF 流不是体感专属，是拓展键/宏/体感三条功能共用的基础设施。
+- **修正**：attach 恢复无条件 raw=1（raw_motion=True 与实际流一致）；总闸开/关
+  只编排「消费者」——DSU 桥、陀螺瞄准、motion_to_ws 推送（关闸时体感 UI 静默）。
+- 总闸真相源从 engine.raw_motion 改为持久态本身（_hub dict），两者彻底分家。
+- 代价：关闸不再让固件恢复自动休眠（流恒开=不清休眠计时器）。省电诉求留给
+  /api/exp/imu 独立开关（体验区，暂无 UI）。

@@ -201,11 +201,12 @@ class Engine:
         self._emit("device", online=True, dev_kind=dev.kind, detail="已连接")
         if dev.kind == "real":
             self.panic(source="hygiene")          # ADR-010 启动卫生检查
-            # 重开 0xEF 位图流（拓展键检测/宏录制的信号源；开关 RAM 态，休眠/重启会丢）。
-            # ADR-028：服从体感总闸持久态——上次关闸的用户，重连后不被悄悄重开流
-            if self.raw_motion:
-                import extkeys
-                self._send(extkeys.build(17, bytes([255, 1, 255, 255, 255])), source="attach")
+            # 重开 0xEF 位图流（开关 RAM 态，休眠/重启会丢）。基础设施恒开：拓展键
+            # 直读（手柄测试页）、宏录制、体感全吃这一条流，不是体感专属——
+            # 2026-09-22 实锤：总闸关 → raw off → 拓展键全瞎。总闸只关消费者。
+            import extkeys
+            self.raw_motion = True         # 标志与实际流一致（attach 后恒开）
+            self._send(extkeys.build(17, bytes([255, 1, 255, 255, 255])), source="attach")
         self.refresh_battery()                    # 心跳一发，电量随回复异步进账（_capture_battery）
         if dev.kind == "real":
             threading.Thread(target=self._post_attach, daemon=True, name="post-attach").start()

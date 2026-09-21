@@ -770,27 +770,8 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     engine.subscribe_motion(_maze_svc.on_motion)   # 弹珠迷宫的倾斜源（0xEF 运动流）
     engine.subscribe_motion(_dsu_svc.on_motion)    # 模拟器体感桥（DSU/Cemuhook，#18）
 
-    # ---------- 体感帧 WS 推送（ADR-028 补丁：替代前端 40ms HTTP 轮询） ----------
-    # 0xEF 流 ~370Hz 全在 HID 线程，HTTP 轮询 25Hz 延迟高且挤占请求队列——弹珠「半天动
-    # 一下」的根因。改为 WS 推 tilt：30Hz 节流（体感 UI 足够顺滑），走 bus_to_ws 线程
-    # 安全投递，不进 events 历史（不撑爆事件流，不触发前端重渲染）。总闸关闭时流停，
-    # 这里自然静默。
-    _motion_ws_last = {"t": 0.0}
-
-    def motion_to_ws(_m):
-        n = time.monotonic()
-        if n - _motion_ws_last["t"] < 1 / 30:
-            return
-        _motion_ws_last["t"] = n
-        st = _maze_svc.status()
-        bus_to_ws({"ts": "", "kind": "motion", "tilt": st["tilt"],
-                   "source": st["source"], "frames": st["frames"],
-                   "has_imu": st["has_imu"], "autocal": st["autocal"],
-                   "anchor": st["anchor"]})
-
-    engine.subscribe_motion(motion_to_ws)
-
     # ---- 体感中心总闸（ADR-028）：状态持久化，上次开着本次启动自动恢复 ----
+    # ⚠ 必须先于 motion_to_ws 定义：HID 线程随时可能来帧，闭包名不能悬空
     def _hub_file():
         import os as _os
         return _os.path.join(_os.environ.get("APPDATA", "."), "Apex5Unleashed", "motion_hub.json")
@@ -813,14 +794,39 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
             _json.dump({"master": bool(v)}, f)
         _os.replace(tmp, p)
 
-    engine.raw_motion = _hub_load()        # 总闸真相源交给持久态（默认关）
-    if engine.raw_motion:
+    # 总闸真相源 = 持久态本身（不再借用 engine.raw_motion——raw 位图流是拓展键/宏的
+    # 基础设施恒开，见 engine.attach；总闸只管「体感消费者」）
+    _hub = {"master": _hub_load()}
+    if _hub["master"]:
         try:
-            _dsu_svc.start()               # 上次开着 → DSU 桥也自动回来（raw 流由 attach/online 恢复）
+            _dsu_svc.start()               # 上次开着 → DSU 桥自动回来（raw 流由 attach 恒开）
         except Exception:
             pass
         if engine.online:                  # 设备已先于本接线接入的场景：补发 raw=1
             engine.set_raw_motion(True, source="master-restore")
+
+    # ---------- 体感帧 WS 推送（ADR-028 补丁：替代前端 40ms HTTP 轮询） ----------
+    # 0xEF 流 ~370Hz 全在 HID 线程，HTTP 轮询 25Hz 延迟高且挤占请求队列——弹珠「半天动
+    # 一下」的根因。改为 WS 推 tilt：30Hz 节流（体感 UI 足够顺滑），走 bus_to_ws 线程
+    # 安全投递，不进 events 历史（不撑爆事件流，不触发前端重渲染）。总闸关闭时推
+    # 送静默（试玩场/体感 UI 冻结），但流本身仍在跑——拓展键直读/宏录制还靠它。
+    _motion_ws_last = {"t": 0.0}
+
+    def motion_to_ws(_m):
+        if not _hub["master"]:        # 总闸关闭 → 体感 UI 静默（流本身仍在跑，喂拓展键/宏）
+            return
+        n = time.monotonic()
+        if n - _motion_ws_last["t"] < 1 / 30:
+            return
+        _motion_ws_last["t"] = n
+        st = _maze_svc.status()
+        bus_to_ws({"ts": "", "kind": "motion", "tilt": st["tilt"],
+                   "source": st["source"], "frames": st["frames"],
+                   "has_imu": st["has_imu"], "autocal": st["autocal"],
+                   "anchor": st["anchor"]})
+
+    engine.subscribe_motion(motion_to_ws)
+
     if ingress:
         ingress.on_applied = _rgb.on_game_event    # Mod 扳机事件 → 闪灯联动
     engine.subscribe_motion(_softmap.HUB.on_motion)
@@ -1242,7 +1248,7 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
             pass
 
     def _motion_master_status(note=None):
-        return {"ok": True, "master": bool(engine.raw_motion),
+        return {"ok": True, "master": _hub["master"],
                 "raw": bool(engine.raw_motion), "note": note,
                 "dsu": _dsu_svc.status(),
                 "gyro": {"enabled": bool(_softmap.HUB.gyro.cfg.get("enabled"))},
@@ -1262,18 +1268,20 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
         note = None
         try:
             if req.enabled:
-                engine.set_raw_motion(True, source="master")
+                engine.set_raw_motion(True, source="master")   # 兜底确保（attach 已恒开）
                 try:
                     _dsu_svc.start()
                 except Exception as e:
                     note = f"DSU 桥启动失败（体感其余功能不受影响）：{e}"
             else:
+                # 只关消费者（桥+瞄准+体感 UI 推送），不动 0xEF 位图流——
+                # 拓展键直读/宏录制还靠它（2026-09-22 实锤：raw off 连坐拓展键全瞎）
                 _dsu_svc.stop()
                 try:
                     _softmap.HUB.gyro.set_config({"enabled": False})
                 except Exception:
                     pass
-                engine.set_raw_motion(False, source="master")
+            _hub["master"] = bool(req.enabled)
             _hub_save(req.enabled)
             _motion_log(f"POST done {req.enabled} in {(time.monotonic() - t0) * 1000:.0f}ms")
             return _motion_master_status(note)

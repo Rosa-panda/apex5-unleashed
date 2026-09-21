@@ -1,8 +1,8 @@
 // 体感中心（ADR-028）：体感四件套的独立顶级栏目 + 总闸。
-// 总闸 = 运动流(raw) + 模拟器桥(DSU) + 陀螺瞄准 的联动编排（后端 /api/motion/master），
+// 总闸 = 模拟器桥(DSU) + 陀螺瞄准 + 体感 UI 推送 的联动编排（后端 /api/motion/master），
 // 状态持久化在 %APPDATA%\Apex5Unleashed\motion_hub.json——上次开着，这次启动就还是开着。
-// 设计动机：大部分游戏用不到体感；默认关、用时开、用完关（运动流常开会让固件
-// 永远不清休眠计时器，手柄再也不会自动断电——见 ADR-027 运动流省电节）。
+// ⚠ 0xEF 位图流是基础设施恒开（拓展键直读/宏录制也吃它），总闸不碰——
+// 2026-09-22 实锤：总闸连带关流 → 手柄测试页拓展键全瞎。
 import { useCallback, useEffect, useState } from 'react'
 import { Orbit } from 'lucide-react'
 import { api } from '../api'
@@ -74,7 +74,7 @@ export default function Motion() {
               </span>
             </div>
             <div className="text-[11px] text-text-low">
-              运动流 + 模拟器桥（+ 陀螺瞄准）一键联动；状态自动保存，重开软件不用再开一次
+              模拟器桥 + 陀螺瞄准一键联动；状态自动保存，重开软件不用再开一次
             </div>
           </div>
           <button
@@ -86,7 +86,7 @@ export default function Motion() {
           </button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Chip on={!!st?.raw}>运动流（0xEF）</Chip>
+          <Chip on={!!st?.raw}>0xEF 位图流（拓展键依赖）</Chip>
           <Chip on={!!st?.dsu?.enabled}>
             模拟器桥{st?.dsu?.enabled ? ` :${st.dsu.port ?? 26760}` : ''}
           </Chip>
@@ -94,15 +94,15 @@ export default function Motion() {
           {err && <span className="text-[11px] text-err">{err}</span>}
         </div>
         <p className="mt-2 text-[11px] leading-relaxed text-text-low">
-          开闸 = 打开运动流 + 常备模拟器桥（Yuzu/Cemu/Dolphin/PCSX2 直连 127.0.0.1:{st?.dsu?.port ?? 26760}），
-          陀螺瞄准尊重你上次的选择、不自动开。关闸 = 一关全关，固件恢复自动休眠（省电）。
-          开着运动流手柄永远不会自动断电——玩完记得关。
+          开闸 = 常备模拟器桥（Yuzu/Cemu/Dolphin/PCSX2 直连 127.0.0.1:{st?.dsu?.port ?? 26760}）+ 体感数据流通，
+          陀螺瞄准尊重你上次的选择、不自动开。关闸 = 桥和瞄准全关、试玩场停止响应；
+          拓展键直读/宏录制用的 0xEF 位图流保持开启（手柄测试页依赖，不受总闸影响）。
         </p>
       </div>
 
       <Section
         title="试玩场 · 弹珠迷宫"
-        desc="手柄当板子，倾斜滚弹珠到终点。matter.js 物理（240Hz 子步）+ 撞墙音效/手柄震动——练手感、验延迟，先把这里玩顺再进游戏。">
+        desc="手柄当板子，倾斜滚弹珠到终点。matter.js 物理（240Hz 子步）+ 撞墙音效/手柄震动——练手感、验延迟，先把这里玩顺再进游戏。总闸关闭时无体感输入。">
         <MazePanel />
       </Section>
 

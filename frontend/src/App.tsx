@@ -101,7 +101,7 @@ export default function App() {
           </svg>
           <div>
             <div className="text-[13px] font-semibold tracking-wide">Apex5 Unleashed</div>
-            <div className="text-[10px] text-text-low">v0.3.1 · 八爪鱼5 工具箱</div>
+            <div className="text-[10px] text-text-low">v0.3.2 · 八爪鱼5 工具箱</div>
           </div>
         </div>
 
