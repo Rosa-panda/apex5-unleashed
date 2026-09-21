@@ -1,0 +1,115 @@
+// 体感中心（ADR-028）：体感四件套的独立顶级栏目 + 总闸。
+// 总闸 = 运动流(raw) + 模拟器桥(DSU) + 陀螺瞄准 的联动编排（后端 /api/motion/master），
+// 状态持久化在 %APPDATA%\Apex5Unleashed\motion_hub.json——上次开着，这次启动就还是开着。
+// 设计动机：大部分游戏用不到体感；默认关、用时开、用完关（运动流常开会让固件
+// 永远不清休眠计时器，手柄再也不会自动断电——见 ADR-027 运动流省电节）。
+import { useCallback, useEffect, useState } from 'react'
+import { Orbit } from 'lucide-react'
+import { api } from '../api'
+import { DsuPanel, GyroFwPanel, GyroPanel, MazePanel } from './exp/panels'
+
+function Chip({ on, children }: { on: boolean; children: React.ReactNode }) {
+  return (
+    <span className={`rounded-md border px-2 py-0.5 text-[11px] ${on
+      ? 'border-accent/40 bg-accent/10 text-accent'
+      : 'border-border-soft bg-white/5 text-text-low'}`}>
+      {on ? '● ' : '○ '}{children}
+    </span>
+  )
+}
+
+function Section({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
+  return (
+    <div className="card space-y-2 p-4">
+      <div>
+        <div className="text-[13px] font-semibold text-text-hi">{title}</div>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-text-mid">{desc}</p>
+      </div>
+      <div className="rounded-md border border-border-soft bg-black/20 p-3">{children}</div>
+    </div>
+  )
+}
+
+export default function Motion() {
+  const [st, setSt] = useState<any>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const load = useCallback(() => {
+    api.motionMaster().then(setSt).catch(() => setErr('✗ 状态加载失败'))
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const toggle = () => {
+    const on = !st?.master
+    setBusy(true)
+    api.motionMasterSet(on)
+      .then(() => { setErr(''); load() })
+      .catch(() => setErr('✗ 切换失败（手柄未连接时运动流开不了，其余开关仍生效）'))
+      .finally(() => setBusy(false))
+  }
+
+  const master = !!st?.master
+  return (
+    <div className="mx-auto max-w-4xl space-y-5">
+      {/* 总闸大卡 */}
+      <div className={`card p-5 ${master ? 'border-accent/40' : ''}`}>
+        <div className="flex items-center gap-3">
+          <div className={`rounded-lg border p-2 ${master ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border-soft bg-white/5 text-text-low'}`}>
+            <Orbit size={20} />
+          </div>
+          <div>
+            <div className="text-[15px] font-semibold text-text-hi">体感总闸</div>
+            <div className="text-[11px] text-text-low">
+              运动流 + 模拟器桥（+ 陀螺瞄准）一键联动；状态自动保存，重开软件不用再开一次
+            </div>
+          </div>
+          <button
+            onClick={toggle}
+            disabled={busy}
+            className={`btn ml-auto justify-center ${master ? 'btn-danger' : 'btn-primary'}`}
+            style={{ minWidth: 96 }}>
+            {master ? '关闭体感' : '开启体感'}
+          </button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Chip on={!!st?.raw}>运动流（0xEF）</Chip>
+          <Chip on={!!st?.dsu?.running}>
+            模拟器桥{st?.dsu?.running ? ` :${st.dsu.port ?? 26760}` : ''}
+          </Chip>
+          <Chip on={!!st?.gyro?.enabled}>陀螺瞄准</Chip>
+          {err && <span className="text-[11px] text-err">{err}</span>}
+        </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-text-low">
+          开闸 = 打开运动流 + 常备模拟器桥（Yuzu/Cemu/Dolphin/PCSX2 直连 127.0.0.1:{st?.dsu?.port ?? 26760}），
+          陀螺瞄准尊重你上次的选择、不自动开。关闸 = 一关全关，固件恢复自动休眠（省电）。
+          开着运动流手柄永远不会自动断电——玩完记得关。
+        </p>
+      </div>
+
+      <Section
+        title="试玩场 · 弹珠迷宫"
+        desc="手柄当板子，倾斜滚弹珠到终点。matter.js 物理（240Hz 子步）+ 撞墙音效/手柄震动——练手感、验延迟，先把这里玩顺再进游戏。">
+        <MazePanel />
+      </Section>
+
+      <Section
+        title="模拟器桥（DSU/Cemuhook UDP）"
+        desc="把 0xEF 运动流翻译成标准 DSU 协议，喂给 Yuzu / Cemu / Dolphin / PCSX2。模拟器里「控制器 → Motion Source → UDP」填 127.0.0.1 即可。">
+        <DsuPanel />
+      </Section>
+
+      <Section
+        title="陀螺瞄准（软件层 · 陀螺转鼠标）"
+        desc="不用改游戏：陀螺直接转系统鼠标。受总闸节制——总闸关闭时这里开不起来。">
+        <GyroPanel />
+      </Section>
+
+      <Section
+        title="固件层陀螺映射（陀螺转摇杆）"
+        desc="写进手柄固件的陀螺→右摇杆映射，关软件也生效。适合原生不支持陀螺的主机/游戏。">
+        <GyroFwPanel />
+      </Section>
+    </div>
+  )
+}

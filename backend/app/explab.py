@@ -10,9 +10,8 @@ import time
 TIER_LABEL = {1: "第一梯队", 2: "第二梯队", 3: "第三梯队"}
 
 FEATURES = [
-    {"id": "gyro", "tier": 1, "plan": "#1", "title": "体感瞄准（软件层）",
-     "desc": "陀螺仪转鼠标，全游戏体感瞄准。三态开关（关/按住激活/常开），官方算法参数起步。",
-     "enabled": True},
+    # ADR-028：体感四件套（#1 陀螺瞄准 / #6 固件映射 / #17 迷宫 / #18 模拟器桥）
+    # 已迁出到独立「体感」栏目（前端 pages/Motion.tsx），端点原样保留复用。
     {"id": "turbo", "tier": 1, "plan": "#2", "title": "连发 Turbo",
      "desc": "任意键固件级连发（按住=连点），零软件开销，关软件照样生效。",
      "enabled": True},
@@ -24,9 +23,6 @@ FEATURES = [
      "enabled": True},
     {"id": "arbitration", "tier": 1, "plan": "#5", "title": "共存仲裁升级",
      "desc": "代理权从抓包推断升级为设备实名（cmd28/cmd16 control_by），侧栏显示当前主人。",
-     "enabled": True},
-    {"id": "gyrofw", "tier": 1, "plan": "#6", "title": "体感映射（固件层）",
-     "desc": "blob motion 块固件直通：陀螺→摇杆，零延迟、无软件依赖。与软件层互斥。",
      "enabled": True},
     {"id": "stickmap", "tier": 2, "plan": "#7", "title": "摇杆→鼠标/键盘",
      "desc": "左/右摇杆整体映射成鼠标或键盘方向键（无原生支持游戏的兜底、HTPC 场景）。",
@@ -59,15 +55,6 @@ FEATURES = [
      "desc": "自己给自己当一个「游戏」：扳机场/灯场/靶场/键盘场四个测试场，"
              "事件走和真游戏 Mod 完全相同的链路（DSX 协议→ingress→cmd51；RGB→灯表）。"
              "靶场闭环测体感瞄准与摇杆转鼠标，键盘场测连发/宏。不用下真游戏就能联调。",
-     "enabled": True},
-    {"id": "maze", "tier": 2, "plan": "#17", "title": "体感弹珠迷宫",
-     "desc": "手柄倾斜控制弹珠走迷宫（加速度计重力向量解算，陀螺仪积分兜底），"
-             "同时是「手柄到底有没有真体感」的答案器：原始加速度/陀螺数值实时可见。",
-     "enabled": True},
-    {"id": "dsu", "tier": 2, "plan": "#18", "title": "模拟器体感桥（DSU/Cemuhook）",
-     "desc": "本机起 DSU/Cemuhook UDP 服务端（26760），把 0xEF 运动流翻译成标准体感"
-             "协议喂给 Yuzu/Cemu/Dolphin/PCSX2——DS4Windows/BetterJoy 的同款通路。"
-             "手柄留在 XInput 模式，模拟器的 Motion 映射即可绑定，顺带回传震动。",
      "enabled": True},
 ]
 

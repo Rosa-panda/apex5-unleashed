@@ -80,7 +80,8 @@ class Engine:
         self.versions = None                 # cmd1 七模块固件版本（body[15..29)，ADR-027）
         self.owner = None                    # cmd16 占用方读数（ADR-027 仲裁升级）
         self.motion_subs = []                # 0xEF 运动数据订阅（体感/摇杆映射，高频不走事件日志）
-        self.raw_motion = True               # 0xEF 流开关（省电：关掉固件恢复自动休眠；attach 会重开）
+        self.raw_motion = False              # 体感总闸（ADR-028）：默认关（省电，大部分游戏用不到）；
+                                             # 持久化在 motion_hub.json，service 启动时恢复；attach 服从本态
         self._motion_count = 0
         self._rx_cmd = None                  # request() 阻塞问答的捕获槽
         self._rx_buf = []
@@ -200,9 +201,11 @@ class Engine:
         self._emit("device", online=True, dev_kind=dev.kind, detail="已连接")
         if dev.kind == "real":
             self.panic(source="hygiene")          # ADR-010 启动卫生检查
-            # 重开 0xEF 位图流（拓展键检测/宏录制的信号源；开关 RAM 态，休眠/重启会丢）
-            import extkeys
-            self._send(extkeys.build(17, bytes([255, 1, 255, 255, 255])), source="attach")
+            # 重开 0xEF 位图流（拓展键检测/宏录制的信号源；开关 RAM 态，休眠/重启会丢）。
+            # ADR-028：服从体感总闸持久态——上次关闸的用户，重连后不被悄悄重开流
+            if self.raw_motion:
+                import extkeys
+                self._send(extkeys.build(17, bytes([255, 1, 255, 255, 255])), source="attach")
         self.refresh_battery()                    # 心跳一发，电量随回复异步进账（_capture_battery）
         if dev.kind == "real":
             threading.Thread(target=self._post_attach, daemon=True, name="post-attach").start()

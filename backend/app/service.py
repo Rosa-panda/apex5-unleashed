@@ -759,6 +759,38 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     _gamesim = _gamesim_mod.GameSim(lambda: ingress, lambda: _rgb)
     engine.subscribe_motion(_maze_svc.on_motion)   # 弹珠迷宫的倾斜源（0xEF 运动流）
     engine.subscribe_motion(_dsu_svc.on_motion)    # 模拟器体感桥（DSU/Cemuhook，#18）
+
+    # ---- 体感中心总闸（ADR-028）：状态持久化，上次开着本次启动自动恢复 ----
+    def _hub_file():
+        import os as _os
+        return _os.path.join(_os.environ.get("APPDATA", "."), "Apex5Unleashed", "motion_hub.json")
+
+    def _hub_load():
+        import json as _json
+        try:
+            with open(_hub_file(), "r", encoding="utf-8") as f:
+                return bool(_json.load(f).get("master"))
+        except (OSError, ValueError):
+            return False
+
+    def _hub_save(v):
+        import json as _json
+        import os as _os
+        p = _hub_file()
+        _os.makedirs(_os.path.dirname(p), exist_ok=True)
+        tmp = p + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            _json.dump({"master": bool(v)}, f)
+        _os.replace(tmp, p)
+
+    engine.raw_motion = _hub_load()        # 总闸真相源交给持久态（默认关）
+    if engine.raw_motion:
+        try:
+            _dsu_svc.start()               # 上次开着 → DSU 桥也自动回来（raw 流由 attach/online 恢复）
+        except Exception:
+            pass
+        if engine.online:                  # 设备已先于本接线接入的场景：补发 raw=1
+            engine.set_raw_motion(True, source="master-restore")
     if ingress:
         ingress.on_applied = _rgb.on_game_event    # Mod 扳机事件 → 闪灯联动
     engine.subscribe_motion(_softmap.HUB.on_motion)
@@ -849,6 +881,9 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
         invert: list = None           # [pitch, yaw, roll]，None=不改动
 
     class ExpImuReq(BaseModel):
+        enabled: bool
+
+    class MotionMasterReq(BaseModel):
         enabled: bool
 
     class ExpDiagReq(BaseModel):
@@ -1157,6 +1192,39 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
         try:
             _require_real()
             return engine.set_raw_motion(req.enabled)
+        except Exception as e:
+            return err(e)
+
+    # ---- 体感中心总闸（ADR-028）：一关全关（流+桥+瞄准），一开流和桥就位 ----
+    def _motion_master_status(note=None):
+        return {"ok": True, "master": bool(engine.raw_motion),
+                "raw": bool(engine.raw_motion), "note": note,
+                "dsu": _dsu_svc.status(),
+                "gyro": {"enabled": bool(_softmap.HUB.gyro.cfg.get("enabled"))}}
+
+    @app.get("/api/motion/master")
+    def motion_master_get():
+        return _motion_master_status()
+
+    @app.post("/api/motion/master")
+    def motion_master_set(req: MotionMasterReq):
+        note = None
+        try:
+            if req.enabled:
+                engine.set_raw_motion(True, source="master")
+                try:
+                    _dsu_svc.start()
+                except Exception as e:
+                    note = f"DSU 桥启动失败（体感其余功能不受影响）：{e}"
+            else:
+                _dsu_svc.stop()
+                try:
+                    _softmap.HUB.gyro.set_config({"enabled": False})
+                except Exception:
+                    pass
+                engine.set_raw_motion(False, source="master")
+            _hub_save(req.enabled)
+            return _motion_master_status(note)
         except Exception as e:
             return err(e)
 

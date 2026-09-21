@@ -207,6 +207,9 @@ export const api = {
   expDsuSet: (enabled: boolean, port = 26760, invert: boolean[] | null = null) =>
     post('/api/exp/dsu', { enabled, port, invert }) as Promise<any>,
   expImu: (enabled: boolean) => post('/api/exp/imu', { enabled }) as Promise<any>,
+  // 体感总闸（ADR-028）：联动 运动流+模拟器桥+陀螺瞄准，状态持久化在后端
+  motionMaster: () => get('/api/motion/master') as Promise<any>,
+  motionMasterSet: (enabled: boolean) => post('/api/motion/master', { enabled }) as Promise<any>,
   expDiag: (op: string, body: Record<string, unknown> = {}) =>
     post('/api/exp/diagnostics', { op, ...body }) as Promise<any>,
   expDiagData: () => get('/api/exp/diagnostics') as Promise<any>,
