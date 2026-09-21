@@ -126,6 +126,13 @@ export function GyroPanel() {
   const g = st.stats?.last_gyro ?? [0, 0, 0]
   return (
     <div className="space-y-2">
+      {/* 路标：三种「游戏用体感」的通道，防止重复造不存在的开关 */}
+      <div className="rounded-md border border-border-soft bg-black/20 p-2 text-[10px] leading-relaxed text-text-low">
+        <span className="text-text-mid">游戏怎么用上手柄体感？三条路：</span>
+        ① 普通 XInput 游戏（不认体感）→ <b>固件层陀螺→摇杆</b>（体验区 #6，关软件也生效）或本面板软件层陀螺→鼠标；
+        ② 原生体感游戏（Steam Input / DS5 移植 / NSO）→ <b>手柄拨硬件模式键切 Switch 模式</b>，
+        切换后手柄在 USB 层变成任天堂设备（057e:2009），本工具和飞智空间站都看不见它，由游戏/Steam 自己接管——软件开关对此无解，不是功能缺失。
+      </div>
       <Row label="总开关">
         <button className={c.enabled ? BTN_ACC : BTN} onClick={() => set({ enabled: !c.enabled })}>
           {c.enabled ? '开启中（点此关闭）' : '已关闭（点此开启）'}
