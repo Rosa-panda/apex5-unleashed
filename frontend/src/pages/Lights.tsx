@@ -29,6 +29,14 @@ const LIB: Style[] = [
 const CUSTOM: Style = { id: 'custom', name: '自定义', mode: 'breath', colors: [[0, 170, 255]] }
 const OFF_STYLE: Style = { id: 'off', name: '熄灯', mode: 'off', colors: [] }
 
+/** 各灯效的帧数（与 protocol.led_frames_* 生成器一致，预览按帧驱动） */
+const STEPS: Record<Mode, number> = {
+  off: 1, on: 1, breath: 15, gradient: 16, flow: 16,
+  blink: 4, heartbeat: 12, wipe: 20, rainbow: 24, aurora: 24,
+}
+/** 帧距→毫秒换算（真机近似标定：官方彩虹 lt=4、循环 ~10 帧、目测 3~4s/圈 ≈ 100ms/单位） */
+const MS_PER_LT = 100
+
 // 速度⇄帧距对数映射：设备帧距与感知速度是倒数关系，滑条线性分配会两头失真
 // （帧距 30→40 几乎没差别，50→60 直接从动到不动）。对数映射后每格感知均匀。
 const speedToLt = (v: number) =>
@@ -109,27 +117,18 @@ function PadPreview({ mode, colors, brightness, period, rgbNum, frames, loopMs }
   frames?: number[][] | null; loopMs?: number      // 有帧表时直接回放设备原文（外部灯效）
 }) {
   const [t, setT] = useState(0)
-  const [fi, setFi] = useState(0)
-  useEffect(() => {                                // 外部灯效：按设备帧距逐帧回放原文
-    if (!frames?.length || !loopMs) return
-    const id = setInterval(() => setFi(v => (v + 1) % frames.length), Math.max(30, loopMs))
-    return () => clearInterval(id)
-  }, [frames, loopMs])
+  // 帧驱动预览：与设备同模型——每帧驻留 loop_time，帧数与写入灯表的帧表一致。
+  // 预览播的就是设备会播的那串帧、那个节奏（不再自造"整圈固定时长"）。
+  const steps = frames?.length
+    ? frames.length
+    : mode === 'wipe' ? Math.max(2, rgbNum * 2) : STEPS[mode]
   useEffect(() => {
-    // 周期映射：真机"帧距"1-60 → 预览 0.8s~6s 一循环
-    const dur = Math.max(0.8, period * 0.1) * (mode === 'blink' ? 0.5 : 1)
-    let raf = 0
-    let last = 0
-    const tick = (now: number) => {
-      if (now - last > 33) {                             // ~30fps 足够
-        last = now
-        setT((now / 1000 / dur) % 1)
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [period, mode])
+    const iv = frames?.length
+      ? Math.max(30, loopMs ?? 300)
+      : Math.max(30, period * MS_PER_LT)
+    const id = setInterval(() => setT(v => (v + 1 / steps) % 1), iv)
+    return () => clearInterval(id)
+  }, [period, mode, steps, loopMs, frames])
 
   const lit = mode !== 'off'
   const glow = lit ? 0.25 + 0.75 * (brightness / 255) : 0
@@ -154,7 +153,8 @@ function PadPreview({ mode, colors, brightness, period, rgbNum, frames, loopMs }
           <circle key={i} cx={x} cy={y} r="5" fill="#161624" stroke="#23233a" />
         ))}
         {dots.map((d, i) => {
-          const f = frames?.length ? frames[fi % frames.length] : null
+          const k = Math.floor(t * steps) % steps
+          const f = frames?.length ? frames[k] : null
           const c = f ? [f[i * 3], f[i * 3 + 1], f[i * 3 + 2]] : ledColor(mode, colors, i, rgbNum, t)
           const a = Math.max(...c) / 255
           return (
@@ -172,7 +172,7 @@ function PadPreview({ mode, colors, brightness, period, rgbNum, frames, loopMs }
 function MiniStrip({ mode, colors, period = 10 }: { mode: Mode; colors: number[][]; period?: number }) {
   const [t, setT] = useState(0)
   useEffect(() => {
-    const id = setInterval(() => setT(v => (v + 0.04) % 1), Math.max(60, period * 25))
+    const id = setInterval(() => setT(v => (v + 1 / 24) % 1), Math.max(60, period * MS_PER_LT))
     return () => clearInterval(id)
   }, [period])
   return (
@@ -221,7 +221,7 @@ export default function Lights() {
           for (let i = 0; i < fsize; i++) f.push(raw.charCodeAt(o + i))
           fs.push(f)
         }
-        if (fs.length) { setDevFrames(fs); setDevLoop(Math.max(40, r.bean.loop_time * 30)) }
+        if (fs.length) { setDevFrames(fs); setDevLoop(Math.max(30, r.bean.loop_time * MS_PER_LT)) }
       }
       const d: LedDetect | null | undefined = r.detect
       if (touched.current || !d || !r.bean) return
