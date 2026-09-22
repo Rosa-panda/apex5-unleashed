@@ -598,6 +598,12 @@ class Engine:
                   "wipe": lambda: protocol.led_frames_wipe(colors, rgb_num),
                   "comet": lambda: protocol.led_frames_comet(colors, rgb_num),
                   "duosweep": lambda: protocol.led_frames_duosweep(colors, rgb_num),
+                  "rain": lambda: protocol.led_frames_rain(colors, rgb_num),
+                  "chase": lambda: protocol.led_frames_chase(colors, rgb_num),
+                  "pulse": lambda: protocol.led_frames_pulse(colors, rgb_num),
+                  "fire": lambda: protocol.led_frames_fire(colors, rgb_num),
+                  "auroraflow": lambda: protocol.led_frames_auroraflow(colors, rgb_num),
+                  "typewriter": lambda: protocol.led_frames_typewriter(colors, rgb_num),
                   "rainbow": lambda: protocol.led_frames_rainbow(rgb_num),
                   "aurora": lambda: protocol.led_frames_aurora(colors, rgb_num),
                   "default": lambda: protocol.led_frames_solid(colors[0], rgb_num)}.get(mode)

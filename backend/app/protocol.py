@@ -289,6 +289,110 @@ def led_frames_duosweep(colors, rgb_num):
     return bytes(out)
 
 
+def led_frames_rain(colors, rgb_num, tail=3):
+    """彗星雨（ADR-033 修订 3）：亮头带拖尾连续掠过，一颗接一颗不断档。
+    步数 = rgb_num + tail，跨循环处旧尾未散新头已入，观感为连绵流星。"""
+    c = tuple(colors[0])
+    steps = rgb_num + tail
+    out = bytearray()
+    for p in range(steps):                      # p=光头位置
+        frame = bytearray()
+        for i in range(rgb_num):
+            d = p - i
+            if 0 <= d <= tail:
+                s = (tail + 1 - d) / (tail + 1)
+                frame.extend(round(v * s) for v in c)
+            else:
+                frame.extend((0, 0, 0))
+        out.extend(frame)
+    return bytes(out)
+
+
+def led_frames_chase(colors, rgb_num, steps=None):
+    """双色追及（ADR-033 修订 3）：两色同向绕圈，色 B 三倍速追色 A，
+    分界线随两速差持续游走。步数 = rgb_num。"""
+    ca, cb = tuple(colors[0]), tuple(colors[1 % len(colors)])
+    steps = steps or rgb_num
+    out = bytearray()
+    for k in range(steps):
+        pa, pb = k % rgb_num, (k * 3) % rgb_num
+        frame = bytearray()
+        for i in range(rgb_num):
+            da = min((i - pa) % rgb_num, (pa - i) % rgb_num)
+            db = min((i - pb) % rgb_num, (pb - i) % rgb_num)
+            frame.extend(ca if da <= db else cb)      # 环上就近归属
+        out.extend(frame)
+    return bytes(out)
+
+
+def led_frames_pulse(colors, rgb_num):
+    """中心脉冲（ADR-033 修订 3）：从中心向两端炸开再收回，像能量搏动。
+    步数 = 2×ceil(n/2)-1，铺满帧在正中。"""
+    c = tuple(colors[0])
+    hi = (rgb_num + 1) // 2
+    radii = list(range(1, hi + 1)) + list(range(hi - 1, 0, -1))
+    out = bytearray()
+    for r in radii:
+        frame = bytearray()
+        for i in range(rgb_num):
+            frame.extend(c if hi - r <= i < hi + r else (0, 0, 0))
+        out.extend(frame)
+    return bytes(out)
+
+
+def led_frames_fire(colors, rgb_num, steps=16):
+    """火苗（ADR-033 修订 3）：逐珠独立明暗抖动。用确定性伪噪声（双正弦积，
+    无缝循环）而非随机数——同参数可复现，识别可逐点校验。"""
+    c = tuple(colors[0])
+    out = bytearray()
+    for k in range(steps):
+        frame = bytearray()
+        for i in range(rgb_num):
+            n1 = math.sin(2.399 * i + 2 * math.pi * k / steps)
+            n2 = math.sin(1.7 * i + 2.4 + 2 * math.pi * 3 * k / steps)
+            s = 0.3 + 0.7 * ((n1 * n2 + 1) / 2)
+            frame.extend(round(v * s) for v in c)
+        out.extend(frame)
+    return bytes(out)
+
+
+def led_frames_auroraflow(colors, rgb_num, steps=24):
+    """呼吸流光（ADR-033 修订 3）：空间色相流动 + 快起慢落呼吸 + 行进高光带，
+    三层叠加。步数 = 24。"""
+    cs = [tuple(c) for c in (colors if len(colors) >= 2 else [(0, 255, 180), (60, 0, 255)])]
+    m = len(cs)
+    out = bytearray()
+    for k in range(steps):
+        u = k / steps
+        e = u / 0.3 if u < 0.3 else 1 - (u - 0.3) / 0.7          # 快起慢落包络
+        glow = 0.35 + 0.65 * e
+        band = u * rgb_num                                        # 高光带中心行进
+        frame = bytearray()
+        for i in range(rgb_num):
+            x = (i / rgb_num + u) % 1 * m
+            j = int(x) % m
+            rgbv = [a + (b - a) * (x - int(x)) for a, b in zip(cs[j], cs[(j + 1) % m])]
+            dd = min(abs(i - band), abs(i - band + rgb_num), abs(i - band - rgb_num))
+            hl = 1 + 0.6 * math.exp(-(dd / 1.5) ** 2)
+            frame.extend(round(min(255, v * glow * hl)) for v in rgbv)
+        out.extend(frame)
+    return bytes(out)
+
+
+def led_frames_typewriter(colors, rgb_num):
+    """打字机（ADR-033 修订 3）：逐珠点亮铺满后末珠闪两下再熄，像发送完成回执。
+    步数 = rgb_num + 5。"""
+    c = tuple(colors[0])
+    seq = list(range(1, rgb_num + 1)) + [rgb_num - 1, rgb_num, rgb_num - 1, rgb_num, 0]
+    out = bytearray()
+    for lit_n in seq:
+        frame = bytearray()
+        for i in range(rgb_num):
+            frame.extend(c if i < lit_n else (0, 0, 0))
+        out.extend(frame)
+    return bytes(out)
+
+
 def led_frames_rainbow(rgb_num, steps=24, sat=1.0, val=0.55):
     """彩虹循环：色相环沿灯珠分布并随帧旋转（不依赖 colors）。"""
     out = bytearray()
@@ -372,6 +476,12 @@ def led_identify(blob):
     # [帧][灯珠](r,g,b)
     fr = [[tuple(body[i * n * 3 + j * 3: i * n * 3 + j * 3 + 3]) for j in range(n)]
           for i in range(nf)]
+    # 只看 loop 范围内的帧：固件槽位尾部常残留旧表的帧（擦不掉），混进来会让
+    # 识别必然失败（ADR-033 修订 3 修复「自己写的灯效被认成外部灯效」）。
+    ls, le = bean["loop_start"], bean["loop_end"]
+    if 0 <= le < nf:
+        fr = fr[max(0, ls): le + 1]
+        nf = len(fr)
 
     # 1) 全灭
     if all(all(c == (0, 0, 0) for c in f) for f in fr):
@@ -448,6 +558,12 @@ def led_identify(blob):
         c = next(fr[i][0] for i, k in enumerate(lit) if k > 0)
         return {"mode": "comet", "colors": [list(c)], "known": True}
 
+    # 3.1) typewriter（打字机，ADR-033 修订 3）：全前缀帧，亮珠数 = 1..n 铺满后
+    #      末珠闪两下（n-1,n,n-1,n）再全灭。须先于 wipe 判定（帧形同为前缀）。
+    if all(is_prefix(f) for f in fr) and lit == list(range(1, n + 1)) + [n - 1, n, n - 1, n, 0]:
+        c = next(fr[i][0] for i, k in enumerate(lit) if k > 0)
+        return {"mode": "typewriter", "colors": [list(c)], "known": True}
+
     if all(is_prefix(f) for f in fr) and len(set(lit)) >= 3:
         c = next(fr[i][0] for i, k in enumerate(lit) if k > 0)
         return {"mode": "wipe", "colors": [list(c)], "known": True}
@@ -472,6 +588,79 @@ def led_identify(blob):
             return True
         if all(is_duo(f) for f in fr):
             return {"mode": "duosweep", "colors": [list(a0), list(b0)], "known": True}
+
+    # 3.6) rain（彗星雨，ADR-033 修订 3）：每帧一段连续 run、左右两半都出现过
+    #      独立 run（光头过境）、起点单调推进、run 长度受限——pulse 的居中 run、
+    #      fire/chase 的全亮帧都不会误入。
+    def _run2(f):
+        on = [j for j, c in enumerate(f) if max(c) > 8]
+        if not on:
+            return None
+        return (on[0], on[-1]) if on[-1] - on[0] + 1 == len(on) else ()
+
+    runs2 = [_run2(f) for f in fr]
+    if () not in runs2 and None not in runs2:
+        mid = (n - 1) / 2
+        starts2 = [a for a, _ in runs2]
+        if (any(b < mid for _, b in runs2) and any(a > mid for a, _ in runs2)
+                and max(b - a for a, b in runs2) + 1 <= n // 2 + 1
+                and all(x <= y for x, y in zip(starts2, starts2[1:]))):
+            c = next(fr[i][runs2[i][1]] for i in range(nf) if runs2[i][1] > runs2[i][0])
+            return {"mode": "rain", "colors": [list(c)], "known": True}
+
+    # 3.7) pulse（中心脉冲，ADR-033 修订 3）：每帧为一段含中点的对称连续 run，
+    #      半径先增后减，且存在不触两端的居中帧。
+    if () not in runs2 and None not in runs2:
+        mid = (n - 1) / 2
+        if (all(a <= mid <= b for a, b in runs2)
+                and all(a == n - 1 - b for a, b in runs2)
+                and any(a > 0 and b < n - 1 for a, b in runs2)
+                and len(set(b - a for a, b in runs2)) >= 3):
+            c = max((fr[i][b] for i, (a, b) in enumerate(runs2)), key=max)
+            return {"mode": "pulse", "colors": [list(c)], "known": True}
+
+    # 3.8) chase（双色追及，ADR-033 修订 3）：全帧全亮、全表恰两色、且并非每帧
+    #      同色（同色帧≠渐变的全帧同色系）——gradient/flow/aurora 色数更多不会误入。
+    if all(len(set(f)) == 1 or len(set(f)) == 2 for f in fr) and \
+            all(all(max(c) > 0 for c in f) for f in fr):
+        palette = []
+        for f in fr:
+            for c in f:
+                if not any(_close_rgb(c, d, 10) for d in palette):
+                    palette.append(c)
+        uniform_all = all(len(set(f)) == 1 for f in fr)
+        if len(palette) == 2 and not uniform_all and all(
+                len(set(f)) == 2 or _close_rgb(f[0], palette[0], 10) or
+                _close_rgb(f[0], palette[1], 10) for f in fr):
+            return {"mode": "chase", "colors": [list(palette[0]), list(palette[1])], "known": True}
+
+    # 3.9) fire（火苗，ADR-033 修订 3）：确定性伪噪声——按帧数=16 重建期望亮度
+    #      比例矩阵，逐点比对（提取峰值色后全表应在容差内吻合）。
+    if nf == 16:
+        vmax = [0, 0, 0]
+        for f in fr:
+            for c in f:
+                for ch in range(3):
+                    vmax[ch] = max(vmax[ch], c[ch])
+        smax = max(0.3 + 0.7 * ((math.sin(2.399 * i + 2 * math.pi * k / 16) *
+                                 math.sin(1.7 * i + 2.4 + 2 * math.pi * 3 * k / 16) + 1) / 2)
+                   for k in range(16) for i in range(n))
+        if max(vmax) > 40:
+            ok = True
+            for k in range(16):
+                for i in range(n):
+                    h = (math.sin(2.399 * i + 2 * math.pi * k / 16) *
+                         math.sin(1.7 * i + 2.4 + 2 * math.pi * 3 * k / 16) + 1) / 2
+                    exp_s = 0.3 + 0.7 * h
+                    if any(abs(fr[k][i][ch] / vmax[ch] - exp_s / smax) > 0.06
+                           for ch in range(3) if vmax[ch] >= 20):
+                        ok = False
+                        break
+                if not ok:
+                    break
+            if ok:
+                c = [round(v / smax) for v in vmax]
+                return {"mode": "fire", "colors": [c], "known": True}
 
     # 4) rainbow：每帧色相 ≈ (i/n)·360 + 相位（全色环匀速分布、明度固定不接近全黑）
     def rainbow_fit(f):

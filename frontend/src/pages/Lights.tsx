@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Dices, Loader2, RotateCcw, TriangleAlert } from 'lucide-react'
 import { api, type LedBean, type LedDetect } from '../api'
 
-type Mode = 'off' | 'on' | 'breath' | 'gradient' | 'flow' | 'blink' | 'heartbeat' | 'wipe' | 'comet' | 'duosweep' | 'rainbow' | 'aurora'
+type Mode = 'off' | 'on' | 'breath' | 'gradient' | 'flow' | 'blink' | 'heartbeat' | 'wipe' | 'comet' | 'duosweep' | 'rain' | 'chase' | 'pulse' | 'fire' | 'auroraflow' | 'typewriter' | 'rainbow' | 'aurora'
 
 interface Style { id: string; name: string; mode: Mode; colors: number[][]; period?: number }
 
@@ -21,6 +21,12 @@ const LIB: Style[] = [
   { id: 'wipe', name: '扫描', mode: 'wipe', colors: [[0, 170, 255]] },
   { id: 'comet', name: '扫描·循环', mode: 'comet', colors: [[0, 170, 255]] },
   { id: 'duo', name: '双色对扫', mode: 'duosweep', colors: [[0, 170, 255], [255, 0, 140]] },
+  { id: 'rain', name: '彗星雨', mode: 'rain', colors: [[0, 170, 255]] },
+  { id: 'chase', name: '双色追及', mode: 'chase', colors: [[0, 170, 255], [255, 0, 140]] },
+  { id: 'pulse', name: '中心脉冲', mode: 'pulse', colors: [[255, 40, 90]] },
+  { id: 'fire', name: '火苗', mode: 'fire', colors: [[255, 120, 30]] },
+  { id: 'auroraflow', name: '呼吸流光', mode: 'auroraflow', colors: [[0, 255, 140], [0, 120, 255], [160, 0, 255]] },
+  { id: 'typewriter', name: '打字机', mode: 'typewriter', colors: [[0, 255, 140]] },
   { id: 'flow', name: '极电流光', mode: 'flow', colors: [[0, 255, 255], [80, 0, 255]], period: 8 },
 ]
 
@@ -31,7 +37,22 @@ const OFF_STYLE: Style = { id: 'off', name: '熄灯', mode: 'off', colors: [] }
 /** 各灯效的帧数（与 protocol.led_frames_* 生成器一致，预览按帧驱动） */
 const STEPS: Record<Mode, number> = {
   off: 1, on: 1, breath: 15, gradient: 16, flow: 16,
-  blink: 4, heartbeat: 12, wipe: 20, comet: 12, duosweep: 6, rainbow: 24, aurora: 24,
+  blink: 4, heartbeat: 12, wipe: 20, comet: 12, duosweep: 6, rain: 15, chase: 12,
+  pulse: 11, fire: 16, auroraflow: 24, typewriter: 17, rainbow: 24, aurora: 24,
+}
+
+/** 依赖灯珠数的动态步数（与后端生成器一一对应）；静态灯效走 STEPS */
+function stepsFor(mode: Mode, rgbNum: number): number {
+  switch (mode) {
+    case 'comet': return Math.max(2, rgbNum)
+    case 'duosweep': return Math.max(2, Math.ceil(rgbNum / 2))
+    case 'wipe': return Math.max(2, rgbNum * 2)
+    case 'rain': return Math.max(2, rgbNum + 3)
+    case 'chase': return Math.max(2, rgbNum)
+    case 'pulse': return Math.max(2, 2 * Math.ceil(rgbNum / 2) - 1)
+    case 'typewriter': return Math.max(2, rgbNum + 5)
+    default: return STEPS[mode]
+  }
 }
 /** 帧距→毫秒换算（真机近似标定：官方彩虹 lt=4、循环 ~10 帧、目测 3~4s/圈 ≈ 100ms/单位） */
 const MS_PER_LT = 100
@@ -97,6 +118,50 @@ function ledColor(mode: Mode, stops: number[][], idx: number, n: number, t: numb
       if (idx >= n - 1 - k) return stops[1 % stops.length]
       return [0, 0, 0]
     }
+    case 'rain': {                         // 彗星雨：亮头拖尾连续掠过，一颗接一颗
+      const tail = 3
+      const p = t * (n + tail)
+      const d = p - idx
+      return d < 0 || d > tail ? [0, 0, 0]
+        : stops[0].map(v => v * ((tail + 1 - d) / (tail + 1)))
+    }
+    case 'chase': {                        // 双色追及：B 三倍速追 A，分界游走
+      const k = Math.floor(t * n)
+      const pa = k % n, pb = (k * 3) % n
+      const da = Math.min((idx - pa + n) % n, (pa - idx + n) % n)
+      const db = Math.min((idx - pb + n) % n, (pb - idx + n) % n)
+      return da <= db ? stops[0] : stops[1 % stops.length]
+    }
+    case 'pulse': {                        // 中心脉冲：从中心炸开再收回
+      const hi = Math.ceil(n / 2)
+      const r = Math.min(hi, Math.floor(t * (2 * hi - 1)) + 1)
+      const rr = r <= hi ? r : 2 * hi - r   // 先增后减
+      return idx >= hi - rr && idx < hi + rr ? stops[0] : [0, 0, 0]
+    }
+    case 'fire': {                         // 火苗：确定性伪噪声逐珠抖动（与后端同式）
+      const k = Math.floor(t * 16)
+      const n1 = Math.sin(2.399 * idx + 2 * Math.PI * k / 16)
+      const n2 = Math.sin(1.7 * idx + 2.4 + 2 * Math.PI * 3 * k / 16)
+      const s = 0.3 + 0.7 * ((n1 * n2 + 1) / 2)
+      return stops[0].map(v => v * s)
+    }
+    case 'auroraflow': {                   // 呼吸流光：色相流动+快起慢落+行进高光带
+      const m = Math.max(2, stops.length)
+      const e = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7
+      const glow = 0.35 + 0.65 * e
+      const band = t * n
+      const x = (idx / n + t) % 1 * m
+      const j = Math.floor(x) % m
+      const base = mix(stops[j], stops[(j + 1) % m], x - Math.floor(x))
+      const dd = Math.min(Math.abs(idx - band), Math.abs(idx - band + n), Math.abs(idx - band - n))
+      const hl = 1 + 0.6 * Math.exp(-((dd / 1.5) ** 2))
+      return base.map(v => Math.min(255, v * glow * hl))
+    }
+    case 'typewriter': {                   // 打字机：逐珠铺满后末珠闪两下再熄
+      const seq = [...Array(n).keys()].map(x => x + 1).concat([n - 1, n, n - 1, n, 0])
+      const litN = seq[Math.min(seq.length - 1, Math.floor(t * seq.length))]
+      return idx < litN ? stops[0] : [0, 0, 0]
+    }
     case 'rainbow':
       return hslToRgb(((idx / n) + t) % 1 * 360, 1, 0.55)
     case 'aurora': {                       // 空间渐变流动 + 全局正弦明暗
@@ -128,11 +193,7 @@ function PadPreview({ mode, colors, brightness, period, rgbNum, frames, loopMs }
   const [t, setT] = useState(0)
   // 帧驱动预览：与设备同模型——每帧驻留 loop_time，帧数与写入灯表的帧表一致。
   // 预览播的就是设备会播的那串帧、那个节奏（不再自造"整圈固定时长"）。
-  const steps = frames?.length
-    ? frames.length
-    : mode === 'comet' ? Math.max(2, rgbNum)
-    : mode === 'duosweep' ? Math.max(2, Math.ceil(rgbNum / 2))
-    : mode === 'wipe' ? Math.max(2, rgbNum * 2) : STEPS[mode]
+  const steps = frames?.length ? frames.length : stepsFor(mode, rgbNum)
   useEffect(() => {
     const iv = frames?.length
       ? Math.max(30, loopMs ?? 300)
@@ -257,7 +318,7 @@ export default function Lights() {
   const runSync = async () => {
     if (writing.current) { scheduleSync(); return }      // 写盘中又改了 → 写完再补一轮
     if (mode !== 'off' && mode !== 'rainbow' &&
-        colors.length < (mode === 'gradient' || mode === 'duosweep' ? 2 : 1)) {
+        colors.length < (mode === 'gradient' || mode === 'duosweep' || mode === 'chase' ? 2 : 1)) {
       setSync('idle'); return
     }
     writing.current = true
@@ -324,8 +385,8 @@ export default function Lights() {
   const su = SYNC_UI[sync]
 
   const needsColors = mode !== 'off' && mode !== 'rainbow'
-  const multiColor = mode === 'gradient' || mode === 'flow' || mode === 'aurora'
-  const twoColor = mode === 'duosweep'              // 固定两色：无加减钮
+  const multiColor = mode === 'gradient' || mode === 'flow' || mode === 'aurora' || mode === 'auroraflow'
+  const twoColor = mode === 'duosweep' || mode === 'chase'   // 固定两色：无加减钮
   const curStyle = styleId === 'custom'
     ? { ...CUSTOM, mode, colors: needsColors ? colors : [] }
     : styleId === 'foreign'

@@ -85,6 +85,26 @@ d_duo = p.led_identify(p.led_bean_header(b3, p.led_frames_duosweep([(0, 170, 255
 assert d_duo["mode"] == "duosweep" and d_duo["known"] and d_duo["colors"] == [[0, 170, 255], [255, 0, 140]], d_duo
 print("4b/4c/4d. comet+duosweep expansion + identify OK")
 
+# 4e. 修订 3 批量灯效：生成 + 识别回环
+for mode, colors_in, n_leds in [
+    ("rain", [(0, 170, 255)], 12),
+    ("chase", [(0, 170, 255), (255, 0, 140)], 12),
+    ("pulse", [(255, 40, 90)], 12),
+    ("fire", [(255, 120, 30)], 12),
+    ("typewriter", [(0, 255, 140)], 12),
+]:
+    gen = getattr(p, f"led_frames_{mode}")
+    tab = gen([tuple(c) for c in colors_in], n_leds)
+    assert len(tab) % (n_leds * 3) == 0
+    tab16 = gen([tuple(c) for c in colors_in], 16)
+    b3x = dict(b3, loop_end=len(tab16) // (16 * 3) - 1)   # 与真实写入路径一致：loop 覆盖全表
+    dx = p.led_identify(p.led_bean_header(b3x, tab16))
+    assert dx["mode"] == mode and dx["known"], (mode, dx)
+    assert all(abs(a - b) <= 2 for a, b in zip(dx["colors"][0], colors_in[0])), (mode, dx["colors"])
+af = p.led_frames_auroraflow([(0, 255, 140), (0, 120, 255), (160, 0, 255)], 12)
+assert len(af) == 24 * 36
+print("4e. batch effects (rain/chase/pulse/fire/typewriter/auroraflow) OK")
+
 # 5. blob 组装：20B 头（保持版本字节/保留区）+ 帧数据
 blob = p.led_bean_header(b2, solid)
 assert len(blob) == 20 + len(solid)
