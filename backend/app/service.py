@@ -12,11 +12,16 @@ from pydantic import BaseModel
 import protocol
 import rawstream as _rawstream
 import screenpack
+import appctx
+import motionmaster
+import wsbus
 
 
 def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None):
     app = FastAPI(title="Apex5 Unleashed", docs_url=None, redoc_url=None)
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+    ctx = appctx.AppContext(engine=engine, store=store, games=games,
+                            mods=mods, ingress=ingress, ui_hooks=ui_hooks)
 
     @app.get("/favicon.ico")
     def favicon():
@@ -36,8 +41,10 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
         except Exception:
             raise HTTPException(404)
 
-    clients = set()
-    loop_ref = {"loop": None}
+    # WS 事件总线（wsbus.py，ADR-029 B1）：订阅顺序敏感——bus.publish 必须先于
+    # 宏录制器（0xEF 事件分发达顺序）
+    bus = wsbus.WsBus()
+    ctx.bus = bus
 
     # ---------- API 响应头：no-store ----------
     # FastAPI JSONResponse 不带缓存头，WebView2 会启发式缓存 GET——轮询永远读到
@@ -49,29 +56,11 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
             resp.headers["Cache-Control"] = "no-store"
         return resp
 
-    def bus_to_ws(evt):
-        """引擎线程 → 事件循环线程安全投递。"""
-        loop = loop_ref["loop"]
-        if loop is None:
-            return
-        for q in list(clients):
-            def deliver(q=q):
-                try:
-                    q.put_nowait(evt)
-                except asyncio.QueueFull:
-                    pass
-            try:
-                loop.call_soon_threadsafe(deliver)
-            except RuntimeError:
-                pass
-
-    engine.subscribe(bus_to_ws)
+    engine.subscribe(bus.publish)
     import macro as _macro
     engine.subscribe(_macro.RECORDER.on_event)   # 宏录制器吃 0xEF 位图事件（ADR-021）
 
-    @app.on_event("startup")
-    async def _grab_loop():
-        loop_ref["loop"] = asyncio.get_running_loop()
+    app.on_event("startup")(bus.grab_loop)
 
     # ---------- 模型 ----------
     class TriggerReq(BaseModel):
@@ -788,67 +777,12 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     # service 只做端点接线，决策/心跳/看门狗全在 RawStreamHub ----
     _raw = _rawstream.RawStreamHub(engine)
 
-    # ---- 体感中心总闸（ADR-028）：状态持久化，上次开着本次启动自动恢复 ----
-    # ⚠ 必须先于 motion_to_ws 定义：HID 线程随时可能来帧，闭包名不能悬空
-    def _hub_file():
-        import os as _os
-        return _os.path.join(_os.environ.get("APPDATA", "."), "Apex5Unleashed", "motion_hub.json")
-
-    def _hub_load():
-        import json as _json
-        try:
-            with open(_hub_file(), "r", encoding="utf-8") as f:
-                return bool(_json.load(f).get("master"))
-        except (OSError, ValueError):
-            return False
-
-    def _hub_save(v):
-        import json as _json
-        import os as _os
-        p = _hub_file()
-        _os.makedirs(_os.path.dirname(p), exist_ok=True)
-        tmp = p + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            _json.dump({"master": bool(v)}, f)
-        _os.replace(tmp, p)
-
-    # 总闸真相源 = 持久态本身（不再借用 engine.raw_motion——raw 位图流是拓展键/宏的
-    # 基础设施恒开，见 engine.attach；总闸只管「体感消费者」）
-    _hub = {"master": _hub_load()}
-    _raw.demands["master"] = _hub["master"]
-    if _hub["master"]:
-        try:
-            _dsu_svc.start()               # 上次开着 → DSU 桥自动回来
-        except Exception:
-            pass
-        if engine.online:                  # 设备已先于本接线接入的场景：补开流
-            _raw.eval("master-restore")
-
-    # 流状态对账看门狗：宏/档案写入的 enable_raw_stream 保险、任何别处强开的流，
-    # 30s 内被纠正回需求决策（无人消费即关，手柄恢复可休眠）
-    _raw.start_watchdog()
-
-    # ---------- 体感帧 WS 推送（ADR-028 补丁：替代前端 40ms HTTP 轮询） ----------
-    # 0xEF 流 ~370Hz 全在 HID 线程，HTTP 轮询 25Hz 延迟高且挤占请求队列——弹珠「半天动
-    # 一下」的根因。改为 WS 推 tilt：30Hz 节流（体感 UI 足够顺滑），走 bus_to_ws 线程
-    # 安全投递，不进 events 历史（不撑爆事件流，不触发前端重渲染）。总闸关闭时推
-    # 送静默（试玩场/体感 UI 冻结），但流本身仍在跑——拓展键直读/宏录制还靠它。
-    _motion_ws_last = {"t": 0.0}
-
-    def motion_to_ws(_m):
-        if not _hub["master"]:        # 总闸关闭 → 体感 UI 静默（流本身仍在跑，喂拓展键/宏）
-            return
-        n = time.monotonic()
-        if n - _motion_ws_last["t"] < 1 / 30:
-            return
-        _motion_ws_last["t"] = n
-        st = _maze_svc.status()
-        bus_to_ws({"ts": "", "kind": "motion", "tilt": st["tilt"],
-                   "source": st["source"], "frames": st["frames"],
-                   "has_imu": st["has_imu"], "autocal": st["autocal"],
-                   "anchor": st["anchor"]})
-
-    engine.subscribe_motion(motion_to_ws)
+    # ---- 体感中心总闸（motionmaster.py，ADR-029 B1 抽出；原 ADR-028）----
+    # 构造内完成：持久态恢复（DSU start → _raw.eval）+ 看门狗启动 + motion_to_ws
+    # 订阅（30Hz 节流，总闸静默）——原 791-857 行序逐字保留
+    _mm = motionmaster.MotionMaster(engine, bus, _dsu_svc, _maze_svc, _softmap.HUB, _raw)
+    ctx.mm = _mm
+    ctx.raw = _raw
 
     if ingress:
         ingress.on_applied = _rgb.on_game_event    # Mod 扳机事件 → 闪灯联动
@@ -1268,40 +1202,17 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
         except Exception as e:
             return err(e)
 
-    # ---- 体感中心总闸（ADR-028）：一关全关（流+桥+瞄准），一开流和桥就位 ----
-    # 请求探针：页面 POST 挂死排查（2026-09-21）——GET 到达但 POST 失踪时，
-    # 计数器与落盘日志能立刻分辨「请求没到后端」还是「后端处理挂了」。
-    import os as _os
-    _motion_hits = {"get": 0, "post": 0, "last": "-"}
-
-    def _motion_log(msg):
-        _motion_hits["last"] = msg
-        try:
-            base = _os.path.join(_os.environ.get("APPDATA", "."), "Apex5Unleashed")
-            _os.makedirs(base, exist_ok=True)
-            with open(_os.path.join(base, "motion_api.log"), "a", encoding="utf-8") as f:
-                f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
-        except Exception:
-            pass
-
-    def _motion_master_status(note=None):
-        return {"ok": True, "master": _hub["master"],
-                "raw": bool(engine.raw_motion), "note": note,
-                "dsu": _dsu_svc.status(),
-                "gyro": {"enabled": bool(_softmap.HUB.gyro.cfg.get("enabled"))},
-                "ui_get": _motion_hits["get"], "ui_post": _motion_hits["post"],
-                "ui_last": _motion_hits["last"]}
-
+    # ---- 体感中心总闸端点（状态机在 motionmaster.py）----
     @app.get("/api/motion/master")
     def motion_master_get():
-        _motion_hits["get"] += 1
-        return _motion_master_status()
+        _mm.hits["get"] += 1
+        return _mm.status()
 
     @app.post("/api/motion/master")
     def motion_master_set(req: MotionMasterReq):
         t0 = time.monotonic()
-        _motion_hits["post"] += 1
-        _motion_log(f"POST enabled={req.enabled}")
+        _mm.hits["post"] += 1
+        _mm.log(f"POST enabled={req.enabled}")
         note = None
         try:
             if req.enabled:
@@ -1310,21 +1221,21 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
                 except Exception as e:
                     note = f"DSU 桥启动失败（体感其余功能不受影响）：{e}"
             else:
-                # 撤总闸需求：桥+瞄准+体感 UI 推送全关；流是否关由 _raw_eval
+                # 撤总闸需求：桥+瞄准+体感 UI 推送全关；流是否关由 _raw.eval
                 # 按其余消费者（宏录制/拓展键监听）决——没人用即收流，手柄可休眠
                 _dsu_svc.stop()
                 try:
                     _softmap.HUB.gyro.set_config({"enabled": False})
                 except Exception:
                     pass
-            _hub["master"] = bool(req.enabled)
+            _mm.hub["master"] = bool(req.enabled)
             _raw.demands["master"] = bool(req.enabled)
             _raw.eval("master-set" if req.enabled else "master-clear")
-            _hub_save(req.enabled)
-            _motion_log(f"POST done {req.enabled} in {(time.monotonic() - t0) * 1000:.0f}ms")
-            return _motion_master_status(note)
+            _mm.save(req.enabled)
+            _mm.log(f"POST done {req.enabled} in {(time.monotonic() - t0) * 1000:.0f}ms")
+            return _mm.status(note)
         except Exception as e:
-            _motion_log(f"POST error {req.enabled}: {e}")
+            _mm.log(f"POST error {req.enabled}: {e}")
             return err(e)
 
     @app.get("/api/exp/gamesim")
@@ -1450,6 +1361,7 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     @app.post("/api/open-folder")
     def open_folder(req: dict = None):
         """打开数据目录（资源管理器）。目录不存在则顺带创建。"""
+        import os as _os
         base = _os.environ.get("APPDATA") or _os.path.expanduser("~")
         d = _os.path.join(base, "Apex5Unleashed")
         _os.makedirs(d, exist_ok=True)
@@ -1471,20 +1383,6 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     # ---------- 事件流 ----------
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
-        await ws.accept()
-        q = asyncio.Queue(maxsize=200)
-        clients.add(q)
-        try:
-            await ws.send_text(json.dumps({"ts": "", "kind": "snapshot",
-                                           **engine.snapshot()}, ensure_ascii=False))
-            while True:
-                evt = await q.get()
-                await ws.send_text(json.dumps(evt, ensure_ascii=False))
-        except WebSocketDisconnect:
-            pass
-        except Exception:
-            pass
-        finally:
-            clients.discard(q)
+        await bus.attach(ws, engine)
 
     return app
