@@ -46,22 +46,6 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     app.on_event("startup")(bus.grab_loop)
 
     # ---------- 模型 ----------
-    class TriggerReq(BaseModel):
-        side: str
-        mode: str
-        params: dict = {}
-        preview: bool = False
-        apply: bool = True          # False = 仅预览（不落账本）
-
-    class RumbleReq(BaseModel):
-        l: int = 0
-        r: int = 0
-        duration: float | None = None
-
-    class GripReq(BaseModel):
-        side: str
-        params: dict = {}
-
     class PresetReq(BaseModel):
         name: str
         note: str = ""
@@ -74,120 +58,9 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     app.include_router(routers.build_system_router(ctx))
     app.include_router(routers.build_ws_router(ctx))
 
-    # ---------- 控制 ----------
-    @app.post("/api/trigger")
-    def trigger(req: TriggerReq):
-        try:
-            engine.set_trigger(req.side, req.mode, req.params,
-                               preview=not req.apply, source="ui")
-            return {"ok": True}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/trigger/clear")
-    def trigger_clear(req: TriggerReq):
-        try:
-            for s in (["left", "right"] if req.side == "both" else [req.side]):
-                engine.clear_trigger(s, source="ui")
-            return {"ok": True}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/rumble")
-    def rumble(req: RumbleReq):
-        try:
-            engine.set_rumble(req.l, req.r, req.duration, source="ui")
-            return {"ok": True}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/grip")
-    def grip(req: GripReq):
-        try:
-            engine.bind_grip(req.side, req.params, source="ui")
-            return {"ok": True}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/grip/unbind")
-    def grip_unbind(req: GripReq):
-        try:
-            for s in (["left", "right"] if req.side == "both" else [req.side]):
-                engine.unbind_grip(s, source="ui")
-            return {"ok": True}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/panic")
-    def panic():
-        engine.panic(source="ui")
-        return {"ok": True}
-
-    @app.post("/api/proxy/reclaim")
-    def proxy_reclaim():
-        engine.reclaim()
-        return {"ok": True}
-
-    # ---------- 灯光（ADR-018） ----------
-    class LedTestReq(BaseModel):
-        r: int = 255
-        g: int = 0
-        b: int = 0
-
-    @app.post("/api/led/test")
-    def led_test(req: LedTestReq):
-        try:
-            engine.led_test(req.r, req.g, req.b)
-            return {"ok": True}
-        except Exception as e:
-            return err(e)
-
-    @app.get("/api/led/config")
-    def led_config():
-        try:
-            import base64
-            bean = engine.led_read_config(source="ui")
-            detect = frames_b64 = None
-            if bean is not None and engine._led_blob_raw:
-                try:
-                    detect = protocol.led_identify(engine._led_blob_raw)
-                except Exception:
-                    detect = None                   # 识别失败不挡配置读取
-                frames_b64 = base64.b64encode(engine._led_blob_raw[20:]).decode("ascii")
-            return {"ok": bean is not None, "bean": bean,
-                    "detect": detect, "frames_b64": frames_b64}
-        except Exception as e:
-            return err(e)
-
-    class LedApplyReq(BaseModel):
-        mode: str                       # on/off/breath/gradient/flow/default
-        colors: list = [[255, 0, 0]]    # [[r,g,b], ...]
-        brightness: int | None = None
-        period: int | None = None
-
-    @app.post("/api/led/apply")
-    def led_apply(req: LedApplyReq):
-        try:
-            engine.led_apply_effect(req.mode, [tuple(c) for c in req.colors],
-                                    brightness=req.brightness, period=req.period)
-            return {"ok": True}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/led/backup")
-    def led_backup():
-        try:
-            return {"ok": True, "path": engine.led_backup()}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/led/restore")
-    def led_restore():
-        try:
-            engine.led_restore()
-            return {"ok": True}
-        except Exception as e:
-            return err(e)
+    # ---------- 控制/灯光（ADR-029 B3 起 routers 化）----------
+    app.include_router(routers.build_control_router(ctx))
+    app.include_router(routers.build_led_router(ctx))
 
     # ---------- 屏幕（ADR-018 R4 二期。红线：真机烧写必须 confirm=true 且用户知情） ----------
     _screen_pending = {"frames": None, "interval": 100, "name": "", "seconds": 0}
