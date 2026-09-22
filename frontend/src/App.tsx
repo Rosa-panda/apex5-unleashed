@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, FlaskConical, Gamepad, Gamepad2, LayoutDashboard, LibraryBig, Lightbulb, MonitorPlay, Orbit, Settings as SettingsIcon, SlidersHorizontal, TriangleAlert, Wand2, Zap } from 'lucide-react'
+import { Activity, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, FlaskConical, Gamepad2, LayoutDashboard, LibraryBig, Lightbulb, MonitorPlay, Orbit, Settings as SettingsIcon, SlidersHorizontal, TriangleAlert, Wand2, Zap } from 'lucide-react'
 import { api, type EngineEvent } from './api'
 import { useEngine } from './useEngine'
 import { ErrorBoundary } from './ErrorBoundary'
 import { DeviceGate } from './Offline'
+import { StatusBanner } from './components/StatusBanner'
+import { Toast } from './components/Toast'
 import Overview from './pages/Overview'
 import TriggerLab from './pages/TriggerLab'
 import PresetLibrary from './pages/PresetLibrary'
@@ -196,25 +198,11 @@ export default function App() {
           )}
         </header>
 
-          {/* 全局离线横幅：后台断了（红）/ 手柄没连（黄），让断连在任何页面都一眼可见 */}
-          {!connected ? (
-            <div className="flex items-center gap-2 border-b border-err/30 bg-err/10 px-6 py-1.5 text-[12px] text-err">
-              <Gamepad size={13} /> 无法连接软件后台（127.0.0.1:18765），正在自动重连…
-            </div>
-          ) : !online && !mock ? (
-            <div className="flex items-center gap-2 border-b border-warn/30 bg-warn/10 px-6 py-1.5 text-[12px] text-warn">
-              <Gamepad size={13} /> 手柄未连接 —— 请检查 USB 线或重新插拔手柄；接上后设备功能自动恢复
-            </div>
-          ) : null}
+          {/* 全局离线横幅（展示件在 components/StatusBanner.tsx） */}
+          <StatusBanner connected={connected} online={online} mock={mock} />
 
-        {/* 自动切换 toast：进入/离开游戏时全页面可见的工具行为提示 */}
-        {toast && (
-          <div className="pointer-events-none absolute left-1/2 top-12 z-50 -translate-x-1/2">
-            <div className="flex items-center gap-2 rounded-lg border border-accent/50 bg-[#0d0d14] px-4 py-2 text-[13px] text-accent shadow-lg">
-              <Zap size={13} /> {toast}
-            </div>
-          </div>
-        )}
+        {/* 自动切换 toast：进入/离开游戏时全页面可见的工具行为提示（展示件在 components/Toast.tsx） */}
+        {toast && <Toast msg={toast} />}
 
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
           <ErrorBoundary page={page}>
