@@ -6,6 +6,7 @@ import {
   ScrollText, Usb, Waves, Zap,
 } from 'lucide-react'
 import { api, type EngineEvent, type EngineSnapshot, type TriggerState } from '../api'
+import ScreenCard from './Screen'
 
 const MODE_LABEL: Record<string, string> = {
   normal: 'Normal', race: 'Race 赛车', sniper: 'Sniper 狙击',
@@ -292,6 +293,9 @@ export default function Overview({ snap, events, onPanic }: {
           效果均为锁存式，软件退出前自动复位；异常强杀后下次连接自动清理
         </span>
       </div>
+
+      {/* ---------- 手柄屏幕（原独立栏目并入，ADR-018 R4） ---------- */}
+      <ScreenCard events={events} online={online} />
 
       {/* ---------- 事件时间线 ---------- */}
       <div className="card p-5">

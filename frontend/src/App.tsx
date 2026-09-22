@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, FlaskConical, Gamepad, Gamepad2, LayoutDashboard, LibraryBig, Lightbulb, MonitorPlay, Orbit, Settings as SettingsIcon, SlidersHorizontal, TriangleAlert, Wand2, Zap } from 'lucide-react'
+import { Activity, BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, FlaskConical, Gamepad, Gamepad2, LayoutDashboard, LibraryBig, Lightbulb, Orbit, Settings as SettingsIcon, SlidersHorizontal, TriangleAlert, Wand2, Zap } from 'lucide-react'
 import { api, type EngineEvent } from './api'
 import { useEngine } from './useEngine'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -11,12 +11,11 @@ import PadTest from './pages/PadTest'
 import GameLibrary from './pages/GameLibrary'
 import Macros from './pages/Macros'
 import Lights from './pages/Lights'
-import Screen from './pages/Screen'
 import ExpLab from './pages/ExpLab'
 import Motion from './pages/Motion'
 import Settings from './pages/Settings'
 
-type PageId = 'overview' | 'lab' | 'presets' | 'games' | 'macros' | 'lights' | 'screen' | 'padtest' | 'motion' | 'explab' | 'settings'
+type PageId = 'overview' | 'lab' | 'presets' | 'games' | 'macros' | 'lights' | 'padtest' | 'motion' | 'explab' | 'settings'
 
 const NAV: Array<{ id: PageId; label: string; icon: typeof Activity }> = [
   { id: 'overview', label: '总览', icon: LayoutDashboard },
@@ -25,7 +24,6 @@ const NAV: Array<{ id: PageId; label: string; icon: typeof Activity }> = [
   { id: 'games', label: '游戏库', icon: LibraryBig },
   { id: 'macros', label: '宏', icon: Wand2 },
   { id: 'lights', label: '灯光', icon: Lightbulb },
-  { id: 'screen', label: '屏幕', icon: MonitorPlay },
   { id: 'padtest', label: '手柄测试', icon: Gamepad },
   { id: 'motion', label: '体感', icon: Orbit },
   { id: 'explab', label: '体验区', icon: FlaskConical },
@@ -226,7 +224,6 @@ export default function App() {
             {page === 'games' && <GameLibrary />}
             {page === 'macros' && <Macros events={events} online={online} />}
             {page === 'lights' && <DeviceGate online={online}><Lights /></DeviceGate>}
-            {page === 'screen' && <DeviceGate online={online}><Screen events={events} /></DeviceGate>}
             {page === 'padtest' && <PadTest events={events} />}
             {page === 'motion' && <Motion />}
             {page === 'explab' && <ExpLab />}
