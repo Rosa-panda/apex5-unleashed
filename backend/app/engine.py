@@ -605,6 +605,7 @@ class Engine:
                   "auroraflow": lambda: protocol.led_frames_auroraflow(colors, rgb_num),
                   "typewriter": lambda: protocol.led_frames_typewriter(colors, rgb_num),
                   "rainbow": lambda: protocol.led_frames_rainbow(rgb_num),
+                  "hueflash": lambda: protocol.led_frames_hueflash(rgb_num),
                   "aurora": lambda: protocol.led_frames_aurora(colors, rgb_num),
                   "default": lambda: protocol.led_frames_solid(colors[0], rgb_num)}.get(mode)
         if frames is None:

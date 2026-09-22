@@ -433,6 +433,21 @@ def led_frames_aurora(colors, rgb_num, steps=24):
     return bytes(out)
 
 
+def led_frames_hueflash(rgb_num, frames=2, val=0.8):
+    """彩虹频闪（ADR-033 修订 5，用户钦定）：色相环沿带分布，奇偶两组交替频闪
+    （不依赖 colors）。帧数 = 2——实测固件灯表槽位只存 10 帧（360B），宁短勿截。"""
+    out = bytearray()
+    for grp in range(frames):
+        frame = bytearray()
+        for led in range(rgb_num):
+            if led % frames == grp:
+                frame.extend(_hsv_to_rgb(led / rgb_num % 1.0 * 360, 1.0, val))
+            else:
+                frame.extend((0, 0, 0))
+        out.extend(frame)
+    return bytes(out)
+
+
 # ---------------- 灯效识别（帧表 → 模式+配色反推，供进页还原上次设置） ----------------
 
 def _close_rgb(a, b, tol=8):
@@ -698,6 +713,21 @@ def led_identify(blob):
 
     if all(rainbow_fit(f) for f in fr):
         return {"mode": "rainbow", "colors": [], "known": True}
+
+    # 4.5) hueflash（彩虹频闪，ADR-033 修订 5）：恰 2 帧，奇偶两组各一帧，
+    #      亮珠色相沿带分布且与生成器刻度一致——rainbow 全帧全亮，不会误入。
+    if nf == 2:
+        ok = True
+        for g, f in enumerate(fr):
+            for j, c in enumerate(f):
+                exp = _hsv_to_rgb((j / n % 1.0) * 360, 1.0, 0.8) if j % 2 == g else (0, 0, 0)
+                if not _close_rgb(c, exp, 45):
+                    ok = False
+                    break
+            if not ok:
+                break
+        if ok:
+            return {"mode": "hueflash", "colors": [], "known": True}
 
     # 5) flow：所有帧都是同一基础图案的循环平移（平移量粗扫+爬山细化，不依赖网格对齐）
     def ring_sample(f, x):

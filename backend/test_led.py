@@ -108,6 +108,13 @@ af = p.led_frames_auroraflow([(0, 255, 140), (0, 120, 255), (160, 0, 255)], 12)
 assert len(af) == 24 * 36
 print("4e. batch effects (rain/chase/pulse/fire/typewriter/auroraflow) OK")
 
+# 4f. hueflash（修订 5，用户钦定）：恰 2 帧奇偶交替 + 识别回环
+hf = p.led_frames_hueflash(16)
+assert len(hf) == 2 * 48, len(hf)
+d_hf = p.led_identify(p.led_bean_header(dict(b3, loop_end=1), hf))
+assert d_hf["mode"] == "hueflash" and d_hf["known"], d_hf
+print("4f. hueflash expansion + identify OK")
+
 # 5. blob 组装：20B 头（保持版本字节/保留区）+ 帧数据
 blob = p.led_bean_header(b2, solid)
 assert len(blob) == 20 + len(solid)

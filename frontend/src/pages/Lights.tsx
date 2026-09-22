@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Dices, Loader2, RotateCcw, TriangleAlert } from 'lucide-react'
 import { api, type LedBean, type LedDetect } from '../api'
 
-type Mode = 'off' | 'on' | 'breath' | 'gradient' | 'flow' | 'blink' | 'heartbeat' | 'wipe' | 'comet' | 'duosweep' | 'rain' | 'chase' | 'pulse' | 'fire' | 'auroraflow' | 'typewriter' | 'rainbow' | 'aurora'
+type Mode = 'off' | 'on' | 'breath' | 'gradient' | 'flow' | 'blink' | 'heartbeat' | 'wipe' | 'comet' | 'duosweep' | 'rain' | 'chase' | 'pulse' | 'fire' | 'auroraflow' | 'typewriter' | 'rainbow' | 'aurora' | 'hueflash'
 
 interface Style { id: string; name: string; mode: Mode; colors: number[][]; period?: number }
 
@@ -24,10 +24,9 @@ const LIB: Style[] = [
   { id: 'rain', name: '彗星雨', mode: 'rain', colors: [[0, 170, 255]] },
   { id: 'chase', name: '双色追及', mode: 'chase', colors: [[0, 170, 255], [255, 0, 140]] },
   { id: 'pulse', name: '中心脉冲', mode: 'pulse', colors: [[255, 40, 90]] },
-  { id: 'fire', name: '火苗', mode: 'fire', colors: [[255, 120, 30]] },
   { id: 'auroraflow', name: '呼吸流光', mode: 'auroraflow', colors: [[0, 255, 140], [0, 120, 255], [160, 0, 255]] },
   { id: 'typewriter', name: '打字机', mode: 'typewriter', colors: [[0, 255, 140]] },
-  { id: 'flow', name: '极电流光', mode: 'flow', colors: [[0, 255, 255], [80, 0, 255]], period: 8 },
+  { id: 'hueflash', name: '彩虹频闪', mode: 'hueflash', colors: [[255, 0, 0]] },
 ]
 
 /** 编辑态样式（排在库最前）：改色/改参自动转入，原预设永远不被污染 */
@@ -38,7 +37,7 @@ const OFF_STYLE: Style = { id: 'off', name: '熄灯', mode: 'off', colors: [] }
 const STEPS: Record<Mode, number> = {
   off: 1, on: 1, breath: 15, gradient: 16, flow: 16,
   blink: 4, heartbeat: 12, wipe: 20, comet: 12, duosweep: 6, rain: 15, chase: 12,
-  pulse: 11, fire: 16, auroraflow: 24, typewriter: 17, rainbow: 24, aurora: 24,
+  pulse: 11, fire: 16, auroraflow: 24, typewriter: 17, rainbow: 24, aurora: 24, hueflash: 2,
 }
 
 /** 依赖灯珠数的动态步数（与后端生成器一一对应）；静态灯效走 STEPS */
@@ -67,6 +66,19 @@ const ltToSpeed = (lt: number) =>
 // ---- 颜色工具（与后端帧生成器同思路：线性插值） ----
 const hex = (c: number[]) => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')
 const mix = (a: number[], b: number[], f: number) => [0, 1, 2].map(k => a[k] + (b[k] - a[k]) * f)
+
+/** HSV→RGB（hueflash 预览用，与后端 _hsv_to_rgb 同式） */
+function hsv(h: number, s: number, v: number): number[] {
+  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c
+  let rgb: number[]
+  if (h < 60) rgb = [c, x, 0]
+  else if (h < 120) rgb = [x, c, 0]
+  else if (h < 180) rgb = [0, c, x]
+  else if (h < 240) rgb = [0, x, c]
+  else if (h < 300) rgb = [x, 0, c]
+  else rgb = [c, 0, x]
+  return rgb.map(u => (u + m) * 255)
+}
 
 /** 循环调色板采样：u∈[0,1) 在首尾相接的色环上线性取色 */
 function samplePalette(stops: number[][], u: number): number[] {
@@ -130,6 +142,10 @@ function ledColor(mode: Mode, stops: number[][], idx: number, n: number, t: numb
       const d = p - idx
       return d < 0 || d > tail ? [0, 0, 0]
         : stops[0].map(v => v * ((tail + 1 - d) / (tail + 1)))
+    }
+    case 'hueflash': {                     // 彩虹频闪（修订 5）：奇偶两组交替，色相沿带分布
+      const g = Math.floor(t * 2)
+      return idx % 2 === g % 2 ? hsv((idx / n) * 360, 1, 0.8) : [0, 0, 0]
     }
     case 'chase': {                        // 双色追及：B 三倍速追 A，分界游走
       const k = Math.floor(t * n)
