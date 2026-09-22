@@ -270,22 +270,32 @@ def led_frames_comet(colors, rgb_num):
 
 
 def led_frames_duosweep(colors, rgb_num):
-    """双色对扫（ADR-033 修订 2）：colors[0] 从左往右、colors[1] 从右往左相向
-    逐珠铺满，会合铺满瞬间从头再来。帧数 = ceil(rgb_num/2)，中缝相遇处左色优先。"""
+    """双色对扫（ADR-033 修订 4）：colors[0] 从左往右、colors[1] 从右往左相向
+    逐珠铺满；相遇瞬间两色前端融合（相互影响，不再是硬切边）；铺满后全黑
+    喘息两拍再重开——否则两端全循环常亮（右端孤色观感为「永不熄灭」）。
+    帧数 = ceil(rgb_num/2) + 2。"""
     ca = tuple(colors[0])
     cb = tuple(colors[1 % len(colors)])
+    mix = tuple((a + b) // 2 for a, b in zip(ca, cb))
     steps = (rgb_num + 1) // 2
     out = bytearray()
     for k in range(steps):
+        met = (rgb_num - 1 - k) - k <= 1        # 两前端已相邻/重叠（最后一拍）
         frame = bytearray()
         for i in range(rgb_num):
-            if i <= k:                          # 左色向右推进
+            li = i <= k                         # 左色向右推进
+            ri = i >= rgb_num - 1 - k           # 右色向左推进
+            if (li and ri) or (met and (i == k or i == rgb_num - 1 - k)):
+                frame.extend(mix)               # 相遇处两色融合
+            elif li:
                 frame.extend(ca)
-            elif i >= rgb_num - 1 - k:          # 右色向左推进
+            elif ri:
                 frame.extend(cb)
             else:
                 frame.extend((0, 0, 0))         # 中缝随帧收窄
         out.extend(frame)
+    for _ in range(2):                          # 表尾喘息拍：两端每轮真正熄灭一次
+        out.extend(bytes(rgb_num * 3))
     return bytes(out)
 
 
@@ -568,10 +578,18 @@ def led_identify(blob):
         c = next(fr[i][0] for i, k in enumerate(lit) if k > 0)
         return {"mode": "wipe", "colors": [list(c)], "known": True}
 
-    # 3.5) duosweep（双色对扫，ADR-033 修订 2）：每帧两端同亮，左段一色右段另一色、
-    #      中缝随帧收窄至会合铺满——wipe 单端起扫、flow 全帧渐变过渡，均不会误入。
+    # 3.5) duosweep（双色对扫，ADR-033 修订 4）：每帧两端同亮，左段一色右段另一色、
+    #      中缝随帧收窄至会合铺满（相遇拍两前端为混色）；表尾允许全黑喘息拍。
+    #      wipe 单端起扫、flow 全帧渐变过渡，均不会误入。
     a0, b0 = fr[0][0], fr[0][-1]
     if not _close_rgb(a0, b0, 10):
+        mx = tuple((a + b) // 2 for a, b in zip(a0, b0))
+        body_duo = fr[:]
+        while body_duo and all(c == (0, 0, 0) for c in body_duo[-1]):
+            body_duo.pop()                       # 剥掉表尾喘息拍（全黑帧）
+        if not body_duo:
+            body_duo = fr
+
         def is_duo(f):
             on = [j for j, c in enumerate(f) if max(c) > 8]
             if not on or on[0] != 0 or on[-1] != n - 1:
@@ -583,10 +601,12 @@ def led_identify(blob):
             for t in range(j, n):
                 if _close_rgb(f[t], b0, 30):
                     seen_b = True               # 右段 = B 色（须连续贴右端）
+                elif not seen_b and _close_rgb(f[t], mx, 30):
+                    pass                        # 相遇拍融合色（介于 A/B 之间）
                 elif any(f[t]) or seen_b:
                     return False                # 中缝只许全黑，且不许在 B 段后再断
             return True
-        if all(is_duo(f) for f in fr):
+        if all(is_duo(f) for f in body_duo):
             return {"mode": "duosweep", "colors": [list(a0), list(b0)], "known": True}
 
     # 3.6) rain（彗星雨，ADR-033 修订 3）：每帧一段连续 run、左右两半都出现过

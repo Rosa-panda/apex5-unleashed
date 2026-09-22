@@ -45,7 +45,7 @@ const STEPS: Record<Mode, number> = {
 function stepsFor(mode: Mode, rgbNum: number): number {
   switch (mode) {
     case 'comet': return Math.max(2, rgbNum)
-    case 'duosweep': return Math.max(2, Math.ceil(rgbNum / 2))
+    case 'duosweep': return Math.max(2, Math.ceil(rgbNum / 2) + 2)   // +2 喘息拍
     case 'wipe': return Math.max(2, rgbNum * 2)
     case 'rain': return Math.max(2, rgbNum + 3)
     case 'chase': return Math.max(2, rgbNum)
@@ -112,8 +112,14 @@ function ledColor(mode: Mode, stops: number[][], idx: number, n: number, t: numb
       const head = t * n
       return idx < head ? stops[0] : [0, 0, 0]
     }
-    case 'duosweep': {                     // 双色对扫（ADR-033 修订 2）：两色相向铺满即重开
-      const k = t * Math.ceil(n / 2)
+    case 'duosweep': {                     // 双色对扫（修订 4）：相向铺满→相遇融合→喘息两拍
+      const steps = Math.ceil(n / 2) + 2
+      const k = Math.floor(t * steps)
+      if (k >= Math.ceil(n / 2)) return [0, 0, 0]        // 表尾喘息拍
+      const met = (n - 1 - k) - k <= 1
+      const mix = stops[0].map((v, c) => Math.floor((v + stops[1 % stops.length][c]) / 2))
+      if (idx <= k && idx >= n - 1 - k) return mix       // 相遇处两色融合
+      if (met && (idx === k || idx === n - 1 - k)) return mix
       if (idx <= k) return stops[0]
       if (idx >= n - 1 - k) return stops[1 % stops.length]
       return [0, 0, 0]

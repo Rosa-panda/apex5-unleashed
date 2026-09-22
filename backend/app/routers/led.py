@@ -56,6 +56,20 @@ def build_led_router(ctx):
         except Exception as e:
             return err(e)
 
+    class LedFramesReq(BaseModel):
+        bean: dict                    # parse_led_bean 同构 dict（loop/亮度/rgb_num 等字段齐全）
+        frames_b64: str               # 原始帧数据（rgb_num*3 字节/帧），不做语义解释
+
+    @r.post("/api/led/apply_frames")
+    def led_apply_frames(req: LedFramesReq):
+        """直写原始灯表（诊断/工具用，ADR-033 修订 3）：绕开灯效生成器，逐字下发。"""
+        try:
+            import base64
+            engine.led_write(req.bean, base64.b64decode(req.frames_b64), source="ui")
+            return {"ok": True}
+        except Exception as e:
+            return err(e)
+
     @r.post("/api/led/backup")
     def led_backup():
         try:
