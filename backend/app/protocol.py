@@ -280,3 +280,209 @@ def led_frames_aurora(colors, rgb_num, steps=24):
             frame.extend(round((c0[k] + (c1[k] - c0[k]) * f) * glow) for k in range(3))
         out.extend(frame)
     return bytes(out)
+
+
+# ---------------- 灯效识别（帧表 → 模式+配色反推，供进页还原上次设置） ----------------
+
+def _close_rgb(a, b, tol=8):
+    return all(abs(x - y) <= tol for x, y in zip(a, b))
+
+
+def _collinear(a, b, c, tol=7):
+    """颜色 b 是否近似落在 a→c 的线段上（gradient 拐点检测用）。"""
+    u = [y - x for x, y in zip(b, a)]
+    v = [y - x for x, y in zip(c, a)]
+    cross = (u[1] * v[2] - u[2] * v[1],
+             u[2] * v[0] - u[0] * v[2],
+             u[0] * v[1] - u[1] * v[0])
+    length = math.sqrt(sum(x * x for x in v))
+    if length < 1e-6:
+        return True
+    return math.sqrt(sum(x * x for x in cross)) / length < tol
+
+
+def _hue_of(c):
+    """(r,g,b) 0-255 → 色相 0-360；灰阶返回 None。"""
+    r, g, b = (x / 255 for x in c)
+    mx, mn = max(r, g, b), min(r, g, b)
+    if mx == mn or mx == 0:
+        return None
+    if mx == r:
+        h = ((g - b) / (mx - mn)) % 6
+    elif mx == g:
+        h = (b - r) / (mx - mn) + 2
+    else:
+        h = (r - g) / (mx - mn) + 4
+    return h * 60
+
+
+def led_identify(blob):
+    """灯表 blob（20B 头 + 帧数据）→ 尽力识别当前灯效。
+    返回 {"mode", "colors": [[r,g,b],...], "known": bool}。
+    mode ∈ off/on/breath/gradient/flow/blink/heartbeat/wipe/rainbow/aurora/unknown。
+    判定顺序按歧义度从高到低：全灭 → 整帧同色系(blink→标量族 on/breath/heartbeat→gradient)
+    → wipe(前缀亮) → rainbow(色相沿珠分布) → flow(帧间循环平移) → aurora(兜底空间系)。
+    官方/第三方灯效若模式超出已知集合，known=False 原样告知（UI 只读展示，不乱写）。"""
+    unknown = {"mode": "unknown", "colors": [], "known": False}
+    bean = parse_led_bean(blob)
+    if bean is None:
+        return unknown
+    n = bean["rgb_num"]
+    body = blob[20:]
+    if n <= 0 or len(body) < n * 3:
+        return unknown
+    nf = len(body) // (n * 3)
+    # [帧][灯珠](r,g,b)
+    fr = [[tuple(body[i * n * 3 + j * 3: i * n * 3 + j * 3 + 3]) for j in range(n)]
+          for i in range(nf)]
+
+    # 1) 全灭
+    if all(all(c == (0, 0, 0) for c in f) for f in fr):
+        return {"mode": "off", "colors": [], "known": True}
+
+    def uniform(f):
+        return all(c == f[0] for c in f)
+
+    # 2) 整帧同色系（temporal：on/blink/breath/heartbeat/gradient）
+    if all(uniform(f) for f in fr):
+        base = [f[0] for f in fr]
+        distinct = []
+        for c in base:
+            if not any(_close_rgb(c, d) for d in distinct):
+                distinct.append(c)
+        # blink：恰两态且其一为纯黑
+        if len(distinct) == 2 and any(all(ch == 0 for ch in d) for d in distinct):
+            c = next(d for d in distinct if any(ch != 0 for ch in d))
+            return {"mode": "blink", "colors": [list(c)], "known": True}
+        # 标量族：全部帧都是同一颜色 × 系数 → on（常数）/ breath（单峰）/ heartbeat（双峰）
+        peak = max(base, key=lambda c: max(c))
+
+        def scale_of(c):
+            ks = []
+            for p, x in zip(peak, c):
+                if p == 0:
+                    if x != 0:
+                        return None
+                    ks.append(1.0)
+                else:
+                    ks.append(x / p)
+            if all(abs(k - ks[0]) < 0.08 for k in ks):
+                return ks[0]
+            return None
+
+        scales = [scale_of(c) for c in base]
+        if all(s is not None for s in scales):
+            if len(distinct) == 1:
+                return {"mode": "on", "colors": [list(distinct[0])], "known": True}
+            peaks = sum(1 for i in range(1, len(scales) - 1)
+                        if scales[i] >= scales[i - 1] and scales[i] >= scales[i + 1]
+                        and scales[i] > 0.15)
+            return {"mode": "heartbeat" if peaks >= 2 else "breath",
+                    "colors": [list(peak)], "known": True}
+        # temporal 多色 → gradient：找插值拐点还原原配色（线性分段插值的顶点）
+        pal = [list(base[0])]
+        for i in range(1, nf - 1):
+            if not _collinear(base[i - 1], base[i], base[i + 1]):
+                pal.append(list(base[i]))
+        pal.append(list(base[-1]))
+        pal = [p for i, p in enumerate(pal)
+               if not any(_close_rgb(p, q, 10) for q in pal[:i])]
+        if len(pal) >= 2:
+            return {"mode": "gradient", "colors": pal[:5], "known": True}
+        return unknown
+
+    # 3) wipe：每帧都是「前缀亮 + 其余黑」，且亮珠数在变（0..n..0）
+    lit = [sum(1 for c in f if max(c) > 8) for f in fr]
+
+    def is_prefix(f):
+        on = True
+        for c in f:
+            if max(c) > 8:
+                if not on:
+                    return False
+            else:
+                on = False
+        return True
+
+    if all(is_prefix(f) for f in fr) and len(set(lit)) >= 3:
+        c = next(fr[i][0] for i, k in enumerate(lit) if k > 0)
+        return {"mode": "wipe", "colors": [list(c)], "known": True}
+
+    # 4) rainbow：每帧色相 ≈ (i/n)·360 + 相位（全色环匀速分布、明度固定不接近全黑）
+    def rainbow_fit(f):
+        hues = [_hue_of(c) for c in f]
+        if any(h is None for h in hues):
+            return False
+        mx = max(max(c) for c in f)
+        mn = min(min(c) for c in f)
+        if mx == 0 or mn / mx > 0.45:
+            return False
+        phase = hues[0]
+        errs = [min(abs((h - i / n * 360 - phase + 180) % 360 - 180), 180)
+                for i, h in enumerate(hues)]
+        return sum(errs) / len(errs) < 25
+
+    if all(rainbow_fit(f) for f in fr):
+        return {"mode": "rainbow", "colors": [], "known": True}
+
+    # 5) flow：所有帧都是同一基础图案的循环平移（平移量粗扫+爬山细化，不依赖网格对齐）
+    def ring_sample(f, x):
+        """把灯环当连续函数采样（x 可为小数灯位，环形线性插值）。"""
+        i0 = int(math.floor(x)) % n
+        t = x - math.floor(x)
+        c0, c1 = f[i0], f[(i0 + 1) % n]
+        return [c0[k] + (c1[k] - c0[k]) * t for k in range(3)]
+
+    def _shift_err(f0, target, k):
+        """target[i] ≈ ring_sample(f0, i+s)·k 的最优平移总误差（粗扫取最优后细化）。"""
+        tgt = [[v * k for v in c] for c in target]
+        err = lambda s: sum(abs(ring_sample(f0, i + s)[ch] - tgt[i][ch])
+                            for i in range(n) for ch in range(3))
+        e0, s0 = min((err(q / 4), q / 4) for q in range(n * 4))
+        step = 0.05                                     # 爬山细化到 0.01 灯位
+        while step >= 0.01:
+            moved = True
+            while moved:
+                moved = False
+                for ds in (-step, step):
+                    e = err(s0 + ds)
+                    if e < e0:
+                        e0, s0, moved = e, s0 + ds, True
+                        break
+            step /= 5
+        return e0
+
+    thr = n * 3 * 12                                    # 平均每通道容差 12
+
+    def palette_of(frame, tol=30, cap=5):
+        pal = []
+        for c in frame:
+            if not any(_close_rgb(list(c), list(p), tol) for p in pal):
+                pal.append(list(c))
+            if len(pal) >= cap:
+                break
+        return pal
+
+    if all(_shift_err(fr[0], f, 1.0) < thr for f in fr[1:]):
+        bright = max(fr, key=lambda f: max(max(c) for c in f))
+        pal = palette_of(bright)
+        if len(pal) == 1:
+            return {"mode": "on", "colors": pal, "known": True}   # 单色"流动"=常亮
+        return {"mode": "flow", "colors": pal, "known": True}
+
+    # 6) aurora：图案在流动 + 逐帧全局明暗缩放（=流光×glow）。
+    #    以最亮帧为锚，其余帧按亮度归一后能平移对上 → 极光；不满足则老实报未知。
+    lit = [f for f in fr if max(max(c) for c in f) > 15]
+    if len(lit) >= 2:
+        bright = max(lit, key=lambda f: max(max(c) for c in f))
+        m0 = max(max(c) for c in bright)
+        ok = True
+        for f in lit:
+            m1 = max(max(c) for c in f)
+            if m1 == 0 or _shift_err(bright, f, m0 / m1) >= thr:
+                ok = False
+                break
+        if ok:
+            return {"mode": "aurora", "colors": palette_of(bright), "known": True}
+    return unknown
+

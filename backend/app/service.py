@@ -210,8 +210,17 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     @app.get("/api/led/config")
     def led_config():
         try:
+            import base64
             bean = engine.led_read_config(source="ui")
-            return {"ok": bean is not None, "bean": bean}
+            detect = frames_b64 = None
+            if bean is not None and engine._led_blob_raw:
+                try:
+                    detect = protocol.led_identify(engine._led_blob_raw)
+                except Exception:
+                    detect = None                   # 识别失败不挡配置读取
+                frames_b64 = base64.b64encode(engine._led_blob_raw[20:]).decode("ascii")
+            return {"ok": bean is not None, "bean": bean,
+                    "detect": detect, "frames_b64": frames_b64}
         except Exception as e:
             return err(e)
 

@@ -134,7 +134,11 @@ export const api = {
     ok: boolean; version: number; mapping?: Array<{ name: string; target_name: string }>
   }>,
   ledTest: (r: number, g: number, b: number) => post('/api/led/test', { r, g, b }),
-  ledConfig: () => fetch('/api/led/config').then(r => r.json()) as Promise<{ ok: boolean; bean: LedBean | null }>,
+  ledConfig: () => fetch('/api/led/config').then(r => r.json()) as Promise<{
+    ok: boolean; bean: LedBean | null
+    detect?: LedDetect | null      // 帧表反推的当前灯效（mode/colors/known）
+    frames_b64?: string            // 设备当前帧表原文（进页还原预览用）
+  }>,
   ledApply: (mode: string, colors: number[][], brightness?: number, period?: number) =>
     post('/api/led/apply', { mode, colors, brightness, period }),
   ledBackup: () => post('/api/led/backup'),
@@ -251,3 +255,5 @@ export interface LedBean {
   version: number; click_feedback: number; loop_start: number; loop_end: number
   loop_time: number; brightness: number; rgb_num: number; led_mode: number; grip_sync: number | null
 }
+// 帧表反推结果：known=false = 官方/第三方灯效，灯效库未收录（UI 只读展示）
+export interface LedDetect { mode: string; colors: number[][]; known: boolean }

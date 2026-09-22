@@ -107,7 +107,7 @@ export default function ExpLab() {
     <div className="mx-auto max-w-4xl space-y-5">
       <div className="card p-5">
         <div className="mb-2 flex items-center gap-2 text-[12px] text-text-mid">
-          <FlaskConical size={14} className="text-accent" /> 体验区 · 隐藏功能孵化区
+          <FlaskConical size={14} className="text-accent" /> 测试区 · 隐藏功能孵化区
           {s && (
             <span className="ml-auto flex items-center gap-2 text-[11px]">
               <span className="text-emerald-300">好用 {s.good}</span>

@@ -63,7 +63,7 @@ class GameSim:
     def _rgb(self, r, g, b):
         rgb = self._rgb_getter()
         if not rgb or not rgb.enabled:
-            self.stats["note"] = "灯效桥未启动（体验区 → Mod 灯效桥 → 启动）"
+            self.stats["note"] = "灯效桥未启动（测试区 → Mod 灯效桥 → 启动）"
             return False
         try:
             _send_udp(rgb.port, f"{r},{g},{b}".encode("ascii"))

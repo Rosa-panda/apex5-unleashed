@@ -3,7 +3,7 @@
 // 预览算法与后端帧生成器同思路（gradient=整条过渡 / flow=空间相位流动 / …）。
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Dices, Loader2, RotateCcw, TriangleAlert } from 'lucide-react'
-import { api, type LedBean } from '../api'
+import { api, type LedBean, type LedDetect } from '../api'
 
 type Mode = 'off' | 'on' | 'breath' | 'gradient' | 'flow' | 'blink' | 'heartbeat' | 'wipe' | 'rainbow' | 'aurora'
 
@@ -97,10 +97,17 @@ function hslToRgb(h: number, s: number, l: number): number[] {
 }
 
 // ---- 实时预览：大号手柄 + rgb_num 颗灯珠逐帧上色 ----
-function PadPreview({ mode, colors, brightness, period, rgbNum }: {
+function PadPreview({ mode, colors, brightness, period, rgbNum, frames, loopMs }: {
   mode: Mode; colors: number[][]; brightness: number; period: number; rgbNum: number
+  frames?: number[][] | null; loopMs?: number      // 有帧表时直接回放设备原文（外部灯效）
 }) {
   const [t, setT] = useState(0)
+  const [fi, setFi] = useState(0)
+  useEffect(() => {                                // 外部灯效：按设备帧距逐帧回放原文
+    if (!frames?.length || !loopMs) return
+    const id = setInterval(() => setFi(v => (v + 1) % frames.length), Math.max(30, loopMs))
+    return () => clearInterval(id)
+  }, [frames, loopMs])
   useEffect(() => {
     // 周期映射：真机"帧距"1-60 → 预览 0.8s~6s 一循环
     const dur = Math.max(0.8, period * 0.1) * (mode === 'blink' ? 0.5 : 1)
@@ -140,7 +147,8 @@ function PadPreview({ mode, colors, brightness, period, rgbNum }: {
           <circle key={i} cx={x} cy={y} r="5" fill="#161624" stroke="#23233a" />
         ))}
         {dots.map((d, i) => {
-          const c = ledColor(mode, colors, i, rgbNum, t)
+          const f = frames?.length ? frames[fi % frames.length] : null
+          const c = f ? [f[i * 3], f[i * 3 + 1], f[i * 3 + 2]] : ledColor(mode, colors, i, rgbNum, t)
           const a = Math.max(...c) / 255
           return (
             <circle key={i} cx={d.x} cy={d.y} r="4.5"
@@ -181,6 +189,9 @@ export default function Lights() {
   const [period, setPeriod] = useState(10)
   const [sync, setSync] = useState<Sync>('idle')
   const [syncMsg, setSyncMsg] = useState('')
+  const [devFrames, setDevFrames] = useState<number[][] | null>(null)
+  const [devLoop, setDevLoop] = useState(300)
+  const [foreign, setForeign] = useState(false)
 
   // ---- 自动写入引擎：650ms 防抖 + 串行队列（写一次 ~1-2s，绝不并发打手柄） ----
   const touched = useRef(false)          // 首次进页不回写：状态以设备为准
@@ -188,7 +199,42 @@ export default function Lights() {
   const writing = useRef(false)
 
   const refresh = () => api.ledConfig().then(r => setBean(r.bean)).catch(() => {})
-  useEffect(() => { refresh() }, [])
+
+  // 进页回读：设备当前灯表 → 识别灯效+配色 → 还原上次设置（touched 未置位前绝不回写）。
+  // 库内命中 → 点亮那张卡；模式认得但颜色改过 → 落「自定义」；认不出 → 外部灯效只读展示。
+  useEffect(() => {
+    api.ledConfig().then(r => {
+      setBean(r.bean)
+      if (r.frames_b64 && r.bean && r.bean.rgb_num > 0) {
+        const raw = atob(r.frames_b64)
+        const fsize = r.bean.rgb_num * 3
+        const fs: number[][] = []
+        for (let o = 0; o + fsize <= raw.length && fs.length < 255; o += fsize) {
+          const f: number[] = []
+          for (let i = 0; i < fsize; i++) f.push(raw.charCodeAt(o + i))
+          fs.push(f)
+        }
+        if (fs.length) { setDevFrames(fs); setDevLoop(Math.max(40, r.bean.loop_time * 30)) }
+      }
+      const d: LedDetect | null | undefined = r.detect
+      if (touched.current || !d || !r.bean) return
+      setBrightness(r.bean.brightness || 128)
+      setPeriod(r.bean.loop_time || 10)
+      if (!d.known) {                                    // 外部灯效（官方/第三方）：只读
+        setForeign(true)
+        setStyleId('foreign')
+        return
+      }
+      setForeign(false)
+      setMode(d.mode as Mode)
+      if (d.mode === 'rainbow') setColors([])
+      else if (d.colors.length) setColors(d.colors)
+      const m = d.mode === 'off' ? OFF_STYLE
+        : LIB.find(s => s.mode === d.mode && s.colors.length === d.colors.length &&
+            s.colors.every((c, i) => c.every((v, j) => Math.abs(v - d.colors[i][j]) <= 12)))
+      setStyleId(m ? m.id : 'custom')
+    }).catch(() => {})
+  }, [])
 
   const runSync = async () => {
     if (writing.current) { scheduleSync(); return }      // 写盘中又改了 → 写完再补一轮
@@ -200,6 +246,8 @@ export default function Lights() {
     try {
       await api.ledApply(mode, mode === 'off' ? [] : colors, mode === 'off' ? undefined : brightness, period)
       setSync('ok')
+      setForeign(false)
+      setDevFrames(null)
       refresh()
     } catch (e) {
       setSync('err')
@@ -218,6 +266,8 @@ export default function Lights() {
   // ---- 交互 ----
   const pickStyle = (s: Style) => {                      // 选库内灯效：整套上身
     touched.current = true
+    setForeign(false)
+    setDevFrames(null)
     setStyleId(s.id); setMode(s.mode); setColors(s.colors)
     if (s.period) setPeriod(s.period)
   }
@@ -240,6 +290,8 @@ export default function Lights() {
   })
   const restore = async () => {
     setSync('writing')
+    setForeign(false)
+    setDevFrames(null)
     try { await api.ledRestore(); setSync('ok'); refresh() } catch (e) { setSync('err'); setSyncMsg((e as Error).message) }
   }
 
@@ -256,7 +308,9 @@ export default function Lights() {
   const minColors = mode === 'gradient' ? 2 : 1
   const curStyle = styleId === 'custom'
     ? { ...CUSTOM, mode, colors: needsColors ? colors : [] }
-    : styleId === 'off' ? OFF_STYLE : LIB.find(s => s.id === styleId) ?? CUSTOM
+    : styleId === 'foreign'
+      ? { id: 'foreign', name: '外部灯效', mode, colors: needsColors ? colors : [] }
+      : styleId === 'off' ? OFF_STYLE : LIB.find(s => s.id === styleId) ?? CUSTOM
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -277,9 +331,16 @@ export default function Lights() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
         {/* 左：预览台 + 编辑器 */}
         <div className="space-y-4">
-          <PadPreview mode={mode} colors={colors} brightness={brightness} period={period} rgbNum={bean?.rgb_num ?? 10} />
+          <PadPreview mode={mode} colors={colors} brightness={brightness} period={period}
+            rgbNum={bean?.rgb_num ?? 10} frames={devFrames} loopMs={devLoop} />
 
           <div className="card space-y-4 p-4">
+            {foreign && (
+              <div className="flex items-start gap-2 rounded-lg border border-warn/30 bg-warn/10 p-2.5 text-[11px] leading-relaxed text-warn">
+                <TriangleAlert size={13} className="mt-0.5 shrink-0" />
+                <span>手柄当前是<b>外部灯效</b>（官方默认或第三方写入），灯效库未收录——预览直接回放设备帧表原文；从右边库中任选一款即可接管。</span>
+              </div>
+            )}
             <div>
               <div className="mb-2 flex items-center gap-2 text-[12px] text-text-mid">
                 当前灯效

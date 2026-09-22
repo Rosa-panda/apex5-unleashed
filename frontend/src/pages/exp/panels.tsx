@@ -132,7 +132,7 @@ export function GyroPanel() {
       {/* 路标：三种「游戏用体感」的通道，防止重复造不存在的开关 */}
       <div className="rounded-md border border-border-soft bg-black/20 p-2 text-[10px] leading-relaxed text-text-low">
         <span className="text-text-mid">游戏怎么用上手柄体感？三条路：</span>
-        ① 普通 XInput 游戏（不认体感）→ <b>固件层陀螺→摇杆</b>（体验区 #6，关软件也生效）或本面板软件层陀螺→鼠标；
+        ① 普通 XInput 游戏（不认体感）→ <b>固件层陀螺→摇杆</b>（测试区 #6，关软件也生效）或本面板软件层陀螺→鼠标；
         ② 原生体感游戏（Steam Input / DS5 移植 / NSO）→ <b>手柄拨硬件模式键切 Switch 模式</b>，
         切换后手柄在 USB 层变成任天堂设备（057e:2009），本工具和飞智空间站都看不见它，由游戏/Steam 自己接管——软件开关对此无解，不是功能缺失。
       </div>
@@ -950,7 +950,7 @@ function AimRange() {
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-3 text-[10px] text-text-low">
-        <span>用体感/摇杆映射出的鼠标来瞄准打靶（先在体验区开启体感瞄准或摇杆→鼠标）</span>
+        <span>用体感/摇杆映射出的鼠标来瞄准打靶（先在测试区开启体感瞄准或摇杆→鼠标）</span>
         <span className="text-accent">命中 {score}</span>
         <span>/ 开枪 {shots}</span>
       </div>
@@ -985,7 +985,7 @@ function KeyRange() {
   return (
     <div className="space-y-1">
       <div className="text-[10px] text-text-low">
-        手柄键映射成键盘（体验区 → 连发 Turbo / 摇杆→键盘 / 宏）后在这里按——次数和实时频率一眼可见，连发是否生效立刻知道
+        手柄键映射成键盘（测试区 → 连发 Turbo / 摇杆→键盘 / 宏）后在这里按——次数和实时频率一眼可见，连发是否生效立刻知道
       </div>
       <div className="flex flex-wrap gap-1.5">
         {rows.length === 0 && <span className="text-[11px] text-text-low">（在这个窗口里按键开始计数）</span>}

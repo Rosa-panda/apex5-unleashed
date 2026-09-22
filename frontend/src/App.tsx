@@ -26,7 +26,7 @@ const NAV: Array<{ id: PageId; label: string; icon: typeof Activity }> = [
   { id: 'lights', label: '灯光', icon: Lightbulb },
   { id: 'screen', label: '屏幕', icon: MonitorPlay },
   { id: 'motion', label: '体感', icon: Orbit },
-  { id: 'explab', label: '体验区', icon: FlaskConical },
+  { id: 'explab', label: '测试区', icon: FlaskConical },
   { id: 'settings', label: '设置', icon: SettingsIcon },
 ]
 
