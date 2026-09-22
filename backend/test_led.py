@@ -47,7 +47,29 @@ grad = p.led_frames_gradient([(255, 0, 0), (0, 0, 255)], 10)
 assert len(grad) == 16 * 30
 flow = p.led_frames_flow([(255, 0, 0), (0, 0, 255)], 10)
 assert len(flow) == 16 * 30
-print("4. frame expansion OK")
+
+# 4b. comet（ADR-033）：无驻留帧——拖尾逐珠滑出右缘，末帧全黑，跨循环零残留
+comet = p.led_frames_comet([(0, 170, 255)], 12)
+n_c, cf = len(comet) // 36, 12 * 3
+assert n_c == 17, n_c                                    # rgb_num + tail=4 + 1
+frames_c = [comet[i * cf:(i + 1) * cf] for i in range(n_c)]
+lit_c = [sum(1 for j in range(12) if max(f[j * 3:j * 3 + 3]) > 0) for f in frames_c]
+assert lit_c[0] == 1 and max(lit_c) == 5, lit_c          # 光头+4 拖尾，永不全亮
+assert lit_c[-1] == 0, lit_c                             # 末帧全黑：无跨循环残留
+assert lit_c[-2] == 1                                    # 拖尾逐珠滑出，不是整体消失
+assert len(set(lit_c[:-1])) == 5                         # 表内亮珠数集合无重复驻留
+wipe = p.led_frames_wipe([(0, 170, 255)], 12)
+wf = [wipe[i * cf:(i + 1) * cf] for i in range(len(wipe) // cf)]
+lit_w = [sum(1 for j in range(12) if max(f[j * 3:j * 3 + 3]) > 0) for f in wf]
+assert lit_w[11] == 12 and lit_w[12] == 12               # 原版病灶对照：全亮帧表内重复
+assert lit_w[23] == 1 and lit_w[0] == 1                  # 单灯帧跨循环边界重复（残留光根源）
+
+# 4c. comet 识别回环 + 与 wipe/flow 不互混
+blob_c = p.led_bean_header(b3, p.led_frames_comet([(0, 170, 255)], 16))
+d = p.led_identify(blob_c)
+assert d["mode"] == "comet" and d["known"] and d["colors"] == [[0, 170, 255]], d
+assert p.led_identify(p.led_bean_header(b2, p.led_frames_wipe([(0, 170, 255)], 10)))["mode"] == "wipe"
+print("4b/4c. comet expansion + identify OK")
 
 # 5. blob 组装：20B 头（保持版本字节/保留区）+ 帧数据
 blob = p.led_bean_header(b2, solid)

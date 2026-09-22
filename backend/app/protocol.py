@@ -241,7 +241,9 @@ def led_frames_heartbeat(rgb, rgb_num):
 
 
 def led_frames_wipe(colors, rgb_num):
-    """扫描：逐珠点亮到全亮再逐珠熄灭（2×rgb_num 帧）。"""
+    """扫描：逐珠点亮到全亮再逐珠熄灭（2×rgb_num 帧）。
+    注意：fill+fill[::-1] 在拼接点把全亮帧/单灯帧各重复一次——光到头滞留一拍、
+    循环末一盏灯多亮一拍才开下一轮（ADR-033 记录的观感瑕疵，原版保留不改）。"""
     c = tuple(colors[0])
     fill = []
     for k in range(rgb_num):
@@ -250,6 +252,26 @@ def led_frames_wipe(colors, rgb_num):
             frame.extend(c if i <= k else (0, 0, 0))
         fill.append(bytes(frame))
     return bytes(b"".join(fill + fill[::-1]))
+
+
+def led_frames_comet(colors, rgb_num, tail=4):
+    """扫描·掠过（ADR-033，wipe 的修复复刻版）：带拖尾的光头从左扫到右并完全
+    掠出右缘，全灭后立即开下一轮。步数 = rgb_num + tail + 1：光尾逐珠滑出右缘，
+    末帧恰为全黑，跨循环无任何残留（wipe 的驻留光病灶在这里不存在）。"""
+    c = tuple(colors[0])
+    steps = rgb_num + tail + 1
+    out = bytearray()
+    for p in range(steps):                      # p=光头位置，>rgb_num+tail 段即离场
+        frame = bytearray()
+        for i in range(rgb_num):
+            d = p - i
+            if 0 <= d <= tail:                  # 光头全亮，向左线性衰减拖尾
+                s = (tail + 1 - d) / (tail + 1)
+                frame.extend(round(v * s) for v in c)
+            else:
+                frame.extend((0, 0, 0))
+        out.extend(frame)
+    return bytes(out)
 
 
 def led_frames_rainbow(rgb_num, steps=24, sat=1.0, val=0.55):
@@ -319,7 +341,7 @@ def _hue_of(c):
 def led_identify(blob):
     """灯表 blob（20B 头 + 帧数据）→ 尽力识别当前灯效。
     返回 {"mode", "colors": [[r,g,b],...], "known": bool}。
-    mode ∈ off/on/breath/gradient/flow/blink/heartbeat/wipe/rainbow/aurora/unknown。
+    mode ∈ off/on/breath/gradient/flow/blink/heartbeat/wipe/comet/rainbow/aurora/unknown。
     判定顺序按歧义度从高到低：全灭 → 整帧同色系(blink→标量族 on/breath/heartbeat→gradient)
     → wipe(前缀亮) → rainbow(色相沿珠分布) → flow(帧间循环平移) → aurora(兜底空间系)。
     官方/第三方灯效若模式超出已知集合，known=False 原样告知（UI 只读展示，不乱写）。"""
@@ -407,6 +429,23 @@ def led_identify(blob):
     if all(is_prefix(f) for f in fr) and len(set(lit)) >= 3:
         c = next(fr[i][0] for i, k in enumerate(lit) if k > 0)
         return {"mode": "wipe", "colors": [list(c)], "known": True}
+
+    # 3.5) comet（扫描·掠过，ADR-033）：每帧亮珠是一段连续 run、起点随帧单调推进，
+    #      且存在全黑离场帧（光头掠出右缘）——wipe 永无全黑帧，flow 全帧全亮，
+    #      都不会误入此分支。
+    def _run_bounds(f):
+        on = [j for j, c in enumerate(f) if max(c) > 8]
+        if not on:
+            return None                       # 全黑帧
+        return (on[0], on[-1]) if on[-1] - on[0] + 1 == len(on) else ()   # ()=断裂
+
+    runs = [_run_bounds(f) for f in fr]
+    if () not in runs and any(r is None for r in runs):
+        seq = [r for r in runs if r is not None]
+        starts = [a for a, _ in seq]
+        if len(seq) >= 3 and all(x <= y for x, y in zip(starts, starts[1:])):
+            c = next(fr[i][r[1]] for i, r in enumerate(runs) if r is not None)   # r[1]=光头珠
+            return {"mode": "comet", "colors": [list(c)], "known": True}
 
     # 4) rainbow：每帧色相 ≈ (i/n)·360 + 相位（全色环匀速分布、明度固定不接近全黑）
     def rainbow_fit(f):
