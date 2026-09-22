@@ -195,12 +195,13 @@ const EXT_MAP_KEYS = ['m1', 'm2', 'm3', 'm4', 'lm', 'rm'] as const
 function ExtKeyMappingCard() {
   const [cfg, setCfg] = useState<Record<string, { mode: ExtMode; target?: number; key?: string }>>({})
   const [targets, setTargets] = useState<Record<string, string>>({})
+  const [macroBound, setMacroBound] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
     api.extKeyMapping().then(m => {
-      if (m.ok) { setCfg(m.config); setTargets(m.targets) }
+      if (m.ok) { setCfg(m.config); setTargets(m.targets); setMacroBound(m.macro_bound ?? []) }
     }).catch(() => {})
   }, [])
 
@@ -211,7 +212,11 @@ function ExtKeyMappingCard() {
     setBusy(true); setMsg('')
     try {
       const r = await api.extKeyMappingSet(cfg)
-      setMsg(r.ok ? '已应用：手柄目标写入固件键表，键盘目标即时生效' : `失败：${r.error ?? '未知错误'}`)
+      const skipped: string[] = r.fw?.skipped ?? []
+      setMsg(r.ok
+        ? `已应用：手柄目标写入固件键表，键盘目标即时生效` +
+          (skipped.length ? `（${skipped.map(s => s.toUpperCase()).join('/')} 被宏占用，已跳过）` : '')
+        : `失败：${r.error ?? '未知错误'}`)
     } catch (e) {
       setMsg(`失败：${e}`)
     } finally {
@@ -232,27 +237,36 @@ function ExtKeyMappingCard() {
         {EXT_MAP_KEYS.map(name => {
           const c = cfg[name]
           if (!c) return null
+          const taken = macroBound.includes(name)
           return (
             <div key={name} className="flex flex-wrap items-center gap-2 text-[12px]">
               <span className="w-8 font-mono text-text-mid">{name.toUpperCase()}</span>
-              <select className={selCls} value={c.mode}
-                onChange={e => setKey(name, e.target.value === 'gamepad'
-                  ? { mode: 'gamepad', target: c.target ?? 6 }
-                  : { mode: e.target.value as ExtMode })}>
-                {(Object.entries(modeLabel) as [ExtMode, string][]).map(([m, l]) =>
-                  <option key={m} value={m}>{l}</option>)}
-              </select>
-              {c.mode === 'gamepad' && (
-                <select className={selCls} value={c.target ?? 6}
-                  onChange={e => setKey(name, { mode: 'gamepad', target: Number(e.target.value) })}>
-                  {Object.entries(targets).map(([t, l]) => <option key={t} value={t}>{l}</option>)}
-                </select>
-              )}
-              {c.mode === 'keyboard' && (
-                <input className="w-40 rounded-md border border-border-soft bg-white/5 px-2 py-1 font-mono text-[11px] text-text-mid outline-none placeholder:text-text-low/50"
-                  placeholder="键名：a-z/0-9/f1-f12/space/shift…"
-                  value={c.key ?? ''}
-                  onChange={e => setKey(name, { mode: 'keyboard', key: e.target.value })} />
+              {taken ? (
+                <span className="text-[11px] text-text-low" title="宏页里绑在这颗键上，映射让位；要改它先到宏页删除该宏">
+                  🔒 宏触发键（宏页占用，映射不生效）
+                </span>
+              ) : (
+                <>
+                  <select className={selCls} value={c.mode}
+                    onChange={e => setKey(name, e.target.value === 'gamepad'
+                      ? { mode: 'gamepad', target: c.target ?? 6 }
+                      : { mode: e.target.value as ExtMode })}>
+                    {(Object.entries(modeLabel) as [ExtMode, string][]).map(([m, l]) =>
+                      <option key={m} value={m}>{l}</option>)}
+                  </select>
+                  {c.mode === 'gamepad' && (
+                    <select className={selCls} value={c.target ?? 6}
+                      onChange={e => setKey(name, { mode: 'gamepad', target: Number(e.target.value) })}>
+                      {Object.entries(targets).map(([t, l]) => <option key={t} value={t}>{l}</option>)}
+                    </select>
+                  )}
+                  {c.mode === 'keyboard' && (
+                    <input className="w-40 rounded-md border border-border-soft bg-white/5 px-2 py-1 font-mono text-[11px] text-text-mid outline-none placeholder:text-text-low/50"
+                      placeholder="键名：a-z/0-9/f1-f12/space/shift…"
+                      value={c.key ?? ''}
+                      onChange={e => setKey(name, { mode: 'keyboard', key: e.target.value })} />
+                  )}
+                </>
               )}
             </div>
           )

@@ -30,10 +30,12 @@ export const macros = {
     ok: boolean
     config: Record<string, { mode: 'passthrough' | 'gamepad' | 'keyboard'; target?: number; key?: string }>
     targets: Record<string, string>
+    macro_bound?: string[]
     fw: Array<{ name: string; target: number; target_name: string }>
   }>,
   extKeyMappingSet: (config: Record<string, { mode: string; target?: number; key?: string }>) =>
     post('/api/extkeys/mapping', { config }) as Promise<{
       ok: boolean; config?: Record<string, unknown>; error?: string
+      fw?: { ok: boolean; version: number; skipped?: string[] }
     }>,
 }

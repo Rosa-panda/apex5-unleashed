@@ -36,10 +36,14 @@ def build_extkeys_router(ctx):
     def mapping_get():
         import extkeys
         import extkeymap
+        import macro
         try:
+            fw = extkeys.MAPPER.read_mapping()
+            bound = sorted(m["name"] for m in fw if m["target"] == macro.TARGET_MACRO)
             return {"ok": True, "config": extkeymap.load(),
                     "targets": extkeys.TARGET_NAMES,
-                    "fw": extkeys.MAPPER.read_mapping()}
+                    "macro_bound": bound,
+                    "fw": fw}
         except Exception as e:
             return err(e)
 

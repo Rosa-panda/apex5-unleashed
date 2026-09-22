@@ -130,6 +130,38 @@ def apply_page(blob, macros):
                                      if itv else INTERVAL_UNSET)
 
 
+def macro_bound_ids(blob):
+    """当前宏页占用的触发键 id 集合（ADR-032：键表所有权裁决用）。"""
+    return {m["key_id"] for m in parse_page(blob)["macros"]}
+
+
+def resolve_extkey_targets(macros, cfg):
+    """六拓展键键表 target 的唯一裁决规则（ADR-032）：宏绑定(32) > 映射配置。
+    macros=本次要写的宏列表，cfg=extkeymap 配置。返回 {键名: target}。"""
+    bound = {EXTKEY_NAME[m["key_id"]] for m in macros if m["key_id"] in EXTKEY_NAME}
+    out = {}
+    for name, _kid in extkeys.EXT_KEYS:
+        if name in bound:
+            out[name] = TARGET_MACRO
+            continue
+        c = cfg.get(name) or {}
+        out[name] = c["target"] if c.get("mode") == "gamepad" and \
+            c.get("target") in extkeys.TARGET_NAMES else 255
+    return out
+
+
+def splice_macro_region(cur, bak):
+    """宏区作用域拼接（ADR-032）：把备份里的宏页 + 循环间隔 + 六拓展键键表项
+    拼进当前 blob（就地改），其余字节保留设备当前值。"""
+    cur[OFF_MACROS:OFF_MACROS + MACRO_REGION] = bak[OFF_MACROS:OFF_MACROS + MACRO_REGION]
+    cur[OFF_MACRO_CYCLE:OFF_MACRO_CYCLE + MACRO_SLOTS] = \
+        bak[OFF_MACRO_CYCLE:OFF_MACRO_CYCLE + MACRO_SLOTS]
+    for _name, kid in extkeys.EXT_KEYS:
+        at = OFF_KEY_TABLE + kid * 3
+        cur[at:at + 3] = bak[at:at + 3]
+    return cur
+
+
 class MacroManager:
     """宏页读写。与键表同一 blob：宏 + 触发键绑定一次提交（164/165 已真机验证）。"""
 
@@ -156,7 +188,11 @@ class MacroManager:
         return {"cfg": cfg, "size": len(blob), **parse_page(blob)}
 
     def write(self, macros, unbind=()):
-        """读当前 blob → 备份 → 写宏页 + 触发键绑定/解绑 → 校验/应用/保存。"""
+        """读当前 blob → 备份 → 写宏页 + 六键键表（ADR-032 单一所有权：宏 32 >
+        映射配置）→ 校验/应用/保存。unbind 参数已废弃（保留兼容）：删除宏 =
+        列表少一条，被腾出的键由裁决规则自动回落映射配置。被宏占用的键的映射
+        配置同时归位 passthrough，防配置与设备脱节。"""
+        import extkeymap
         with self._lock:
             pad = self._pad()
             st = pad.read_status()
@@ -168,16 +204,20 @@ class MacroManager:
             except OSError:
                 pass
             apply_page(blob, macros)
+            map_cfg = extkeymap.load()
+            targets = resolve_extkey_targets(macros, map_cfg)
             kid_of = dict(extkeys.EXT_KEYS)        # name -> kid
-            for name in unbind:                    # 先解绑（腾空删除宏的触发键）
-                if name in kid_of:
-                    blob[OFF_KEY_TABLE + kid_of[name] * 3] = 255
-            for m in macros:                       # 再绑定（后写胜出，同键不会又绑又删）
-                if m["key_id"] in EXTKEY_NAME:
-                    blob[OFF_KEY_TABLE + m["key_id"] * 3] = TARGET_MACRO
+            for name, tgt in targets.items():
+                kid = kid_of[name]
+                blob[OFF_KEY_TABLE + kid * 3] = tgt & 0xFF
+            for name in [n for n, t in targets.items() if t == TARGET_MACRO]:
+                if map_cfg.get(name, {}).get("mode") != "passthrough":
+                    map_cfg[name] = {"mode": "passthrough"}   # 宏占用键的配置归位
+            extkeymap.save(map_cfg)
             blob[225:227] = struct.pack("<H", ((blob[226] << 8) | blob[225]) + 1)
             ver, warnings = self._commit_checked(pad, blob, cfg)
-        return {"ok": True, "cfg": cfg, "version": ver, "warnings": warnings}
+        return {"ok": True, "cfg": cfg, "version": ver, "warnings": warnings,
+                "targets": targets}
 
     def _commit_checked(self, pad, blob, cfg):
         """164/165 → 读回 → 162 → 166（语义同 extkeys._commit，宏页一并落盘）。"""
@@ -214,14 +254,19 @@ class MacroManager:
         return {"path": path, "macros": len(parse_page(blob)["macros"])}
 
     def restore(self):
+        """恢复备份：只拼回宏区作用域（宏页+间隔+六拓展键键表项，ADR-032），
+        不再全量回写配置槽——映射/调参等其他字节保留设备当前值。"""
         with self._lock:
             with open(backup_path(), "rb") as f:
-                blob = f.read()
-            if len(blob) != 840:
-                raise RuntimeError(f"备份文件不合法（{len(blob)}B，应为 840B 全量 profile）")
+                bak = f.read()
+            if len(bak) != 840:
+                raise RuntimeError(f"备份文件不合法（{len(bak)}B，应为 840B 全量 profile）")
             pad = self._pad()
             cfg = pad.read_status()["active"]
-            ver, warnings = self._commit_checked(pad, bytearray(blob), cfg)
+            cur = bytearray(pad.read_config(cfg))
+            blob = splice_macro_region(cur, bak)
+            blob[225:227] = struct.pack("<H", ((blob[226] << 8) | blob[225]) + 1)
+            ver, warnings = self._commit_checked(pad, blob, cfg)
         return {"ok": True, "cfg": cfg, "version": ver, "warnings": warnings}
 
 

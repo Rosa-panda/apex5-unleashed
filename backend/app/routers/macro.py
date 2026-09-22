@@ -27,8 +27,12 @@ def build_macro_router(ctx):
     def macro_write(req: MacroWriteReq):
         import macro
         try:
-            # 宏页与触发键绑定同在 profile blob，一次提交（v3.1 方案，ADR-021 修订）
-            return macro.MANAGER.write(req.macros, unbind=req.unbind)
+            # 宏页与触发键绑定同在 profile blob，一次提交（ADR-032：宏是六键键表
+            # 第一所有者，写后同步键盘注入边沿状态）
+            res = macro.MANAGER.write(req.macros, unbind=req.unbind)
+            if ctx.extkeymap is not None:
+                ctx.extkeymap.reload()
+            return res
         except Exception as e:
             return err(e)
 

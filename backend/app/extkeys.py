@@ -172,6 +172,8 @@ class ExtKeyMapper:
 
     def set_targets(self, mapping):
         """按 {name: target} 改六键映射（其余键字节不动），写+应用+保存。
+        宏占用键（键表 target=32，ADR-032 单一所有权）跳过不写并报 skipped——
+        映射不得踩掉宏触发绑定；要改它先删对应宏。
         仅当当前不是测试态时才快照备份（防把测试映射存成"用户原始配置"）。"""
         with self._lock:
             pad = self._pad()
@@ -181,11 +183,16 @@ class ExtKeyMapper:
             cur = {n: blob[13 + k * 3] for n, k in kid_of.items()}
             if cur != TEST_TARGETS:
                 self._save_backup(blob)
+            import macro as _macro
+            bound = _macro.macro_bound_ids(blob)
+            skipped = sorted(n for n, k in kid_of.items() if k in bound)
             for name, tgt in mapping.items():
                 kid = kid_of[name]
+                if kid in bound:
+                    continue
                 blob[13 + kid * 3:13 + kid * 3 + 3] = bytes([tgt, 0, 0])
             ver = self._commit(pad, blob)
-        return {"ok": True, "version": ver,
+        return {"ok": True, "version": ver, "skipped": skipped,
                 "mapping": [{"name": n, "target_name": TARGET_NAMES.get(t, str(t))}
                             for n, t in mapping.items()]}
 

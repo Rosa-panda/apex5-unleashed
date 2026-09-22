@@ -1,7 +1,7 @@
 // 宏页（ADR-021 v3.1 方案）：板载宏存在 profile blob 的宏页里（163/164/165 一次连宏带绑定写入）。
 // 执行在固件：写完关软件也生效。宏没有名字字段，以触发键为身份；上限 5 条 / 全页 128 步 / 10ms 精度。
 import { useEffect, useRef, useState } from 'react'
-import { Circle, CircleStop, Pencil, Play, RotateCcw, Save, Trash2, Wand2 } from 'lucide-react'
+import { Circle, CircleStop, Copy, Download, Pencil, Play, RotateCcw, Save, Trash2, Upload, Wand2 } from 'lucide-react'
 import { api, type EngineEvent, type Macro } from '../api'
 import { DeviceGate } from '../Offline'
 
@@ -125,18 +125,48 @@ export default function Macros({ events, online }: { events: EngineEvent[]; onli
   }
   const removeMacro = (i: number) => {
     const m = macros[i]
-    if (!confirm(`删除 ${keyName(m.key_id)} 上的宏并写入设备？`)) return
-    const list = macros.filter((_, j) => j !== i)
-    // 触发键还原透传（255），避免留一个死键
-    const tk = TRIGGER_KEYS.find(t => t.id === m.key_id)
-    write(list, tk ? [tk.bind] : [])
+    if (!confirm(`删除 ${keyName(m.key_id)} 上的宏并写入设备？触发键将回到映射卡配置的状态（默认透传）。`)) return
+    // ADR-032：键表由后端单一规则裁决，删除 = 列表少一条，触发键自动回落
+    write(macros.filter((_, j) => j !== i))
+  }
+  const copyMacro = (i: number) => {
+    const src = macros[i]
+    const free = TRIGGER_KEYS.find(t => !macros.some(m => m.key_id === t.id))
+    if (!free) { setMsg('✗ 没有空闲触发键：五颗键都被占用了，先删一条宏'); return }
+    setEdit({ ...src, key_id: free.id, actions: src.actions.map(a => ({ ...a })) })
+    setEditIdx(null)
+    setMsg('')
+  }
+  const exportMacros = () => {
+    const data = JSON.stringify({ kind: 'apex5-macros', version: 1, macros }, null, 1)
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `apex5-macros-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+  const importMacros = (file: File) => {
+    file.text().then(txt => {
+      let list: Macro[]
+      try {
+        const data = JSON.parse(txt)
+        list = Array.isArray(data) ? data : data.macros
+      } catch { setMsg('✗ 导入失败：不是合法的 JSON'); return }
+      if (!Array.isArray(list) || list.length > 5) { setMsg('✗ 导入失败：宏列表为空或超过 5 条'); return }
+      const bad = list.find(m => !m.actions?.length || m.actions.length > 64
+        || !TRIGGER_KEYS.some(t => t.id === m.key_id))
+      if (bad) { setMsg('✗ 导入失败：存在缺动作/超 64 步/触发键不是拓展键的宏'); return }
+      if (!confirm(`导入 ${list.length} 条宏并写入设备？当前设备上的宏将被替换。`)) return
+      write(list)
+    }).catch(() => setMsg('✗ 读文件失败'))
   }
   const backup = async () => {
     try { const r = await api.macroBackup(); setMsg(`✓ 已备份当前宏区（${r.macros} 条宏）`) }
     catch (e) { setMsg(`✗ ${(e as Error).message}`) }
   }
   const restore = async () => {
-    if (!confirm('恢复备份的宏区并写入设备？')) return
+    if (!confirm('恢复备份的宏区并写入设备？只覆盖宏页、循环间隔和六颗拓展键的键表绑定，其余设置不动。')) return
     setBusy(true); setMsg('恢复中…')
     try { await api.macroRestore(); setMsg('✓ 已恢复备份宏区'); refresh() }
     catch (e) { setMsg(`✗ ${(e as Error).message}`) }
@@ -180,6 +210,14 @@ export default function Macros({ events, online }: { events: EngineEvent[]; onli
           <button className="btn !px-2.5 !py-1 text-[11px]" disabled={busy} onClick={refresh}>
             <RotateCcw size={12} /> 读取设备
           </button>
+          <button className="btn !px-2.5 !py-1 text-[11px]" disabled={busy || !macros.length} onClick={exportMacros}>
+            <Download size={12} /> 导出
+          </button>
+          <label className="btn !px-2.5 !py-1 text-[11px]" style={{ opacity: busy ? 0.5 : 1 }}>
+            <Upload size={12} /> 导入
+            <input type="file" accept=".json,application/json" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) importMacros(f); e.target.value = '' }} />
+          </label>
           <button className="btn !px-2.5 !py-1 text-[11px]" disabled={busy} onClick={backup}>备份</button>
           <button className="btn !px-2.5 !py-1 text-[11px]" disabled={busy} onClick={restore}>恢复备份</button>
         </div>
@@ -213,6 +251,10 @@ export default function Macros({ events, online }: { events: EngineEvent[]; onli
                   <span className="font-mono text-text-low">{m.actions.length} 步 · {(durOf(m) / 1000).toFixed(1)}s</span>
                   <button className="btn !px-2 !py-1 text-[11px]" disabled={!!edit || busy} onClick={() => openEdit(i)}>
                     <Pencil size={11} /> 编辑
+                  </button>
+                  <button className="btn !px-2 !py-1 text-[11px]" disabled={!!edit || busy} title="以这条宏的动作新建一条"
+                    onClick={() => copyMacro(i)}>
+                    <Copy size={11} />
                   </button>
                   <button className="btn !px-2 !py-1 text-[11px] text-err" disabled={busy} onClick={() => removeMacro(i)}>
                     <Trash2 size={11} />
