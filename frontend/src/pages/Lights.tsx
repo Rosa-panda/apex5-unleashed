@@ -336,8 +336,14 @@ function FrameCanvas({ rgbNum, deviceFrames, bean, onPushed }: {
 
   const paint = (f: number, i: number) => setGrid(g => g.map((row, fi) => fi !== f ? row
     : row.map((c, ii) => ii !== i ? c : brush < 0 ? [...BLACK] : [...BRUSHES[brush]])))
-  // 相位平移：全部帧同一方向错 1 位（移动图案在带上的落点，不改变帧序）
-  const shift = (d: number) => setGrid(g => g.map(row => row.map((_, i) => [...row[(i - d + rgbNum) % rgbNum]])))
+  // 末帧平移：只错动最后一帧 1 位——「+复制上帧 → 末帧右移」反复按，
+  // 就是图案沿灯带跑的跑马灯（动其他帧会毁掉已画好的序列）
+  const shift = (d: number) => setGrid(g => {
+    if (g.length < 1) return g
+    const f = g.length - 1
+    const moved = g[f].map((_, i) => [...g[f][(i - d + rgbNum) % rgbNum]])
+    return g.map((row, fi) => fi === f ? moved : row)
+  })
   const addRow = (copy: boolean) => setGrid(g => {
     if (g.length >= CANVAS_ROWS) return g
     return [...g, copy ? g[g.length - 1].map(c => [...c])
@@ -422,8 +428,8 @@ function FrameCanvas({ rgbNum, deviceFrames, bean, onPushed }: {
       <div className="flex flex-wrap items-center gap-1.5">
         <button className={btn} disabled={grid.length >= CANVAS_ROWS} onClick={() => addRow(false)}>+ 全黑帧</button>
         <button className={btn} disabled={grid.length >= CANVAS_ROWS} onClick={() => addRow(true)}>+ 复制上帧</button>
-        <button className={btn} onClick={() => shift(-1)}>⇐ 相位左移</button>
-        <button className={btn} onClick={() => shift(1)}>相位右移 ⇒</button>
+        <button className={btn} onClick={() => shift(-1)} title="只平移最后一帧">末帧 ⇐</button>
+        <button className={btn} onClick={() => shift(1)} title="只平移最后一帧">末帧 ⇒</button>
         <button className={btn} onClick={delRow}>删末帧</button>
         <button className={`${btn} hover:!border-err/50 hover:!text-err`} onClick={() => setGrid(empty())}>清空</button>
       </div>
