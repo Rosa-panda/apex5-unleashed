@@ -40,11 +40,12 @@ export default function TriggerLab({ snap }: { snap: EngineSnapshot | null }) {
   const fields = useMemo(() => modeFields[mode] ?? [], [modeFields, mode])
 
   useEffect(() => {
-    // 模式切换 → 补默认参数
+    // 模式切换或字段表异步到位 → 补默认参数（依赖 fields 而非 mode：
+    // 2026-09-22 实踩：字段表晚于首帧到达时 effect 不重跑，params 恒空显示全 0）
     setParams(Object.fromEntries(
       fields.map((f) => [f, FIELD_DEFAULTS[f] ?? 100]),
     ))
-  }, [mode])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fields])
 
   const sides = side === 'both' ? ['left', 'right'] : [side]
 

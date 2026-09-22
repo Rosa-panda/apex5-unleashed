@@ -42,16 +42,18 @@ def build_led_router(ctx):
             return err(e)
 
     class LedApplyReq(BaseModel):
-        mode: str                       # on/off/breath/gradient/flow/default
+        mode: str                       # on/off/breath/gradient/flow/default/...
         colors: list = [[255, 0, 0]]    # [[r,g,b], ...]
         brightness: int | None = None
         period: int | None = None
+        params: dict = {}               # ADR-034：生成器 kwargs（方向/拖尾/圆心/倍速等）
 
     @r.post("/api/led/apply")
     def led_apply(req: LedApplyReq):
         try:
             engine.led_apply_effect(req.mode, [tuple(c) for c in req.colors],
-                                    brightness=req.brightness, period=req.period)
+                                    brightness=req.brightness, period=req.period,
+                                    params=req.params)
             return {"ok": True}
         except Exception as e:
             return err(e)

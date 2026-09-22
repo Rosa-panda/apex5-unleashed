@@ -9,8 +9,11 @@ export const lights = {
     detect?: LedDetect | null      // 帧表反推的当前灯效（mode/colors/known）
     frames_b64?: string            // 设备当前帧表原文（进页还原预览用）
   }>,
-  ledApply: (mode: string, colors: number[][], brightness?: number, period?: number) =>
-    post('/api/led/apply', { mode, colors, brightness, period }),
+  ledApply: (mode: string, colors: number[][], brightness?: number, period?: number,
+    params?: Record<string, unknown>) =>
+    post('/api/led/apply', { mode, colors, brightness, period, params: params ?? {} }),
+  ledApplyFrames: (bean: LedBean, framesB64: string) =>
+    post('/api/led/apply_frames', { bean, frames_b64: framesB64 }),
   ledBackup: () => post('/api/led/backup'),
   ledRestore: () => post('/api/led/restore'),
 }

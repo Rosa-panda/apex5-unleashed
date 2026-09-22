@@ -115,6 +115,38 @@ d_hf = p.led_identify(p.led_bean_header(dict(b3, loop_end=1), hf))
 assert d_hf["mode"] == "hueflash" and d_hf["known"], d_hf
 print("4f. hueflash expansion + identify OK")
 
+# 4g. ADR-034 参数化模板：生成器 kwargs 生效 + 参数化形态仍可识别
+# comet 反向：从右往左逐珠点亮（后缀形态）
+comet_r = p.led_frames_comet([(0, 170, 255)], 12, reverse=True)
+fr_r = [comet_r[i * 36:(i + 1) * 36] for i in range(len(comet_r) // 36)]
+lit_r = [sum(1 for j in range(12) if max(f[j * 3:j * 3 + 3]) > 0) for f in fr_r]
+assert lit_r == list(range(1, 13)), lit_r
+assert max(fr_r[0][33:36]) > 0 and max(fr_r[0][:33]) == 0    # 首帧只亮右端（灯 11）
+d_cr = p.led_identify(p.led_bean_header(b3, p.led_frames_comet([(0, 170, 255)], 16, reverse=True)))
+assert d_cr["mode"] == "comet" and d_cr["known"], d_cr
+# pulse 指定圆心=3（非正中）
+pulse_c = p.led_frames_pulse([(255, 40, 90)], 12, center=3)
+pc0 = pulse_c[:36]
+assert max(pc0[6:12]) > 0 and max(pc0[:6]) == 0 and max(pc0[12:]) == 0   # 首帧 r=1 亮灯 2,3（圆心 3）
+d_pc = p.led_identify(p.led_bean_header(b3, p.led_frames_pulse([(255, 40, 90)], 16, center=4)))
+assert d_pc["mode"] == "pulse" and d_pc["known"], d_pc
+# rain 拖尾长度参数不破坏识别
+for tail in (1, 5):
+    d_rt = p.led_identify(p.led_bean_header(b3, p.led_frames_rain([(0, 170, 255)], 16, tail=tail)))
+    assert d_rt["mode"] == "rain" and d_rt["known"], (tail, d_rt)
+# chase 倍速参数不破坏识别
+d_cb = p.led_identify(p.led_bean_header(b3, p.led_frames_chase([(0, 170, 255), (255, 0, 140)], 16, speed_b=5)))
+assert d_cb["mode"] == "chase" and d_cb["known"], d_cb
+# duosweep 关闭融合：相遇拍无混色
+duo_nb = p.led_frames_duosweep([(0, 170, 255), (255, 0, 140)], 12, blend=False)
+fnb = len(duo_nb) // 36
+frames_nb = [duo_nb[i * 36:(i + 1) * 36] for i in range(fnb)]
+meet_nb = frames_nb[fnb - 3]                                 # 表尾 2 全黑喘息前的相遇拍
+assert not any(meet_nb[i * 3:i * 3 + 3] == bytes((127, 85, 197)) for i in range(12)), "blend off 仍有融合色"
+d_nb = p.led_identify(p.led_bean_header(b3, p.led_frames_duosweep([(0, 170, 255), (255, 0, 140)], 16, blend=False)))
+assert d_nb["mode"] == "duosweep" and d_nb["known"], d_nb
+print("4g. parameterized templates (comet reverse / pulse center / rain tail / chase speed / duosweep blend) OK")
+
 # 5. blob 组装：20B 头（保持版本字节/保留区）+ 帧数据
 blob = p.led_bean_header(b2, solid)
 assert len(blob) == 20 + len(solid)

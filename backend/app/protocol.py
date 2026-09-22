@@ -254,26 +254,28 @@ def led_frames_wipe(colors, rgb_num):
     return bytes(b"".join(fill + fill[::-1]))
 
 
-def led_frames_comet(colors, rgb_num):
+def led_frames_comet(colors, rgb_num, reverse=False):
     """扫描·循环（ADR-033 修订，wipe 的修复复刻版）：逐珠点亮，跑满整条灯带后
     直接从头开始。帧序 = 亮 1,2,…,rgb_num 珠（n 帧），无排空半程、无重复驻留帧。
     原版扫描（led_frames_wipe）跑满后倒序退光，且拼接点重复帧造成「右边留光
-    赖着不走才开下一轮」的观感——本版跑满瞬间回表首，零残留。"""
+    赖着不走才开下一轮」的观感——本版跑满瞬间回表首，零残留。
+    reverse=True 从右端起扫（ADR-034 参数化）。"""
     c = tuple(colors[0])
     out = bytearray()
     for k in range(rgb_num):
         frame = bytearray()
         for i in range(rgb_num):
-            frame.extend(c if i <= k else (0, 0, 0))
+            lit = i >= rgb_num - 1 - k if reverse else i <= k
+            frame.extend(c if lit else (0, 0, 0))
         out.extend(frame)
     return bytes(out)
 
 
-def led_frames_duosweep(colors, rgb_num):
+def led_frames_duosweep(colors, rgb_num, blend=True):
     """双色对扫（ADR-033 修订 4）：colors[0] 从左往右、colors[1] 从右往左相向
-    逐珠铺满；相遇瞬间两色前端融合（相互影响，不再是硬切边）；铺满后全黑
-    喘息两拍再重开——否则两端全循环常亮（右端孤色观感为「永不熄灭」）。
-    帧数 = ceil(rgb_num/2) + 2。"""
+    逐珠铺满；相遇瞬间两色前端融合（相互影响，不再是硬切边；blend=False 关闭
+    融合回到左色优先硬切边，ADR-034 参数化）；铺满后全黑喘息两拍再重开——
+    否则两端全循环常亮（右端孤色观感为「永不熄灭」）。帧数 = ceil(rgb_num/2) + 2。"""
     ca = tuple(colors[0])
     cb = tuple(colors[1 % len(colors)])
     mix = tuple((a + b) // 2 for a, b in zip(ca, cb))
@@ -285,7 +287,7 @@ def led_frames_duosweep(colors, rgb_num):
         for i in range(rgb_num):
             li = i <= k                         # 左色向右推进
             ri = i >= rgb_num - 1 - k           # 右色向左推进
-            if (li and ri) or (met and (i == k or i == rgb_num - 1 - k)):
+            if (li and ri) or (blend and met and (i == k or i == rgb_num - 1 - k)):
                 frame.extend(mix)               # 相遇处两色融合
             elif li:
                 frame.extend(ca)
@@ -318,14 +320,14 @@ def led_frames_rain(colors, rgb_num, tail=3):
     return bytes(out)
 
 
-def led_frames_chase(colors, rgb_num, steps=None):
-    """双色追及（ADR-033 修订 3）：两色同向绕圈，色 B 三倍速追色 A，
-    分界线随两速差持续游走。步数 = rgb_num。"""
+def led_frames_chase(colors, rgb_num, steps=None, speed_b=3):
+    """双色追及（ADR-033 修订 3）：两色同向绕圈，色 B speed_b 倍速追色 A
+    （默认 3，ADR-034 参数化），分界线随两速差持续游走。步数 = rgb_num。"""
     ca, cb = tuple(colors[0]), tuple(colors[1 % len(colors)])
     steps = steps or rgb_num
     out = bytearray()
     for k in range(steps):
-        pa, pb = k % rgb_num, (k * 3) % rgb_num
+        pa, pb = k % rgb_num, (k * speed_b) % rgb_num
         frame = bytearray()
         for i in range(rgb_num):
             da = min((i - pa) % rgb_num, (pa - i) % rgb_num)
@@ -335,17 +337,19 @@ def led_frames_chase(colors, rgb_num, steps=None):
     return bytes(out)
 
 
-def led_frames_pulse(colors, rgb_num):
-    """中心脉冲（ADR-033 修订 3）：从中心向两端炸开再收回，像能量搏动。
-    步数 = 2×ceil(n/2)-1，铺满帧在正中。"""
+def led_frames_pulse(colors, rgb_num, center=None):
+    """中心脉冲（ADR-033 修订 3）：从圆心向两端炸开再收回，像能量搏动。
+    圆心默认正中（ADR-034 参数化 center=灯位索引），步数 = 2×R-1，
+    R = 圆心到两端的较大距离。"""
     c = tuple(colors[0])
-    hi = (rgb_num + 1) // 2
-    radii = list(range(1, hi + 1)) + list(range(hi - 1, 0, -1))
+    cc = rgb_num // 2 if center is None else max(0, min(rgb_num - 1, int(center)))
+    rr = max(cc, rgb_num - cc)
+    radii = list(range(1, rr + 1)) + list(range(rr - 1, 0, -1))
     out = bytearray()
     for r in radii:
         frame = bytearray()
         for i in range(rgb_num):
-            frame.extend(c if hi - r <= i < hi + r else (0, 0, 0))
+            frame.extend(c if cc - r <= i < cc + r else (0, 0, 0))
         out.extend(frame)
     return bytes(out)
 
@@ -578,9 +582,23 @@ def led_identify(blob):
 
     # 3) comet（扫描·循环，ADR-033）：全前缀帧且亮珠数恰为 1,2,…,n 帧数——
     #    跑满即回表首循环。原版扫描（wipe）亮珠数会到 n 再退回（先增后减），
-    #    且必带倒序半程，由此区分；须先于 wipe 判定。
+    #    且必带倒序半程，由此区分；须先于 wipe 判定。ADR-034：reverse 参数化
+    #    后也认后缀形态（从右端起扫，亮珠贴右端递增）。
+    def is_suffix(f):
+        on = False
+        for c in f:
+            if max(c) > 8:
+                on = True
+            elif on:
+                return False               # 亮过之后又见黑 → 亮段不贴尾
+        return True
+
     if all(is_prefix(f) for f in fr) and lit == list(range(1, len(fr) + 1)):
         c = next(fr[i][0] for i, k in enumerate(lit) if k > 0)
+        return {"mode": "comet", "colors": [list(c)], "known": True}
+
+    if all(is_suffix(f) for f in fr) and lit == list(range(1, len(fr) + 1)):
+        c = next(fr[i][n - 1] for i, k in enumerate(lit) if k > 0)
         return {"mode": "comet", "colors": [list(c)], "known": True}
 
     # 3.1) typewriter（打字机，ADR-033 修订 3）：全前缀帧，亮珠数 = 1..n 铺满后
@@ -643,16 +661,33 @@ def led_identify(blob):
             c = next(fr[i][runs2[i][1]] for i in range(nf) if runs2[i][1] > runs2[i][0])
             return {"mode": "rain", "colors": [list(c)], "known": True}
 
-    # 3.7) pulse（中心脉冲，ADR-033 修订 3）：每帧为一段含中点的对称连续 run，
-    #      半径先增后减，且存在不触两端的居中帧。
+    # 3.7) pulse（中心脉冲，ADR-033 修订 3 / ADR-034 参数化圆心）：每帧一段连续
+    #      run，存在某个圆心 cc 使各帧 run = [max(0,cc-r), min(n,cc+r))，半径
+    #      峰值 = 圆心到较远端的距离、宽度 ≥3 档——wipe/comet/rain 的 run 都没有
+    #      这种「同心扩张收拢」结构（wipe/typewriter 带全黑帧已在前面认出）。
     if () not in runs2 and None not in runs2:
-        mid = (n - 1) / 2
-        if (all(a <= mid <= b for a, b in runs2)
-                and all(a == n - 1 - b for a, b in runs2)
-                and any(a > 0 and b < n - 1 for a, b in runs2)
-                and len(set(b - a for a, b in runs2)) >= 3):
-            c = max((fr[i][b] for i, (a, b) in enumerate(runs2)), key=max)
-            return {"mode": "pulse", "colors": [list(c)], "known": True}
+        for cc in range(n):
+            radii_p = []
+            consistent = True
+            for a, b in runs2:
+                ra = cc - a if a > 0 else None          # 左边界给出的半径
+                rb = b + 1 - cc if b < n - 1 else None  # 右边界给出的半径
+                if ra is None and rb is None:
+                    continue                             # 全带帧：无半径约束
+                if ra is not None and rb is not None and ra != rb:
+                    consistent = False                   # 两边界半径矛盾 → 此圆心不成立
+                    break
+                r = ra if ra is not None else rb
+                if r < 1:
+                    consistent = False
+                    break
+                radii_p.append(r)
+            if (consistent and radii_p
+                    and max(radii_p) + 1 >= max(cc, n - cc)   # 峰值帧若为全带（r=rr）则被上面跳过
+                    and len(set(radii_p)) >= 3
+                    and any(a > 0 and b < n - 1 for a, b in runs2)):
+                c = max((fr[i][b] for i, (a, b) in enumerate(runs2)), key=max)
+                return {"mode": "pulse", "colors": [list(c)], "known": True}
 
     # 3.8) chase（双色追及，ADR-033 修订 3）：全帧全亮、全表恰两色、且并非每帧
     #      同色（同色帧≠渐变的全帧同色系）——gradient/flow/aurora 色数更多不会误入。

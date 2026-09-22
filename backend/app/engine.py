@@ -579,8 +579,11 @@ class Engine:
                 _send_all()
             raise TimeoutError("灯光写入校验不符（已重试）")
 
-    def led_apply_effect(self, mode, colors, brightness=None, period=None, source="ui"):
-        """效果展开 → 写灯表。基于真机读回的 bean 参数（版本/灯珠数/保留区），不硬编码。"""
+    def led_apply_effect(self, mode, colors, brightness=None, period=None, source="ui",
+                         params=None):
+        """效果展开 → 写灯表。基于真机读回的 bean 参数（版本/灯珠数/保留区），不硬编码。
+        params（ADR-034）：生成器 kwargs 透传（方向/拖尾/圆心/倍速等模板旋钮），
+        各 mode 只取自己认识的键（**kw 吞掉其余）。"""
         bean = self._led_bean or self.led_read_config(source=source)
         if not bean:
             raise RuntimeError("读不到灯表（设备不支持或未连接）")
@@ -588,29 +591,30 @@ class Engine:
         if isinstance(colors, tuple):
             colors = [colors]
         colors = [tuple(max(0, min(255, int(c))) for c in rgb) for rgb in colors] or [(255, 255, 255)]
-        frames = {"on": lambda: protocol.led_frames_solid(colors[0], rgb_num),
-                  "off": lambda: protocol.led_frames_solid((0, 0, 0), rgb_num),
-                  "breath": lambda: protocol.led_frames_breath(colors[0], rgb_num),
-                  "gradient": lambda: protocol.led_frames_gradient(colors, rgb_num),
-                  "flow": lambda: protocol.led_frames_flow(colors, rgb_num),
-                  "blink": lambda: protocol.led_frames_blink(colors[0], rgb_num),
-                  "heartbeat": lambda: protocol.led_frames_heartbeat(colors[0], rgb_num),
-                  "wipe": lambda: protocol.led_frames_wipe(colors, rgb_num),
-                  "comet": lambda: protocol.led_frames_comet(colors, rgb_num),
-                  "duosweep": lambda: protocol.led_frames_duosweep(colors, rgb_num),
-                  "rain": lambda: protocol.led_frames_rain(colors, rgb_num),
-                  "chase": lambda: protocol.led_frames_chase(colors, rgb_num),
-                  "pulse": lambda: protocol.led_frames_pulse(colors, rgb_num),
-                  "fire": lambda: protocol.led_frames_fire(colors, rgb_num),
-                  "auroraflow": lambda: protocol.led_frames_auroraflow(colors, rgb_num),
-                  "typewriter": lambda: protocol.led_frames_typewriter(colors, rgb_num),
-                  "rainbow": lambda: protocol.led_frames_rainbow(rgb_num),
-                  "hueflash": lambda: protocol.led_frames_hueflash(rgb_num),
-                  "aurora": lambda: protocol.led_frames_aurora(colors, rgb_num),
-                  "default": lambda: protocol.led_frames_solid(colors[0], rgb_num)}.get(mode)
-        if frames is None:
+        params = {k: v for k, v in (params or {}).items() if v is not None}
+        gen = {"on": lambda cn, cs, **kw: protocol.led_frames_solid(cs[0], cn),
+               "off": lambda cn, cs, **kw: protocol.led_frames_solid((0, 0, 0), cn),
+               "breath": lambda cn, cs, **kw: protocol.led_frames_breath(cs[0], cn),
+               "gradient": lambda cn, cs, **kw: protocol.led_frames_gradient(cs, cn),
+               "flow": lambda cn, cs, **kw: protocol.led_frames_flow(cs, cn),
+               "blink": lambda cn, cs, **kw: protocol.led_frames_blink(cs[0], cn),
+               "heartbeat": lambda cn, cs, **kw: protocol.led_frames_heartbeat(cs[0], cn),
+               "wipe": lambda cn, cs, **kw: protocol.led_frames_wipe(cs, cn),
+               "comet": lambda cn, cs, **kw: protocol.led_frames_comet(cs, cn, **kw),
+               "duosweep": lambda cn, cs, **kw: protocol.led_frames_duosweep(cs, cn, **kw),
+               "rain": lambda cn, cs, **kw: protocol.led_frames_rain(cs, cn, **kw),
+               "chase": lambda cn, cs, **kw: protocol.led_frames_chase(cs, cn, **kw),
+               "pulse": lambda cn, cs, **kw: protocol.led_frames_pulse(cs, cn, **kw),
+               "fire": lambda cn, cs, **kw: protocol.led_frames_fire(cs, cn),
+               "auroraflow": lambda cn, cs, **kw: protocol.led_frames_auroraflow(cs, cn),
+               "typewriter": lambda cn, cs, **kw: protocol.led_frames_typewriter(cs, cn),
+               "rainbow": lambda cn, cs, **kw: protocol.led_frames_rainbow(cn),
+               "hueflash": lambda cn, cs, **kw: protocol.led_frames_hueflash(cn),
+               "aurora": lambda cn, cs, **kw: protocol.led_frames_aurora(cs, cn),
+               "default": lambda cn, cs, **kw: protocol.led_frames_solid(cs[0], cn)}.get(mode)
+        if gen is None:
             raise ValueError("mode")
-        frames_b = frames()
+        frames_b = gen(rgb_num, colors, **params)
         n_frames = len(frames_b) // (rgb_num * 3)
         bean = dict(bean)
         bean["led_mode"] = 0 if mode == "off" else 1
