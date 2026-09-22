@@ -1,8 +1,7 @@
-// 手柄测试页：中央是可交互手柄示意图——物理按压/摇杆/扳机实时映射到图上对应位置，
-// 直观对照。数据源：Gamepad API（标准输入接口，60fps）+ 后端 0xEF 拓展键事件。
-// 震动测试走自家 vendor 通道 (/api/rumble)。
+// 实时手柄卡（原手柄测试页，2026-09-22 并入总览）：交互式手柄示意图——物理按压/摇杆/
+// 扳机实时映射到图上对应位置。数据源：Gamepad API（标准输入接口）+ 后端 0xEF 拓展键事件。
 import { useEffect, useMemo, useState } from 'react'
-import { Circle, Gamepad, Keyboard, Radio, Vibrate } from 'lucide-react'
+import { Gamepad, Keyboard, Radio } from 'lucide-react'
 import { api, type EngineEvent } from '../api'
 
 interface PadSnap {
@@ -188,7 +187,8 @@ const EXT_CHIP = [
   { key: 'M4', id: 'm4', pos: '背左下' },
 ]
 
-export default function PadTest({ events }: { events: EngineEvent[] }) {
+/** 总览页「实时手柄」卡：示意图 + 拓展键 + 特殊键监听 + 校准浮层（嵌入用） */
+export default function PadLiveCard({ events }: { events: EngineEvent[] }) {
   const pad = useGamepad()
 
   // 特殊键：后端两条监听通道的最新事件
@@ -214,22 +214,26 @@ export default function PadTest({ events }: { events: EngineEvent[] }) {
   const f2 = (v: number) => v.toFixed(2)
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      {!pad && (
-        <div className="card flex items-center gap-3 p-5 text-[13px] text-text-mid">
-          <Gamepad size={18} className="text-text-low" />
-          未检测到游戏控制器——手柄开机/重插一次
-        </div>
-      )}
-
-      {/* 主示意：所有输入实时映射到图上 */}
+    <div className="space-y-4">
       <div className="card p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[13px] font-medium text-text-hi">
-            <Gamepad size={14} className="text-accent" /> 实时示意
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <div className="flex items-center gap-2 text-[12px] text-text-mid">
+            <Gamepad size={14} className="text-accent" /> 实时手柄
           </div>
-          <div className="truncate font-mono text-[11px] text-text-low">
-            {pad ? pad.id : '等待手柄…'}
+          {/* 拓展键迷你章 */}
+          <div className="flex gap-1.5">
+            {EXT_CHIP.map(({ key, id }) => {
+              const on = extKeysNow.has(id)
+              return (
+                <span key={id} className={`rounded px-1.5 py-0.5 font-mono text-[10px] transition-all ${
+                  on ? 'bg-accent/20 text-accent shadow-[0_0_10px_rgba(34,211,238,.35)]' : 'bg-white/5 text-text-low'}`}>
+                  {key}
+                </span>
+              )
+            })}
+          </div>
+          <div className="ml-auto truncate font-mono text-[11px] text-text-low">
+            {pad ? pad.id : '未检测到游戏控制器——手柄开机/重插一次'}
           </div>
         </div>
         <PadDiagram pad={pad} extNow={extKeysNow} />
@@ -240,54 +244,11 @@ export default function PadTest({ events }: { events: EngineEvent[] }) {
           <div>LT <span className="text-accent">{((pad?.buttons[6]?.value ?? 0) * 100).toFixed(0)}%</span></div>
           <div>RT <span className="text-accent">{((pad?.buttons[7]?.value ?? 0) * 100).toFixed(0)}%</span></div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* 拓展键：示意图之外的补充（映射信息） */}
-        <div className="card p-4">
-          <div className="mb-3 text-[12px] text-text-mid">拓展键 · 0xEF 物理键位图直读</div>
-          <div className="flex flex-wrap gap-2">
-            {EXT_CHIP.map(({ key, id, pos }) => {
-              const on = extKeysNow.has(id)
-              return (
-                <div key={id}
-                  className={`flex h-12 w-14 flex-col items-center justify-center rounded-lg border-2 transition-all ${
-                    on ? 'border-accent bg-accent/20 text-accent shadow-[0_0_14px_rgba(34,211,238,.35)]'
-                      : 'border-border-soft bg-[#161622] text-text-mid'}`}>
-                  <span className="font-mono text-[12px]">{key}</span>
-                  <span className="text-[9px] text-text-low">{pos}</span>
-                </div>
-              )
-            })}
+        {keyMap && (
+          <div className="mt-2 font-mono text-[11px] text-text-low">
+            拓展键固件映射：{keyMap.map(k => `${k.name.toUpperCase()}→${k.target_name}`).join('  ')}
           </div>
-          {keyMap && (
-            <div className="mt-3 font-mono text-[11px] text-text-low">
-              固件映射：{keyMap.map(k => `${k.name.toUpperCase()}→${k.target_name}`).join('  ')}
-            </div>
-          )}
-        </div>
-
-        {/* 震动测试 */}
-        <div className="card p-4">
-          <div className="mb-3 text-[12px] text-text-mid">震动测试 · vendor 通道</div>
-          <div className="flex flex-wrap gap-2">
-            <button className="btn justify-center" onClick={() => api.rumble(200, 200, 0.3).catch(() => {})}>
-              <Vibrate size={13} /> 双震 0.3s
-            </button>
-            <button className="btn justify-center" onClick={() => api.rumble(500, 0, 0.4).catch(() => {})} title="只有左马达（低频）">
-              <Vibrate size={13} /> 左重
-            </button>
-            <button className="btn justify-center" onClick={() => api.rumble(0, 500, 0.4).catch(() => {})} title="只有右马达（高频）">
-              <Vibrate size={13} /> 右轻
-            </button>
-            <button className="btn justify-center" onClick={() => api.sine(2, 4, 220).catch(() => {})}>
-              <Circle size={13} /> 正弦 2s
-            </button>
-          </div>
-          <div className="mt-3 text-[11px] text-text-low">
-            两条通道都正常 = 手柄双接口健康（标准输入走系统接口，震动走 vendor 协议通道）。
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 特殊键监听 */}

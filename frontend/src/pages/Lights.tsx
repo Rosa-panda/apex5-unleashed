@@ -1,69 +1,99 @@
-// 灯光工坊（ADR-018）：捏人式体验——所有改动自动写入（防抖 650ms + 串行队列），
-// 大号手柄实时预览灯效（rAF 逐灯珠上色，与真机同款帧算法），右边风格库一键换装。
-// 写入协议不变：效果 PC 侧展开 → 0xA8/0xA9 写入 → 读回自校验。
+// 灯光工坊（ADR-018）：统一灯效库——风格库就是灯效选择器，点卡片换灯效；
+// 任何手动改色/改参自动转入「自定义」（不动原预设），650ms 防抖自动写灯表。
+// 预览算法与后端帧生成器同思路（gradient=整条过渡 / flow=空间相位流动 / …）。
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Dices, Loader2, Moon, RotateCcw, TriangleAlert } from 'lucide-react'
+import { Check, Dices, Loader2, RotateCcw, TriangleAlert } from 'lucide-react'
 import { api, type LedBean } from '../api'
 
-type Mode = 'off' | 'on' | 'breath' | 'gradient' | 'flow'
+type Mode = 'off' | 'on' | 'breath' | 'gradient' | 'flow' | 'blink' | 'heartbeat' | 'wipe' | 'rainbow' | 'aurora'
 
-const MODES: Array<{ id: Mode; label: string; minColors: number }> = [
-  { id: 'off', label: '熄灯', minColors: 0 },
-  { id: 'on', label: '常亮', minColors: 1 },
-  { id: 'breath', label: '呼吸', minColors: 1 },
-  { id: 'gradient', label: '渐变', minColors: 2 },
-  { id: 'flow', label: '流光', minColors: 1 },
+interface Style { id: string; name: string; mode: Mode; colors: number[][]; period?: number }
+
+/** 灯效库：mode 由卡片决定，颜色可自定义（编辑后转入「自定义」卡，原预设不动） */
+const LIB: Style[] = [
+  { id: 'ice', name: '冰蓝常亮', mode: 'on', colors: [[0, 170, 255]] },
+  { id: 'red-breath', name: '红色呼吸', mode: 'breath', colors: [[255, 30, 30]] },
+  { id: 'mint-breath', name: '薄荷呼吸', mode: 'breath', colors: [[60, 255, 180]] },
+  { id: 'alert', name: '闪烁警报', mode: 'blink', colors: [[255, 20, 20]] },
+  { id: 'heart', name: '心动', mode: 'heartbeat', colors: [[255, 40, 90]] },
+  { id: 'cyber', name: '赛博渐变', mode: 'gradient', colors: [[255, 0, 200], [0, 220, 255]] },
+  { id: 'sunset', name: '日落渐变', mode: 'gradient', colors: [[255, 120, 0], [255, 40, 80], [180, 0, 220]] },
+  { id: 'aurora', name: '极光', mode: 'aurora', colors: [[0, 255, 140], [0, 120, 255], [160, 0, 255]] },
+  { id: 'rainbow', name: '彩虹循环', mode: 'rainbow', colors: [[255, 0, 0]] },
+  { id: 'wipe', name: '扫描', mode: 'wipe', colors: [[0, 170, 255]] },
+  { id: 'flow', name: '彩虹流光', mode: 'flow', colors: [[255, 0, 0], [255, 200, 0], [0, 255, 60], [0, 200, 255], [120, 0, 255]] },
+  { id: 'police', name: '警灯流光', mode: 'flow', colors: [[255, 20, 20], [20, 80, 255]], period: 4 },
 ]
 
-const PRESETS: Array<{ name: string; colors: number[][]; mode: Mode; period?: number }> = [
-  { name: '冰蓝常亮', colors: [[0, 170, 255]], mode: 'on' },
-  { name: '红色呼吸', colors: [[255, 30, 30]], mode: 'breath' },
-  { name: '赛博渐变', colors: [[255, 0, 200], [0, 220, 255]], mode: 'gradient' },
-  { name: '极光', colors: [[0, 255, 140], [0, 120, 255], [160, 0, 255]], mode: 'gradient' },
-  { name: '日落', colors: [[255, 120, 0], [255, 40, 80], [180, 0, 220]], mode: 'gradient' },
-  { name: '彩虹流光', colors: [[255, 0, 0], [255, 200, 0], [0, 255, 60], [0, 200, 255], [120, 0, 255]], mode: 'flow' },
-  { name: '警灯', colors: [[255, 20, 20], [20, 80, 255]], mode: 'flow', period: 4 },
-  { name: '薄荷呼吸', colors: [[60, 255, 180]], mode: 'breath' },
-]
+/** 编辑态样式（排在库最前）：改色/改参自动转入，原预设永远不被污染 */
+const CUSTOM: Style = { id: 'custom', name: '自定义', mode: 'breath', colors: [[0, 170, 255]] }
+const OFF_STYLE: Style = { id: 'off', name: '熄灯', mode: 'off', colors: [] }
 
-// ---- 颜色工具 ----
-const hex = (c: number[]) => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('')
-const lerp = (a: number, b: number, u: number) => a + (b - a) * u
+// ---- 颜色工具（与后端帧生成器同思路：线性插值） ----
+const hex = (c: number[]) => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')
+const mix = (a: number[], b: number[], f: number) => [0, 1, 2].map(k => a[k] + (b[k] - a[k]) * f)
 
-/** 循环调色板采样：u∈[0,1) 在首尾相接的色环上取色（渐变/流光共用） */
+/** 循环调色板采样：u∈[0,1) 在首尾相接的色环上线性取色 */
 function samplePalette(stops: number[][], u: number): number[] {
   const n = stops.length
   if (n === 0) return [255, 255, 255]
   if (n === 1) return stops[0]
-  const x = ((u % 1) + 1) % 1 * n
-  const i = Math.floor(x) % n
-  const j = (i + 1) % n
-  const f = x - Math.floor(x)
-  // 平滑缓动让相邻色过渡更"高级"（捏人预览质感的关键之一）
-  const s = f * f * (3 - 2 * f)
-  return [lerp(stops[i][0], stops[j][0], s), lerp(stops[i][1], stops[j][1], s), lerp(stops[i][2], stops[j][2], s)]
+  const x = (((u % 1) + 1) % 1) * n
+  const j = Math.floor(x) % n
+  return mix(stops[j], stops[(j + 1) % n], x - Math.floor(x))
 }
 
-/** 灯珠颜色帧算法：与真机效果同思路（呼吸正弦 / 渐变环采样 / 流光彗尾），t 为归一化周期相位 */
+/** 灯珠颜色帧算法（镜像后端 protocol.led_frames_*）：t 为归一化循环相位 */
 function ledColor(mode: Mode, stops: number[][], idx: number, n: number, t: number): number[] {
   if (mode === 'off' || stops.length === 0) return [0, 0, 0]
-  if (mode === 'on') return stops[0]
-  if (mode === 'breath') {
-    const k = 0.5 - 0.5 * Math.cos(t * Math.PI * 2)      // 0→1→0 余弦呼吸
-    const s = 0.12 + 0.88 * k                            // 底亮 12%，不真灭（和"熄灯"区分）
-    return stops[0].map(v => v * s)
+  switch (mode) {
+    case 'on':
+      return stops[0]
+    case 'breath': {                       // 线性 ramp 0→1→0（真机 16 帧同款）
+      const tri = t < 0.5 ? t * 2 : 2 - t * 2
+      const s = 0.06 + 0.94 * tri
+      return stops[0].map(v => v * s)
+    }
+    case 'gradient':                       // 整条同色，随时间在调色板间过渡
+      return samplePalette(stops, t)
+    case 'flow': {                         // 色相沿灯珠空间分布，随帧平移
+      const m = stops.length
+      const u = (idx / n + t) % 1 * m
+      const j = Math.floor(u) % m
+      return mix(stops[j], stops[(j + 1) % m], u - Math.floor(u))
+    }
+    case 'blink':                          // 4 帧亮灭方波
+      return Math.floor(t * 4) % 2 === 0 ? stops[0] : [0, 0, 0]
+    case 'heartbeat': {                    // 双峰包络（12 帧）
+      const env = [0, 1, 0.55, 0, 0, 0.6, 0.3, 0, 0, 0, 0, 0]
+      const k = env[Math.min(11, Math.floor(t * 12))]
+      return stops[0].map(v => v * k)
+    }
+    case 'wipe': {                         // 逐珠点亮→逐珠熄灭
+      const head = t < 0.5 ? t * 2 * n : (1 - (t - 0.5) * 2) * n
+      return idx < head ? stops[0] : [0, 0, 0]
+    }
+    case 'rainbow':
+      return hslToRgb(((idx / n) + t) % 1 * 360, 1, 0.55)
+    case 'aurora': {                       // 空间渐变流动 + 全局正弦明暗
+      const m = Math.max(2, stops.length)
+      const u = (idx / n + t) % 1 * m
+      const j = Math.floor(u) % m
+      const glow = 0.55 + 0.45 * Math.sin(t * Math.PI * 2)
+      return mix(stops[j], stops[(j + 1) % m], u - Math.floor(u)).map(v => v * glow)
+    }
+    default:
+      return stops[0]
   }
-  if (mode === 'gradient') {
-    const drift = t * 0.15                               // 整条色带缓慢流动
-    return samplePalette(stops, idx / Math.max(1, n - 1) + drift)
+}
+
+function hslToRgb(h: number, s: number, l: number): number[] {
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12
+    const a = s * Math.min(l, 1 - l)
+    return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))))
   }
-  // flow：彗尾扫过，头亮尾暗
-  const head = t * n
-  const d = ((idx - head) % n + n) % n                   // 落后头的距离
-  const tail = Math.max(3, n * 0.55)
-  const fade = d < tail ? 1 - d / tail : 0
-  const c = samplePalette(stops, idx / n)
-  return c.map(v => v * (0.08 + 0.92 * fade * fade))
+  return [f(0), f(8), f(4)]
 }
 
 // ---- 实时预览：大号手柄 + rgb_num 颗灯珠逐帧上色 ----
@@ -72,12 +102,12 @@ function PadPreview({ mode, colors, brightness, period, rgbNum }: {
 }) {
   const [t, setT] = useState(0)
   useEffect(() => {
-    // 周期映射：真机"帧距"1-60 → 预览 0.8s~6s 一循环；熄灯/常亮不用跑动画
-    const dur = Math.max(0.8, period * 0.1)
+    // 周期映射：真机"帧距"1-60 → 预览 0.8s~6s 一循环
+    const dur = Math.max(0.8, period * 0.1) * (mode === 'blink' ? 0.5 : 1)
     let raf = 0
     let last = 0
     const tick = (now: number) => {
-      if (now - last > 33) {                             // ~30fps 足够，省电
+      if (now - last > 33) {                             // ~30fps 足够
         last = now
         setT((now / 1000 / dur) % 1)
       }
@@ -85,37 +115,30 @@ function PadPreview({ mode, colors, brightness, period, rgbNum }: {
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [period])
+  }, [period, mode])
 
   const lit = mode !== 'off'
   const glow = lit ? 0.25 + 0.75 * (brightness / 255) : 0
   const dots = useMemo(() => Array.from({ length: rgbNum }, (_, i) => {
-    // 灯珠排布：沿手柄下缘从左握把→右握把的弧线（真机物理位置未知，示意等价）
     const u = i / Math.max(1, rgbNum - 1)
-    const x = 90 + u * 180
-    const y = 118 + Math.sin(u * Math.PI) * 16
-    return { x, y }
+    return { x: 90 + u * 180, y: 118 + Math.sin(u * Math.PI) * 16 }
   }), [rgbNum])
 
   return (
     <div className="relative flex items-center justify-center overflow-hidden rounded-xl border border-border-soft bg-[#0a0a12] p-2">
-      {/* 环境光晕：跟着主色走，这是"花里胡哨"的氛围底 */}
       <div className="pointer-events-none absolute inset-0 transition-colors duration-500"
-        style={{ background: `radial-gradient(ellipse 70% 60% at 50% 65%, rgba(${colors[0]?.join(',') ?? '0,170,255'},${0.16 * glow}), transparent 70%)` }} />
+        style={{ background: `radial-gradient(ellipse 70% 60% at 50% 65%, rgba(${(colors[0] ?? [0, 170, 255]).map(Math.round).join(',')},${0.16 * glow}), transparent 70%)` }} />
       <svg viewBox="0 0 360 170" className="relative w-full max-w-md">
-        {/* 手柄轮廓 */}
         <g fill="#101018" stroke="#23233a" strokeWidth="2">
           <rect x="70" y="52" width="220" height="52" rx="26" />
           <ellipse cx="86" cy="98" rx="42" ry="46" />
           <ellipse cx="274" cy="98" rx="42" ry="46" />
         </g>
-        {/* 摇杆/按键示意（深色浮雕，不抢灯珠戏） */}
         <circle cx="86" cy="98" r="16" fill="#161624" stroke="#23233a" />
         <circle cx="274" cy="98" r="16" fill="#161624" stroke="#23233a" />
         {[[196, 66], [212, 60], [228, 66], [212, 76]].map(([x, y], i) => (
           <circle key={i} cx={x} cy={y} r="5" fill="#161624" stroke="#23233a" />
         ))}
-        {/* 灯珠：逐帧上色 + 辉光随亮度 */}
         {dots.map((d, i) => {
           const c = ledColor(mode, colors, i, rgbNum, t)
           const a = Math.max(...c) / 255
@@ -130,7 +153,7 @@ function PadPreview({ mode, colors, brightness, period, rgbNum }: {
   )
 }
 
-/** 风格卡迷你预览：4fps 自走帧（低频 interval，8 张卡也不费电），预览同款帧算法 */
+/** 风格卡迷你预览：4fps 自走帧，预览同款帧算法 */
 function MiniStrip({ mode, colors }: { mode: Mode; colors: number[][] }) {
   const [t, setT] = useState(0)
   useEffect(() => {
@@ -151,14 +174,15 @@ type Sync = 'idle' | 'queued' | 'writing' | 'ok' | 'err'
 
 export default function Lights() {
   const [bean, setBean] = useState<LedBean | null>(null)
+  const [styleId, setStyleId] = useState('red-breath')
   const [mode, setMode] = useState<Mode>('breath')
-  const [colors, setColors] = useState<number[][]>([[0, 170, 255]])
+  const [colors, setColors] = useState<number[][]>([[255, 30, 30]])
   const [brightness, setBrightness] = useState(128)
   const [period, setPeriod] = useState(10)
   const [sync, setSync] = useState<Sync>('idle')
   const [syncMsg, setSyncMsg] = useState('')
 
-  // ---- 自动写入引擎：650ms 防抖 + 串行队列（写一次 ~1-2s，绝不能并发打手柄） ----
+  // ---- 自动写入引擎：650ms 防抖 + 串行队列（写一次 ~1-2s，绝不并发打手柄） ----
   const touched = useRef(false)          // 首次进页不回写：状态以设备为准
   const timer = useRef(0)
   const writing = useRef(false)
@@ -166,12 +190,11 @@ export default function Lights() {
   const refresh = () => api.ledConfig().then(r => setBean(r.bean)).catch(() => {})
   useEffect(() => { refresh() }, [])
 
-  const spec = MODES.find(m => m.id === mode)!
-  const ready = spec.minColors === 0 || colors.length >= spec.minColors
-
   const runSync = async () => {
     if (writing.current) { scheduleSync(); return }      // 写盘中又改了 → 写完再补一轮
-    if (!ready) { setSync('idle'); return }
+    if (mode !== 'off' && mode !== 'rainbow' && colors.length < (mode === 'gradient' ? 2 : 1)) {
+      setSync('idle'); return
+    }
     writing.current = true
     setSync('writing')
     try {
@@ -192,28 +215,35 @@ export default function Lights() {
   }
   useEffect(() => { scheduleSync() }, [mode, colors, brightness, period])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---- 交互：任何改动都标记 touched（首次加载的 useEffect 不触发回写） ----
-  const change = (fn: () => void) => { touched.current = true; fn() }
-  const applyStyle = (m: Mode, cs: number[][], p?: number) => change(() => {
-    setMode(m); setColors(cs); if (p) setPeriod(p)
-  })
-  const setColor = (i: number, v: string) => change(() => {
+  // ---- 交互 ----
+  const pickStyle = (s: Style) => {                      // 选库内灯效：整套上身
+    touched.current = true
+    setStyleId(s.id); setMode(s.mode); setColors(s.colors)
+    if (s.period) setPeriod(s.period)
+  }
+  const edit = (fn: () => void) => {                     // 手动改任何东西 → 转自定义
+    touched.current = true
+    fn()
+    setStyleId('custom')
+  }
+  const setColor = (i: number, v: string) => edit(() => {
     const rgb = [parseInt(v.slice(1, 3), 16), parseInt(v.slice(3, 5), 16), parseInt(v.slice(5, 7), 16)]
     setColors(cs => cs.map((c, j) => (j === i ? rgb : c)))
   })
-  const randomStyle = () => change(() => {
-    // 随机配色：主色随机 + 谐和色相偏移（捏人"随机外观"的同款快乐）
+  const addColor = () => edit(() => setColors(cs => [...cs, [255, 255, 255]]))
+  const delColor = () => edit(() => setColors(cs => cs.slice(0, -1)))
+  const randomStyle = () => edit(() => {
     const h = Math.random() * 360
     const mk = (dh: number, s: number, l: number) => hslToRgb((h + dh + 360) % 360, s, l)
-    const cs = [mk(0, 0.85, 0.55), mk(140, 0.8, 0.5), mk(220, 0.85, 0.6)]
-    setMode('gradient'); setColors(cs)
+    setMode('aurora')
+    setColors([mk(0, 0.85, 0.55), mk(140, 0.8, 0.5), mk(220, 0.85, 0.6)])
   })
   const restore = async () => {
     setSync('writing')
     try { await api.ledRestore(); setSync('ok'); refresh() } catch (e) { setSync('err'); setSyncMsg((e as Error).message) }
   }
 
-  const SYNC_UI: Record<Sync, { text: string; cls: string; icon?: React.ReactNode }> = {
+  const SYNC_UI: Record<Sync, { text: string; cls: string }> = {
     idle: { text: '待机', cls: 'border-border-soft bg-white/5 text-text-low' },
     queued: { text: '等待改动停止…', cls: 'border-warn/40 bg-warn/10 text-warn' },
     writing: { text: '写入灯表…', cls: 'border-accent/40 bg-accent/10 text-accent' },
@@ -222,13 +252,19 @@ export default function Lights() {
   }
   const su = SYNC_UI[sync]
 
+  const needsColors = mode !== 'off' && mode !== 'rainbow'
+  const minColors = mode === 'gradient' ? 2 : 1
+  const curStyle = styleId === 'custom'
+    ? { ...CUSTOM, mode, colors: needsColors ? colors : [] }
+    : styleId === 'off' ? OFF_STYLE : LIB.find(s => s.id === styleId) ?? CUSTOM
+
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      {/* 顶栏：标题 + 同步状态（自动写入的灵魂是让用户随时知道同步到哪一步了） */}
+      {/* 顶栏：标题 + 同步状态 */}
       <div className="flex items-center justify-between">
         <div>
           <div className="text-[15px] font-semibold text-text-hi">灯光工坊</div>
-          <div className="text-[11px] text-text-low">改什么亮什么——所有调整自动写入手柄，不用点保存</div>
+          <div className="text-[11px] text-text-low">灯效库选款式，配色随便改——所有调整自动写入手柄</div>
         </div>
         <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] ${su.cls}`} data-sync={sync}>
           {sync === 'writing' && <Loader2 size={12} className="animate-spin" />}
@@ -239,38 +275,23 @@ export default function Lights() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
-        {/* 左：预览台 + 调参（捏人的"照镜子"区） */}
+        {/* 左：预览台 + 编辑器 */}
         <div className="space-y-4">
           <PadPreview mode={mode} colors={colors} brightness={brightness} period={period} rgbNum={bean?.rgb_num ?? 10} />
 
           <div className="card space-y-4 p-4">
-            {/* 模式 */}
             <div>
-              <div className="mb-2 text-[12px] text-text-mid">灯效模式</div>
-              <div className="flex flex-wrap gap-1.5">
-                {MODES.map(m => (
-                  <button key={m.id} onClick={() => change(() => setMode(m.id))}
-                    className={`rounded-lg border px-3 py-1.5 text-[12px] transition-all ${
-                      mode === m.id ? 'border-accent/50 bg-accent/15 text-accent' : 'border-transparent text-text-mid hover:bg-white/4'}`}>
-                    {m.label}
-                  </button>
-                ))}
+              <div className="mb-2 flex items-center gap-2 text-[12px] text-text-mid">
+                当前灯效
+                <span className="tag border-accent/40 text-accent">{curStyle.name}</span>
+                {styleId === 'custom' && <span className="text-[10px] text-text-low">（已基于预设修改）</span>}
               </div>
-              {spec.minColors > 1 && colors.length < spec.minColors && (
-                <div className="mt-1.5 text-[11px] text-warn">{spec.label}至少需要 {spec.minColors} 个颜色</div>
-              )}
-            </div>
 
-            {/* 配色槽位 */}
-            {mode !== 'off' && (
-              <div>
-                <div className="mb-2 flex items-center gap-2 text-[12px] text-text-mid">
-                  配色槽位
-                  <span className="text-text-low">（点色块改色，最多 5 格）</span>
-                </div>
+              {/* 配色槽位（彩虹不吃配色，藏起来防误导） */}
+              {needsColors ? (
                 <div className="flex flex-wrap items-center gap-2">
                   {colors.map((c, i) => (
-                    <label key={i} className="group relative h-11 w-11 cursor-pointer overflow-hidden rounded-xl border-2 border-white/15 transition-transform hover:scale-105"
+                    <label key={i} className="relative h-11 w-11 cursor-pointer overflow-hidden rounded-xl border-2 border-white/15 transition-transform hover:scale-105"
                       style={{ background: hex(c), boxShadow: `0 0 14px ${hex(c)}66` }}>
                       <input type="color" value={hex(c)} onChange={e => setColor(i, e.target.value)}
                         className="absolute inset-0 cursor-pointer opacity-0" />
@@ -278,31 +299,36 @@ export default function Lights() {
                   ))}
                   {colors.length < 5 && (
                     <button className="flex h-11 w-11 items-center justify-center rounded-xl border border-dashed border-border-soft text-text-low transition-colors hover:border-accent/50 hover:text-accent"
-                      onClick={() => change(() => setColors(cs => [...cs, [255, 255, 255]]))}>+</button>
+                      onClick={addColor}>+</button>
                   )}
                   {colors.length > 1 && (
                     <button className="flex h-11 w-11 items-center justify-center rounded-xl border border-dashed border-border-soft text-text-low transition-colors hover:border-err/50 hover:text-err"
-                      onClick={() => change(() => setColors(cs => cs.slice(0, -1)))}>-</button>
+                      onClick={delColor}>-</button>
                   )}
                   <button className="btn !px-3 !py-1.5 text-[12px]" onClick={randomStyle} title="随机一套谐和配色">
                     <Dices size={13} /> 随机
                   </button>
+                  {colors.length < minColors && <span className="text-[11px] text-warn">该灯效至少 {minColors} 色</span>}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-[11px] text-text-low">
+                  {mode === 'rainbow' ? '彩虹循环自带全色相环，不吃配色' : '熄灯状态——从右边灯效库挑一个点亮'}
+                </div>
+              )}
+            </div>
 
-            {/* 亮度 / 速度 */}
+            {/* 亮度 / 节奏 */}
             {mode !== 'off' && (
               <div className="grid grid-cols-2 gap-4">
                 <label className="text-[12px] text-text-mid">
                   亮度 <span className="font-mono text-accent">{brightness}</span>
                   <input type="range" min={1} max={255} value={brightness}
-                    onChange={e => change(() => setBrightness(+e.target.value))} className="mt-1 w-full accent-[#22d3ee]" />
+                    onChange={e => edit(() => setBrightness(+e.target.value))} className="mt-1 w-full accent-[#22d3ee]" />
                 </label>
                 <label className="text-[12px] text-text-mid">
                   节奏 <span className="font-mono text-accent">{period}</span>
                   <input type="range" min={1} max={60} value={period}
-                    onChange={e => change(() => setPeriod(+e.target.value))} className="mt-1 w-full accent-[#22d3ee]" />
+                    onChange={e => edit(() => setPeriod(+e.target.value))} className="mt-1 w-full accent-[#22d3ee]" />
                 </label>
               </div>
             )}
@@ -315,18 +341,32 @@ export default function Lights() {
           </div>
         </div>
 
-        {/* 右：风格库（捏人的"预设外观"区） */}
+        {/* 右：灯效库 + 设备操作 */}
         <div className="space-y-4">
           <div className="card p-4">
-            <div className="mb-3 text-[13px] font-medium">风格库</div>
+            <div className="mb-3 text-[13px] font-medium">灯效库</div>
             <div className="grid grid-cols-2 gap-2">
-              {PRESETS.map(p => (
-                <button key={p.name} onClick={() => applyStyle(p.mode, p.colors, p.period)}
-                  className={`group rounded-lg border p-2 text-left transition-all hover:border-accent/40 ${
-                    mode === p.mode && hex(colors[0] ?? []) === hex(p.colors[0]) ? 'border-accent/50 bg-accent/10' : 'border-border-soft'}`}>
-                  {/* 迷你动画条：预览同款算法的小样 */}
-                  <MiniStrip mode={p.mode} colors={p.colors} />
-                  <div className="text-[11px] text-text-mid group-hover:text-text-hi">{p.name}</div>
+              {/* 自定义卡（编辑态实时预览） */}
+              <button onClick={() => { }}
+                className={`rounded-lg border p-2 text-left transition-all ${
+                  styleId === 'custom' ? 'border-accent/50 bg-accent/10' : 'border-border-soft'}`}
+                title="在左边改配色/参数后自动进入这里">
+                <MiniStrip mode={curStyle.mode} colors={needsColors ? colors : []} />
+                <div className={`text-[11px] ${styleId === 'custom' ? 'text-accent' : 'text-text-mid'}`}>自定义</div>
+              </button>
+              {/* 熄灯卡 */}
+              <button onClick={() => pickStyle(OFF_STYLE)}
+                className={`rounded-lg border p-2 text-left transition-all hover:border-warn/40 ${
+                  styleId === 'off' ? 'border-warn/50 bg-warn/10' : 'border-border-soft'}`}>
+                <MiniStrip mode="off" colors={[]} />
+                <div className="text-[11px] text-text-mid">熄灯</div>
+              </button>
+              {LIB.map(s => (
+                <button key={s.id} onClick={() => pickStyle(s)}
+                  className={`rounded-lg border p-2 text-left transition-all hover:border-accent/40 ${
+                    styleId === s.id ? 'border-accent/50 bg-accent/10' : 'border-border-soft'}`}>
+                  <MiniStrip mode={s.mode} colors={s.colors} />
+                  <div className={`text-[11px] ${styleId === s.id ? 'text-accent' : 'text-text-mid'}`}>{s.name}</div>
                 </button>
               ))}
             </div>
@@ -334,11 +374,6 @@ export default function Lights() {
 
           <div className="card space-y-2 p-4">
             <div className="text-[13px] font-medium">设备操作</div>
-            <button onClick={() => applyStyle('off', [])}
-              className="btn w-full justify-center border-warn/50 text-warn"
-              title="灯表写全黑，整柄熄灯；想开回来选任意模式即可">
-              <Moon size={13} /> 一键熄灯
-            </button>
             <button onClick={restore} className="btn w-full justify-center" title="写回备份的灯表（官方彩虹等）">
               <RotateCcw size={13} /> 恢复官方灯表
             </button>
@@ -350,14 +385,4 @@ export default function Lights() {
       </div>
     </div>
   )
-}
-
-// HSL→RGB（随机配色用）
-function hslToRgb(h: number, s: number, l: number): number[] {
-  const f = (n: number) => {
-    const k = (n + h / 30) % 12
-    const a = s * Math.min(l, 1 - l)
-    return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))))
-  }
-  return [f(0), f(8), f(4)]
 }

@@ -590,6 +590,11 @@ class Engine:
                   "breath": lambda: protocol.led_frames_breath(colors[0], rgb_num),
                   "gradient": lambda: protocol.led_frames_gradient(colors, rgb_num),
                   "flow": lambda: protocol.led_frames_flow(colors, rgb_num),
+                  "blink": lambda: protocol.led_frames_blink(colors[0], rgb_num),
+                  "heartbeat": lambda: protocol.led_frames_heartbeat(colors[0], rgb_num),
+                  "wipe": lambda: protocol.led_frames_wipe(colors, rgb_num),
+                  "rainbow": lambda: protocol.led_frames_rainbow(rgb_num),
+                  "aurora": lambda: protocol.led_frames_aurora(colors, rgb_num),
                   "default": lambda: protocol.led_frames_solid(colors[0], rgb_num)}.get(mode)
         if frames is None:
             raise ValueError("mode")

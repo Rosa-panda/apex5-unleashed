@@ -1,4 +1,6 @@
 # 协议层：帧构造/解析。规范见 docs/PROTOCOL.md（实机验证 + 官方 SDK 交叉确认）
+import math
+
 VID, PID = 0x37D7, 0x2501
 USAGE_PAGE_VENDOR = 0xFFA0
 REPORT_ID_OUT = 0x03
@@ -205,5 +207,76 @@ def led_frames_flow(colors, rgb_num, steps=16):
             c0, c1 = colors[j % n], colors[(j + 1) % n]
             rgb = tuple(round(c0[k] + (c1[k] - c0[k]) * f) for k in range(3))
             frame.extend(rgb)
+        out.extend(frame)
+    return bytes(out)
+
+
+def _hsv_to_rgb(h, s, v):
+    """h∈[0,360) s/v∈[0,1] → (r,g,b) 0-255（彩虹灯效用）。"""
+    c = v * s
+    x = c * (1 - abs((h / 60) % 2 - 1))
+    m = v - c
+    seg = int(h // 60) % 6
+    rp = [(c, x, 0), (x, c, 0), (0, c, x), (0, x, c), (x, 0, c), (c, 0, x)][seg]
+    return tuple(round((ch + m) * 255) for ch in rp)
+
+
+def led_frames_blink(rgb, rgb_num, repeats=2):
+    """闪烁：亮/灭方波（帧数少，节奏由 loop_time 控制）。"""
+    on = bytearray(list(rgb) * rgb_num)
+    off = bytearray(rgb_num * 3)
+    return bytes((on + off) * max(1, repeats))
+
+
+def led_frames_heartbeat(rgb, rgb_num):
+    """心跳：强搏-歇-弱搏-长歇的双峰包络（12 帧）。"""
+    env = (0.0, 1.0, 0.55, 0.0, 0.0, 0.6, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0)
+    out = bytearray()
+    for k in env:
+        frame = bytearray()
+        for _ in range(rgb_num):
+            frame.extend(round(c * k) for c in rgb)
+        out.extend(frame)
+    return bytes(out)
+
+
+def led_frames_wipe(colors, rgb_num):
+    """扫描：逐珠点亮到全亮再逐珠熄灭（2×rgb_num 帧）。"""
+    c = tuple(colors[0])
+    fill = []
+    for k in range(rgb_num):
+        frame = bytearray()
+        for i in range(rgb_num):
+            frame.extend(c if i <= k else (0, 0, 0))
+        fill.append(bytes(frame))
+    return bytes(b"".join(fill + fill[::-1]))
+
+
+def led_frames_rainbow(rgb_num, steps=24, sat=1.0, val=0.55):
+    """彩虹循环：色相环沿灯珠分布并随帧旋转（不依赖 colors）。"""
+    out = bytearray()
+    for s in range(steps):
+        frame = bytearray()
+        for led in range(rgb_num):
+            h = ((led / rgb_num) + s / steps) % 1.0 * 360
+            frame.extend(_hsv_to_rgb(h, sat, val))
+        out.extend(frame)
+    return bytes(out)
+
+
+def led_frames_aurora(colors, rgb_num, steps=24):
+    """极光：空间多色渐变随帧缓慢流动 + 全局正弦明暗（呼吸感+流动感叠加）。"""
+    cs = [tuple(c) for c in (colors if len(colors) >= 2 else [(0, 255, 180), (60, 0, 255)])]
+    n = len(cs)
+    out = bytearray()
+    for s in range(steps):
+        glow = 0.55 + 0.45 * math.sin(s / steps * 2 * math.pi)
+        frame = bytearray()
+        for led in range(rgb_num):
+            t = ((led / rgb_num) + s / steps) % 1.0 * n
+            j = int(t) % n
+            f = t - int(t)
+            c0, c1 = cs[j], cs[(j + 1) % n]
+            frame.extend(round((c0[k] + (c1[k] - c0[k]) * f) * glow) for k in range(3))
         out.extend(frame)
     return bytes(out)

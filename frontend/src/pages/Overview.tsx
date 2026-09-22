@@ -6,7 +6,7 @@ import {
   ScrollText, Usb, Waves, Zap,
 } from 'lucide-react'
 import { api, type EngineEvent, type EngineSnapshot, type TriggerState } from '../api'
-import ScreenCard from './Screen'
+import PadLiveCard from './PadTest'
 
 const MODE_LABEL: Record<string, string> = {
   normal: 'Normal', race: 'Race 赛车', sniper: 'Sniper 狙击',
@@ -261,12 +261,20 @@ export default function Overview({ snap, events, onPanic }: {
               </div>
             ))}
           </div>
-          <div className="mt-3 flex gap-2 border-t border-border-soft pt-3">
-            <button className="btn flex-1 justify-center !py-1 text-[12px]" disabled={busy === 'pulse'}
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border-soft pt-3">
+            <button className="btn justify-center !py-1 text-[12px]" disabled={busy === 'pulse'}
               onClick={() => act('pulse', () => api.pulse(), '✓ 脉冲已发，手上有感')}>
               震动一下
             </button>
-            <button className="btn flex-1 justify-center !py-1 text-[12px]" disabled={busy === 'sine'}
+            <button className="btn justify-center !py-1 text-[12px]" disabled={busy === 'lheavy'} title="只有左马达（低频）"
+              onClick={() => act('lheavy', () => api.rumble(500, 0, 0.4), '✓ 左马达已测')}>
+              左重
+            </button>
+            <button className="btn justify-center !py-1 text-[12px]" disabled={busy === 'rlight'} title="只有右马达（高频）"
+              onClick={() => act('rlight', () => api.rumble(0, 500, 0.4), '✓ 右马达已测')}>
+              右轻
+            </button>
+            <button className="btn justify-center !py-1 text-[12px]" disabled={busy === 'sine'}
               onClick={() => act('sine', () => api.sine(2, 4, 180), '✓ 2s 扫频测试')}>
               扫频测试
             </button>
@@ -294,8 +302,8 @@ export default function Overview({ snap, events, onPanic }: {
         </span>
       </div>
 
-      {/* ---------- 手柄屏幕（原独立栏目并入，ADR-018 R4） ---------- */}
-      <ScreenCard events={events} online={online} />
+      {/* ---------- 实时手柄（原手柄测试页并入）：示意图 + 拓展键 + 特殊键监听 ---------- */}
+      <PadLiveCard events={events} />
 
       {/* ---------- 事件时间线 ---------- */}
       <div className="card p-5">
