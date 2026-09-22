@@ -48,16 +48,15 @@ assert len(grad) == 16 * 30
 flow = p.led_frames_flow([(255, 0, 0), (0, 0, 255)], 10)
 assert len(flow) == 16 * 30
 
-# 4b. comet（ADR-033）：无驻留帧——拖尾逐珠滑出右缘，末帧全黑，跨循环零残留
+# 4b. comet（ADR-033 修订）：逐珠点亮 1..n 共 n 帧，铺满即回表首——无排空半程、无重复帧
 comet = p.led_frames_comet([(0, 170, 255)], 12)
 n_c, cf = len(comet) // 36, 12 * 3
-assert n_c == 17, n_c                                    # rgb_num + tail=4 + 1
+assert n_c == 12, n_c
 frames_c = [comet[i * cf:(i + 1) * cf] for i in range(n_c)]
 lit_c = [sum(1 for j in range(12) if max(f[j * 3:j * 3 + 3]) > 0) for f in frames_c]
-assert lit_c[0] == 1 and max(lit_c) == 5, lit_c          # 光头+4 拖尾，永不全亮
-assert lit_c[-1] == 0, lit_c                             # 末帧全黑：无跨循环残留
-assert lit_c[-2] == 1                                    # 拖尾逐珠滑出，不是整体消失
-assert len(set(lit_c[:-1])) == 5                         # 表内亮珠数集合无重复驻留
+assert lit_c == list(range(1, 13)), lit_c                # 严格 1..n 单调递增
+assert frames_c[0] != frames_c[-1]                       # 首尾帧不同（无拼接重复）
+assert all(f[:3] == b"\x00\xaa\xff" for f in frames_c)   # 配色原样（无缩放）
 wipe = p.led_frames_wipe([(0, 170, 255)], 12)
 wf = [wipe[i * cf:(i + 1) * cf] for i in range(len(wipe) // cf)]
 lit_w = [sum(1 for j in range(12) if max(f[j * 3:j * 3 + 3]) > 0) for f in wf]

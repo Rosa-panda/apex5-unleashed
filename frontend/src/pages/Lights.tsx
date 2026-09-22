@@ -21,7 +21,7 @@ const LIB: Style[] = [
   { id: 'aurora', name: '极光', mode: 'aurora', colors: [[0, 255, 140], [0, 120, 255], [160, 0, 255]] },
   { id: 'rainbow', name: '彩虹循环', mode: 'rainbow', colors: [[255, 0, 0]] },
   { id: 'wipe', name: '扫描', mode: 'wipe', colors: [[0, 170, 255]] },
-  { id: 'comet', name: '扫描·掠过', mode: 'comet', colors: [[0, 170, 255]] },
+  { id: 'comet', name: '扫描·循环', mode: 'comet', colors: [[0, 170, 255]] },
   { id: 'flow', name: '极电流光', mode: 'flow', colors: [[0, 255, 255], [80, 0, 255]], period: 8 },
   { id: 'police', name: '警灯流光', mode: 'flow', colors: [[255, 20, 20], [20, 80, 255]], period: 4 },
 ]
@@ -33,7 +33,7 @@ const OFF_STYLE: Style = { id: 'off', name: '熄灯', mode: 'off', colors: [] }
 /** 各灯效的帧数（与 protocol.led_frames_* 生成器一致，预览按帧驱动） */
 const STEPS: Record<Mode, number> = {
   off: 1, on: 1, breath: 15, gradient: 16, flow: 16,
-  blink: 4, heartbeat: 12, wipe: 20, comet: 17, rainbow: 24, aurora: 24,
+  blink: 4, heartbeat: 12, wipe: 20, comet: 12, rainbow: 24, aurora: 24,
 }
 /** 帧距→毫秒换算（真机近似标定：官方彩虹 lt=4、循环 ~10 帧、目测 3~4s/圈 ≈ 100ms/单位） */
 const MS_PER_LT = 100
@@ -89,12 +89,9 @@ function ledColor(mode: Mode, stops: number[][], idx: number, n: number, t: numb
       const head = t < 0.5 ? t * 2 * n : (1 - (t - 0.5) * 2) * n
       return idx < head ? stops[0] : [0, 0, 0]
     }
-    case 'comet': {                        // 掠过扫描（ADR-033）：拖尾光头左→右掠出即全灭
-      const tail = 4
-      const p = t * (n + tail + 1)         // 光头位置，末帧全黑离场
-      const d = p - idx
-      return d < 0 || d > tail ? [0, 0, 0]
-        : stops[0].map(v => v * ((tail + 1 - d) / (tail + 1)))
+    case 'comet': {                        // 扫描·循环（ADR-033）：逐珠点亮，铺满即从头再来
+      const head = t * n
+      return idx < head ? stops[0] : [0, 0, 0]
     }
     case 'rainbow':
       return hslToRgb(((idx / n) + t) % 1 * 360, 1, 0.55)
@@ -129,7 +126,7 @@ function PadPreview({ mode, colors, brightness, period, rgbNum, frames, loopMs }
   // 预览播的就是设备会播的那串帧、那个节奏（不再自造"整圈固定时长"）。
   const steps = frames?.length
     ? frames.length
-    : mode === 'comet' ? Math.max(2, rgbNum + 5)
+    : mode === 'comet' ? Math.max(2, rgbNum)
     : mode === 'wipe' ? Math.max(2, rgbNum * 2) : STEPS[mode]
   useEffect(() => {
     const iv = frames?.length

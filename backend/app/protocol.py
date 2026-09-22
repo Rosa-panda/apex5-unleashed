@@ -254,22 +254,17 @@ def led_frames_wipe(colors, rgb_num):
     return bytes(b"".join(fill + fill[::-1]))
 
 
-def led_frames_comet(colors, rgb_num, tail=4):
-    """扫描·掠过（ADR-033，wipe 的修复复刻版）：带拖尾的光头从左扫到右并完全
-    掠出右缘，全灭后立即开下一轮。步数 = rgb_num + tail + 1：光尾逐珠滑出右缘，
-    末帧恰为全黑，跨循环无任何残留（wipe 的驻留光病灶在这里不存在）。"""
+def led_frames_comet(colors, rgb_num):
+    """扫描·循环（ADR-033 修订，wipe 的修复复刻版）：逐珠点亮，跑满整条灯带后
+    直接从头开始。帧序 = 亮 1,2,…,rgb_num 珠（n 帧），无排空半程、无重复驻留帧。
+    原版扫描（led_frames_wipe）跑满后倒序退光，且拼接点重复帧造成「右边留光
+    赖着不走才开下一轮」的观感——本版跑满瞬间回表首，零残留。"""
     c = tuple(colors[0])
-    steps = rgb_num + tail + 1
     out = bytearray()
-    for p in range(steps):                      # p=光头位置，>rgb_num+tail 段即离场
+    for k in range(rgb_num):
         frame = bytearray()
         for i in range(rgb_num):
-            d = p - i
-            if 0 <= d <= tail:                  # 光头全亮，向左线性衰减拖尾
-                s = (tail + 1 - d) / (tail + 1)
-                frame.extend(round(v * s) for v in c)
-            else:
-                frame.extend((0, 0, 0))
+            frame.extend(c if i <= k else (0, 0, 0))
         out.extend(frame)
     return bytes(out)
 
@@ -426,26 +421,16 @@ def led_identify(blob):
                 on = False
         return True
 
+    # 3) comet（扫描·循环，ADR-033）：全前缀帧且亮珠数恰为 1,2,…,n 帧数——
+    #    跑满即回表首循环。原版扫描（wipe）亮珠数会到 n 再退回（先增后减），
+    #    且必带倒序半程，由此区分；须先于 wipe 判定。
+    if all(is_prefix(f) for f in fr) and lit == list(range(1, len(fr) + 1)):
+        c = next(fr[i][0] for i, k in enumerate(lit) if k > 0)
+        return {"mode": "comet", "colors": [list(c)], "known": True}
+
     if all(is_prefix(f) for f in fr) and len(set(lit)) >= 3:
         c = next(fr[i][0] for i, k in enumerate(lit) if k > 0)
         return {"mode": "wipe", "colors": [list(c)], "known": True}
-
-    # 3.5) comet（扫描·掠过，ADR-033）：每帧亮珠是一段连续 run、起点随帧单调推进，
-    #      且存在全黑离场帧（光头掠出右缘）——wipe 永无全黑帧，flow 全帧全亮，
-    #      都不会误入此分支。
-    def _run_bounds(f):
-        on = [j for j, c in enumerate(f) if max(c) > 8]
-        if not on:
-            return None                       # 全黑帧
-        return (on[0], on[-1]) if on[-1] - on[0] + 1 == len(on) else ()   # ()=断裂
-
-    runs = [_run_bounds(f) for f in fr]
-    if () not in runs and any(r is None for r in runs):
-        seq = [r for r in runs if r is not None]
-        starts = [a for a, _ in seq]
-        if len(seq) >= 3 and all(x <= y for x, y in zip(starts, starts[1:])):
-            c = next(fr[i][r[1]] for i, r in enumerate(runs) if r is not None)   # r[1]=光头珠
-            return {"mode": "comet", "colors": [list(c)], "known": True}
 
     # 4) rainbow：每帧色相 ≈ (i/n)·360 + 相位（全色环匀速分布、明度固定不接近全黑）
     def rainbow_fit(f):
