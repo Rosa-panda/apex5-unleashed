@@ -229,6 +229,9 @@ export default function Overview({ snap, events, onPanic }: {
         </div>
       </div>
 
+      {/* ---------- 实时手柄（原手柄测试页并入）：示意图 + 拓展键 + 特殊键监听 ---------- */}
+      <PadLiveCard events={events} />
+
       {/* ---------- 扳机 + 震动实时状态 ---------- */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="card space-y-3 p-5 lg:col-span-2">
@@ -301,9 +304,6 @@ export default function Overview({ snap, events, onPanic }: {
           效果均为锁存式，软件退出前自动复位；异常强杀后下次连接自动清理
         </span>
       </div>
-
-      {/* ---------- 实时手柄（原手柄测试页并入）：示意图 + 拓展键 + 特殊键监听 ---------- */}
-      <PadLiveCard events={events} />
 
       {/* ---------- 事件时间线 ---------- */}
       <div className="card p-5">
