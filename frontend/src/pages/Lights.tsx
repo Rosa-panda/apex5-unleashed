@@ -29,6 +29,13 @@ const LIB: Style[] = [
 const CUSTOM: Style = { id: 'custom', name: '自定义', mode: 'breath', colors: [[0, 170, 255]] }
 const OFF_STYLE: Style = { id: 'off', name: '熄灯', mode: 'off', colors: [] }
 
+// 速度⇄帧距对数映射：设备帧距与感知速度是倒数关系，滑条线性分配会两头失真
+// （帧距 30→40 几乎没差别，50→60 直接从动到不动）。对数映射后每格感知均匀。
+const speedToLt = (v: number) =>
+  Math.max(1, Math.min(60, Math.round(Math.exp(Math.log(60) * (1 - (v - 1) / 59)))))
+const ltToSpeed = (lt: number) =>
+  Math.max(1, Math.min(60, Math.round(1 + 59 * (1 - Math.log(Math.max(1, lt)) / Math.log(60)))))
+
 // ---- 颜色工具（与后端帧生成器同思路：线性插值） ----
 const hex = (c: number[]) => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')
 const mix = (a: number[], b: number[], f: number) => [0, 1, 2].map(k => a[k] + (b[k] - a[k]) * f)
@@ -387,10 +394,10 @@ export default function Lights() {
                     onChange={e => edit(() => setBrightness(+e.target.value))} className="mt-1 w-full accent-[#22d3ee]" />
                 </label>
                 <label className="text-[12px] text-text-mid">
-                  速度 <span className="font-mono text-accent">{61 - period}</span>
+                  速度 <span className="font-mono text-accent">{ltToSpeed(period)}</span>
                   <span className="ml-1 text-[10px] text-text-low">右快左慢</span>
-                  <input type="range" min={1} max={60} value={61 - period}
-                    onChange={e => edit(() => setPeriod(61 - +e.target.value))} className="mt-1 w-full accent-[#22d3ee]" />
+                  <input type="range" min={1} max={60} value={ltToSpeed(period)}
+                    onChange={e => edit(() => setPeriod(speedToLt(+e.target.value)))} className="mt-1 w-full accent-[#22d3ee]" />
                 </label>
               </div>
             )}
