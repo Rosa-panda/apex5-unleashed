@@ -597,6 +597,7 @@ class Engine:
                   "heartbeat": lambda: protocol.led_frames_heartbeat(colors[0], rgb_num),
                   "wipe": lambda: protocol.led_frames_wipe(colors, rgb_num),
                   "comet": lambda: protocol.led_frames_comet(colors, rgb_num),
+                  "duosweep": lambda: protocol.led_frames_duosweep(colors, rgb_num),
                   "rainbow": lambda: protocol.led_frames_rainbow(rgb_num),
                   "aurora": lambda: protocol.led_frames_aurora(colors, rgb_num),
                   "default": lambda: protocol.led_frames_solid(colors[0], rgb_num)}.get(mode)

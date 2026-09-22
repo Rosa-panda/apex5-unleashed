@@ -68,7 +68,22 @@ blob_c = p.led_bean_header(b3, p.led_frames_comet([(0, 170, 255)], 16))
 d = p.led_identify(blob_c)
 assert d["mode"] == "comet" and d["known"] and d["colors"] == [[0, 170, 255]], d
 assert p.led_identify(p.led_bean_header(b2, p.led_frames_wipe([(0, 170, 255)], 10)))["mode"] == "wipe"
-print("4b/4c. comet expansion + identify OK")
+
+# 4d. duosweep（ADR-033 修订 2）：两色相向铺满，会合即重开
+duo = p.led_frames_duosweep([(0, 170, 255), (255, 0, 140)], 12)
+n_d = len(duo) // 36
+assert n_d == 6, n_d                                     # ceil(12/2)
+frames_d = [duo[i * 36:(i + 1) * 36] for i in range(n_d)]
+assert frames_d[0][0:3] == b"\x00\xaa\xff"               # 左端 A
+assert frames_d[0][-3:] == b"\xff\x00\x8c"               # 右端 B
+assert frames_d[0][3:33] == b"\x00" * 30                 # 首帧中缝全黑
+lit_d = [sum(1 for j in range(12) if max(f[j * 3:j * 3 + 3]) > 0) for f in frames_d]
+assert lit_d == [2, 4, 6, 8, 10, 12], lit_d              # 相向各 +1，末帧铺满
+assert frames_d[-1][:18] == b"\x00\xaa\xff" * 6          # 末帧左半 A
+assert frames_d[-1][18:] == b"\xff\x00\x8c" * 6          # 末帧右半 B
+d_duo = p.led_identify(p.led_bean_header(b3, p.led_frames_duosweep([(0, 170, 255), (255, 0, 140)], 16)))
+assert d_duo["mode"] == "duosweep" and d_duo["known"] and d_duo["colors"] == [[0, 170, 255], [255, 0, 140]], d_duo
+print("4b/4c/4d. comet+duosweep expansion + identify OK")
 
 # 5. blob 组装：20B 头（保持版本字节/保留区）+ 帧数据
 blob = p.led_bean_header(b2, solid)

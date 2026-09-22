@@ -269,6 +269,26 @@ def led_frames_comet(colors, rgb_num):
     return bytes(out)
 
 
+def led_frames_duosweep(colors, rgb_num):
+    """双色对扫（ADR-033 修订 2）：colors[0] 从左往右、colors[1] 从右往左相向
+    逐珠铺满，会合铺满瞬间从头再来。帧数 = ceil(rgb_num/2)，中缝相遇处左色优先。"""
+    ca = tuple(colors[0])
+    cb = tuple(colors[1 % len(colors)])
+    steps = (rgb_num + 1) // 2
+    out = bytearray()
+    for k in range(steps):
+        frame = bytearray()
+        for i in range(rgb_num):
+            if i <= k:                          # 左色向右推进
+                frame.extend(ca)
+            elif i >= rgb_num - 1 - k:          # 右色向左推进
+                frame.extend(cb)
+            else:
+                frame.extend((0, 0, 0))         # 中缝随帧收窄
+        out.extend(frame)
+    return bytes(out)
+
+
 def led_frames_rainbow(rgb_num, steps=24, sat=1.0, val=0.55):
     """彩虹循环：色相环沿灯珠分布并随帧旋转（不依赖 colors）。"""
     out = bytearray()
@@ -431,6 +451,27 @@ def led_identify(blob):
     if all(is_prefix(f) for f in fr) and len(set(lit)) >= 3:
         c = next(fr[i][0] for i, k in enumerate(lit) if k > 0)
         return {"mode": "wipe", "colors": [list(c)], "known": True}
+
+    # 3.5) duosweep（双色对扫，ADR-033 修订 2）：每帧两端同亮，左段一色右段另一色、
+    #      中缝随帧收窄至会合铺满——wipe 单端起扫、flow 全帧渐变过渡，均不会误入。
+    a0, b0 = fr[0][0], fr[0][-1]
+    if not _close_rgb(a0, b0, 10):
+        def is_duo(f):
+            on = [j for j, c in enumerate(f) if max(c) > 8]
+            if not on or on[0] != 0 or on[-1] != n - 1:
+                return False                   # 两端必须都亮
+            j = 0
+            while j < n and _close_rgb(f[j], a0, 30):
+                j += 1                          # 左段 = A 色
+            seen_b = False
+            for t in range(j, n):
+                if _close_rgb(f[t], b0, 30):
+                    seen_b = True               # 右段 = B 色（须连续贴右端）
+                elif any(f[t]) or seen_b:
+                    return False                # 中缝只许全黑，且不许在 B 段后再断
+            return True
+        if all(is_duo(f) for f in fr):
+            return {"mode": "duosweep", "colors": [list(a0), list(b0)], "known": True}
 
     # 4) rainbow：每帧色相 ≈ (i/n)·360 + 相位（全色环匀速分布、明度固定不接近全黑）
     def rainbow_fit(f):

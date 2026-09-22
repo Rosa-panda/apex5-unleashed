@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Dices, Loader2, RotateCcw, TriangleAlert } from 'lucide-react'
 import { api, type LedBean, type LedDetect } from '../api'
 
-type Mode = 'off' | 'on' | 'breath' | 'gradient' | 'flow' | 'blink' | 'heartbeat' | 'wipe' | 'comet' | 'rainbow' | 'aurora'
+type Mode = 'off' | 'on' | 'breath' | 'gradient' | 'flow' | 'blink' | 'heartbeat' | 'wipe' | 'comet' | 'duosweep' | 'rainbow' | 'aurora'
 
 interface Style { id: string; name: string; mode: Mode; colors: number[][]; period?: number }
 
@@ -14,16 +14,14 @@ const LIB: Style[] = [
   { id: 'ice', name: '冰蓝常亮', mode: 'on', colors: [[0, 170, 255]] },
   { id: 'red-breath', name: '红色呼吸', mode: 'breath', colors: [[255, 30, 30]] },
   { id: 'mint-breath', name: '薄荷呼吸', mode: 'breath', colors: [[60, 255, 180]] },
-  { id: 'alert', name: '闪烁警报', mode: 'blink', colors: [[255, 20, 20]] },
-  { id: 'heart', name: '心动', mode: 'heartbeat', colors: [[255, 40, 90]] },
   { id: 'cyber', name: '赛博渐变', mode: 'gradient', colors: [[255, 0, 200], [0, 220, 255]] },
   { id: 'sunset', name: '日落渐变', mode: 'gradient', colors: [[255, 120, 0], [255, 40, 80], [180, 0, 220]] },
   { id: 'aurora', name: '极光', mode: 'aurora', colors: [[0, 255, 140], [0, 120, 255], [160, 0, 255]] },
   { id: 'rainbow', name: '彩虹循环', mode: 'rainbow', colors: [[255, 0, 0]] },
   { id: 'wipe', name: '扫描', mode: 'wipe', colors: [[0, 170, 255]] },
   { id: 'comet', name: '扫描·循环', mode: 'comet', colors: [[0, 170, 255]] },
+  { id: 'duo', name: '双色对扫', mode: 'duosweep', colors: [[0, 170, 255], [255, 0, 140]] },
   { id: 'flow', name: '极电流光', mode: 'flow', colors: [[0, 255, 255], [80, 0, 255]], period: 8 },
-  { id: 'police', name: '警灯流光', mode: 'flow', colors: [[255, 20, 20], [20, 80, 255]], period: 4 },
 ]
 
 /** 编辑态样式（排在库最前）：改色/改参自动转入，原预设永远不被污染 */
@@ -33,7 +31,7 @@ const OFF_STYLE: Style = { id: 'off', name: '熄灯', mode: 'off', colors: [] }
 /** 各灯效的帧数（与 protocol.led_frames_* 生成器一致，预览按帧驱动） */
 const STEPS: Record<Mode, number> = {
   off: 1, on: 1, breath: 15, gradient: 16, flow: 16,
-  blink: 4, heartbeat: 12, wipe: 20, comet: 12, rainbow: 24, aurora: 24,
+  blink: 4, heartbeat: 12, wipe: 20, comet: 12, duosweep: 6, rainbow: 24, aurora: 24,
 }
 /** 帧距→毫秒换算（真机近似标定：官方彩虹 lt=4、循环 ~10 帧、目测 3~4s/圈 ≈ 100ms/单位） */
 const MS_PER_LT = 100
@@ -93,6 +91,12 @@ function ledColor(mode: Mode, stops: number[][], idx: number, n: number, t: numb
       const head = t * n
       return idx < head ? stops[0] : [0, 0, 0]
     }
+    case 'duosweep': {                     // 双色对扫（ADR-033 修订 2）：两色相向铺满即重开
+      const k = t * Math.ceil(n / 2)
+      if (idx <= k) return stops[0]
+      if (idx >= n - 1 - k) return stops[1 % stops.length]
+      return [0, 0, 0]
+    }
     case 'rainbow':
       return hslToRgb(((idx / n) + t) % 1 * 360, 1, 0.55)
     case 'aurora': {                       // 空间渐变流动 + 全局正弦明暗
@@ -127,6 +131,7 @@ function PadPreview({ mode, colors, brightness, period, rgbNum, frames, loopMs }
   const steps = frames?.length
     ? frames.length
     : mode === 'comet' ? Math.max(2, rgbNum)
+    : mode === 'duosweep' ? Math.max(2, Math.ceil(rgbNum / 2))
     : mode === 'wipe' ? Math.max(2, rgbNum * 2) : STEPS[mode]
   useEffect(() => {
     const iv = frames?.length
@@ -251,7 +256,8 @@ export default function Lights() {
 
   const runSync = async () => {
     if (writing.current) { scheduleSync(); return }      // 写盘中又改了 → 写完再补一轮
-    if (mode !== 'off' && mode !== 'rainbow' && colors.length < (mode === 'gradient' ? 2 : 1)) {
+    if (mode !== 'off' && mode !== 'rainbow' &&
+        colors.length < (mode === 'gradient' || mode === 'duosweep' ? 2 : 1)) {
       setSync('idle'); return
     }
     writing.current = true
@@ -319,6 +325,7 @@ export default function Lights() {
 
   const needsColors = mode !== 'off' && mode !== 'rainbow'
   const multiColor = mode === 'gradient' || mode === 'flow' || mode === 'aurora'
+  const twoColor = mode === 'duosweep'              // 固定两色：无加减钮
   const curStyle = styleId === 'custom'
     ? { ...CUSTOM, mode, colors: needsColors ? colors : [] }
     : styleId === 'foreign'
@@ -364,7 +371,7 @@ export default function Lights() {
               {/* 配色槽位（彩虹不吃配色，藏起来防误导） */}
               {needsColors ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  {(multiColor ? colors : colors.slice(0, 1)).map((c, i) => (
+                  {(multiColor ? colors : twoColor ? colors.slice(0, 2) : colors.slice(0, 1)).map((c, i) => (
                     <label key={i} className="relative h-11 w-11 cursor-pointer overflow-hidden rounded-xl border-2 border-white/15 transition-transform hover:scale-105"
                       style={{ background: hex(c), boxShadow: `0 0 14px ${hex(c)}66` }}>
                       <input type="color" value={hex(c)} onChange={e => setColor(i, e.target.value)}
