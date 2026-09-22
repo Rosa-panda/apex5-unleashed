@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "CODE VEIN II",
+  "en": "Code Vein II",
+  "exe": [
+    "codevein2.exe"
+  ],
+  "note": "原生 DualSense 自适应扳机游戏（PCGamingWiki 确认，2026-09-22 手动补录；ASB 清单尚未收录）。已按题材转为本工具震动联动参数，进游戏自动生效（ADR-024）。",
+  "image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2362060/library_600x900.jpg",
+  "asb": true,
+  "source": "asb-list",
+  "steam_appid": 2362060,
+  "vib": {
+    "filter": 26,
+    "scale": 10,
+    "stroke": 3,
+    "press": 15,
+    "strength": 110,
+    "freq": 60
+  },
+  "vib_source": "asb-seed",
+  "genres": [
+    "1",
+    "3"
+  ]
+}
