@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Bodies, Body, Composite, Engine, Events } from 'matter-js'
 import { api } from '../../../api'
+import { usePolling } from '../../../hooks/usePolling'
 import { motionStore } from '../../../motionStore'
 import { BTN, BTN_ACC, Err, Row, useFlash } from '../ui'
 
@@ -251,7 +252,7 @@ function MazeBoard({ invX, invY }: { invX: boolean; invY: boolean }) {
 
 function MazeHud({ state }: { state: React.MutableRefObject<any> }) {
   const [, force] = useState(0)
-  useEffect(() => { const t = setInterval(() => force(n => n + 1), 200); return () => clearInterval(t) }, [])
+  usePolling(() => force(n => n + 1), 200)
   const s = state.current
   const sec = (performance.now() - s.t0) / 1000
   return (
@@ -273,10 +274,7 @@ export function MazePanel() {
   })
   useEffect(() => { localStorage.setItem('maze_inv', JSON.stringify(inv)) }, [inv])
   // 遥测自检轮询（慢速 300ms，只喂诊断显示；实时 tilt 走 WS→motionStore，弹珠物理直读）
-  useEffect(() => {
-    const t = setInterval(() => { api.expMaze().then(setTel).catch(() => { }) }, 300)
-    return () => clearInterval(t)
-  }, [])
+  usePolling(() => { api.expMaze().then(setTel).catch(() => { }) }, 300)
   // 反转在物理层生效（MazeBoard 读 tilt 时取反），存 localStorage 记住偏好
   const toggleInv = (k: 'x' | 'y') => setInv((c: any) => ({ ...c, [k]: !c[k] }))
   const imuOk = tel?.has_imu

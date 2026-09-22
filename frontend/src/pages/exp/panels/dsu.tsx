@@ -1,18 +1,15 @@
 // #18 模拟器体感桥（DSU/Cemuhook）（ADR-029 F2 自 panels.tsx 逐字搬出）
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { api } from '../../../api'
+import { usePolling } from '../../../hooks/usePolling'
 import { BTN, BTN_ACC, Err, Row, useFlash } from '../ui'
 
 export function DsuPanel() {
   const [st, setSt] = useState<any>(null)
   const [msg, flash] = useFlash()
-  useEffect(() => {
-    let alive = true
-    const tick = () => api.expDsu().then((j: any) => alive && setSt(j)).catch(() => {})
-    tick()
-    const h = setInterval(tick, 600)
-    return () => { alive = false; clearInterval(h) }
-  }, [])
+  // （原实现带 alive 守卫防 unmount 后 setState；React 18 下该 setState 本就是
+  // no-op，F3 收敛为 usePolling 后守卫随之去除——无可观察行为差异）
+  usePolling(() => api.expDsu().then(setSt).catch(() => {}), 600)
   const setInvert = (i: number) => {
     const next = [...(st?.invert ?? [false, false, false])]
     next[i] = !next[i]

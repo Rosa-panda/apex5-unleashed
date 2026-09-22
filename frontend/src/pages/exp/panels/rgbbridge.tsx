@@ -1,18 +1,15 @@
 // #8 Mod 灯效桥（ADR-029 F2 自 panels.tsx 逐字搬出）
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { api } from '../../../api'
+import { usePolling } from '../../../hooks/usePolling'
 import { BTN, BTN_ACC, Err, NoDev, Row, useFlash } from '../ui'
 
 export function RgbBridgePanel() {
   const [st, setSt] = useState<any>(null)
   const [msg, flash] = useFlash()
   const load = useCallback(() => { api.expRgb().then(setSt).catch(e => flash('', e)) }, [])
-  useEffect(() => {
-    load()
-    const t = setInterval(load, 2000)
-    return () => clearInterval(t)
-  }, [load])
+  usePolling(load, 2000, [load])
   if (!st) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   const toggle = () =>
     api.expRgbSet(!st.enabled, st.port).then((r: any) => { setSt(r); flash(r.enabled ? '✓ 桥已启动' : '已停止') }).catch(e => flash('', e))

@@ -4,6 +4,7 @@
 // 与真游戏 Mod 同一条路；靶场/键盘场在本地跑，闭环测体感瞄准、摇杆映射、连发、宏。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../../api'
+import { usePolling } from '../../../hooks/usePolling'
 import { BTN, Err, NoDev, Row, useFlash } from '../ui'
 
 // 靶场：鼠标轨迹 + 随机靶子打分——体感瞄准/摇杆转鼠标的闭环验证
@@ -129,11 +130,7 @@ export function GameSimPanel() {
   const [st, setSt] = useState<any>(null)
   const [msg, flash] = useFlash()
   const load = useCallback(() => { api.expSim().then(setSt).catch(e => flash('', e)) }, [])
-  useEffect(() => {
-    load()
-    const t = setInterval(load, 1500)
-    return () => clearInterval(t)
-  }, [load])
+  usePolling(load, 1500, [load])
   if (!st) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   const run = (s: string) =>
     api.expSimRun(s).then((r: any) => { setSt(r); flash(`▶ ${r.scenarios?.[s] ?? s}`) }).catch(e => flash('', e))

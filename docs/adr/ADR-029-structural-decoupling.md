@@ -72,3 +72,12 @@ B0 本 ADR → B1 wsbus/motionmaster/appctx 骨架 → B2 routers 骨架+system+
 - 闭包变量提升漏改、局部 import 新作用域 NameError（py_compile 查不出）→ 每批必须实际启动后端 + health。
 - PANELS 键序/漏注册 → barrel 导出面 grep 对照；tsc 兜底 Motion.tsx 具名导入。
 - 轮询间隔误统一 → usePolling 间隔以调用点字面量为准，逐页小 commit 便于 bisect。
+
+## 修订 1（2026-09-22，F2 实施中勘察后的 F3 收缩）
+
+F3 勘察实锤：Row/Toggle/Section/Chip **各自只有一个实现**，且形态互异——Settings 的 Row 是 `{k,v}` 键值文本、exp/ui.tsx 的 Row 是 `{label,children}` 容器；PresetLibrary 的 Section 是组件内局部闭包；Chip 仅 Motion.tsx 一处；Toggle 仅 Settings.tsx 一处。**没有第二个使用者，抽进 components/ 是搬家不是去重**，反而在 Barrel 之外多一层间接。据此收缩：
+
+- **F3 只抽 `hooks/usePolling.ts(fn, intervalMs, deps)`**，替换 8 处标准形态轮询（GameLibrary 3s / Motion 2s / gyro 1s / rgbbridge 2s / gamesim 1.5s / dsu 600ms / maze 遥测 300ms / maze HUD 强刷 200ms）。
+- **不建 components/ 目录**，Row/Toggle/Section/Chip 维持原位原样。
+- 不动 diagnostics（条件轮询：running 时 400ms、空闲 700ms setTimeout——非标准形态，强套改行为结构）、Macros（录制 tick）/Lights（动画帧）/PadTest（15s 原始流心跳，语义非轮询）。
+- usePolling 签名允许传 deps（GameLibrary/gamesim/Motion 的 effect 依赖 `[load]` 须保留）；各调用点 catch 行为随 fn 原样带走。

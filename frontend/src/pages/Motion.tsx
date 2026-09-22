@@ -3,9 +3,10 @@
 // 状态持久化在 %APPDATA%\Apex5Unleashed\motion_hub.json——上次开着，这次启动就还是开着。
 // ⚠ 0xEF 位图流是基础设施恒开（拓展键直读/宏录制也吃它），总闸不碰——
 // 2026-09-22 实锤：总闸连带关流 → 手柄测试页拓展键全瞎。
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Orbit } from 'lucide-react'
 import { api } from '../api'
+import { usePolling } from '../hooks/usePolling'
 import { DsuPanel, GyroFwPanel, GyroPanel, MazePanel } from './exp/panels'
 
 function Chip({ on, children }: { on: boolean; children: React.ReactNode }) {
@@ -38,12 +39,8 @@ export default function Motion() {
   const load = useCallback(() => {
     api.motionMaster().then(setSt).catch(() => setErr('✗ 状态加载失败'))
   }, [])
-  useEffect(() => { load() }, [load])
   // 状态定时同步：后台/别处改了开关（甚至手柄休眠导致流断）这里 2s 内可见
-  useEffect(() => {
-    const t = setInterval(load, 2000)
-    return () => clearInterval(t)
-  }, [load])
+  usePolling(load, 2000, [load])
 
   const toggle = () => {
     const on = !st?.master

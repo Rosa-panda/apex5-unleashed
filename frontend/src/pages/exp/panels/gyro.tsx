@@ -1,17 +1,14 @@
 // #1 体感瞄准（软件层）（ADR-029 F2 自 panels.tsx 逐字搬出）
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { api } from '../../../api'
+import { usePolling } from '../../../hooks/usePolling'
 import { BTN, BTN_ACC, Err, NoDev, Row, useFlash } from '../ui'
 
 export function GyroPanel() {
   const [st, setSt] = useState<any>(null)
   const [msg, flash] = useFlash()
   const load = useCallback(() => { api.expGyro().then(setSt).catch(e => flash('', e)) }, [])
-  useEffect(() => {
-    load()
-    const t = setInterval(load, 1000)
-    return () => clearInterval(t)
-  }, [load])
+  usePolling(load, 1000, [load])
   if (!st) return <div className="space-y-2"><NoDev /><Err e={msg} /></div>
   const c = st.cfg
   const set = (patch: Record<string, unknown>) =>

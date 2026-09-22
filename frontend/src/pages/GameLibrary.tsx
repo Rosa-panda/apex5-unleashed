@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Crosshair, Download, FolderOpen, MonitorPlay, Play, Plus, Search, Trash2, Link2, Zap } from 'lucide-react'
 import { api, type Preset } from '../api'
+import { usePolling } from '../hooks/usePolling'
 
 interface VibParams { filter: number; scale: number; stroke: number; press: number; strength: number; freq: number }
 
@@ -91,7 +92,7 @@ export default function GameLibrary() {
     api.presets().then(p => setPresets([...p.user, ...p.builtin])).catch(() => {})
     api.mods().then(setMods).catch(() => {})
   }, [])
-  useEffect(() => { load(); const t = setInterval(load, 3000); return () => clearInterval(t) }, [load])
+  usePolling(load, 3000, [load])
 
   const fg = data.foreground
   const presetName = (id: string) => presets.find(p => p.id === id)?.name ?? id
