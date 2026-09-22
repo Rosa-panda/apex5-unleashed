@@ -34,11 +34,20 @@ def monitor_loop(eng, force_mock):
             else:
                 eng.scan_proxy_processes()
                 eng.maybe_release_proxy()
-        # 电量心跳 ~30s 一发（attach 时有首发；回复异步进 _capture_battery）
+        # 电量心跳 ~30s 一发（attach 时有首发；回复异步进 _capture_battery）。
+        # ⚠ 手柄静默时必须停发：固件把主机 report 当活动，30s 心跳会不断重置
+        # 空闲计时 → 手柄永不休眠（2026-09-22 用户实锤，与 0xEF 流常开同因）。
+        # 活动判据 = 手柄主动上报（engine.last_input：0xEF 流/vendor 原始帧 +
+        # keymonitor.last_input：键盘/游戏盘接口输入），**不含本方请求的 ACK
+        # 回复**——否则心跳自己维持自己成死循环。挂机最迟 60s 停发（挂机期间
+        # 电量时间戳不刷新属预期，手柄已睡）；唤醒按键后 ≤2s 恢复刷新。
         batt_tick += 1
         if eng.online and batt_tick >= 15:
-            batt_tick = 0
-            eng.refresh_battery()
+            import keymonitor as _km
+            last_touch = max(eng.last_input, _km.last_input)
+            if time.monotonic() - last_touch < 60.0:
+                batt_tick = 0
+                eng.refresh_battery()
         eng._stop.wait(2.0)
 
 

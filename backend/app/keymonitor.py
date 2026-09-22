@@ -30,6 +30,14 @@ KEYCODES = {
 MOD_BITS = [(1, "Ctrl"), (2, "Shift"), (4, "Alt"), (8, "Win"),
             (0x10, "RCtrl"), (0x20, "RShift"), (0x40, "RAlt"), (0x80, "RWin")]
 
+# 手柄最近主动输入时刻（monotonic；0=未知）：键盘/游戏盘监听接口收到**内容变化**
+# 的报告才刷新。电量心跳（main.monitor_loop）据此在手柄静默挂机时停发——固件把
+# 主机 report 当活动，心跳不停手柄永不休眠（2026-09-22 用户实锤，与 0xEF 流同因）。
+# ⚠ 不能用「收到包」判：实测游戏盘接口空闲时也 ~5s 周期重发恒定的摇杆居中态帧，
+# 收到即刷会让判据永远新鲜、心跳永不停（2026-09-22 静默实验实锤）。内容变化 =
+# 摇杆/按键/扳机动 = 用户真的在操作。
+last_input = 0.0
+
 
 def find_keyboard_path():
     try:
@@ -66,6 +74,7 @@ class KeyMonitor:
         return True
 
     def _loop(self, dev):
+        global last_input
         while not self._stop.is_set():
             try:
                 data = dev.read(64, timeout_ms=50)
@@ -94,6 +103,7 @@ class KeyMonitor:
             keys = frozenset(KEYCODES.get(b) for b in rep[3:9] if b)
             cur = frozenset(list(keys) + mods)
             if cur != self._pressed:
+                last_input = time.monotonic()  # 键位真变化（电量心跳判据，模块级）
                 pressed_now = [k for k in cur if k not in self._pressed]
                 self._pressed = cur
                 self._emit("hidkey", keys=sorted(cur), raw=rep.hex(" "),
@@ -154,6 +164,7 @@ class GamepadRawMonitor:
         self._emit = emit
         self._stop = threading.Event()
         self._bits = {}
+        self._last_rep = b""                    # 上一次游戏盘报告原文（内容变化=有操作）
         self._labels = load_labels()
         self._attrib_key = None                 # 当前校准窗口的键名（None=不在采集）
         self._attrib_hits = {}                  # (off,bit) -> {键名: 按下次数}
@@ -176,6 +187,7 @@ class GamepadRawMonitor:
         return True
 
     def _loop(self, dev):
+        global last_input
         while not self._stop.is_set():
             try:
                 data = dev.read(64, timeout_ms=20)
@@ -200,6 +212,9 @@ class GamepadRawMonitor:
             if not data or len(data) <= SPECIAL_BYTE_BASE:
                 continue
             rep = bytes(data)
+            if rep != self._last_rep:          # 内容变化才算操作（空闲时 ~5s 周期重发恒定态）
+                self._last_rep = rep
+                last_input = time.monotonic()  # 手柄主动输入（电量心跳判据，模块级）
             for off in range(SPECIAL_BYTE_BASE, min(len(rep), SPECIAL_BYTE_BASE + 4)):
                 for bit in range(8):
                     on = bool(rep[off] & (1 << bit))

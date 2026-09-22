@@ -85,6 +85,11 @@ class Engine:
         self._motion_count = 0
         self._rx_cmd = None                  # request() 阻塞问答的捕获槽
         self._rx_buf = []
+        self.last_input = time.monotonic()   # 手柄最近主动上报时刻（monotonic）：
+                                             # attach 视为活跃（启动初期电量心跳照常，
+                                             # 之后静默 60s 自动停发防固件被喂醒）。
+                                             # 仅 0xEF 流/vendor 原始帧会再刷新——
+                                             # 不含本方请求的 ACK 回复（防自我维持）
 
     # ---------- 事件总线 / 状态推送 ----------
     def subscribe(self, cb):
@@ -194,6 +199,7 @@ class Engine:
         self.dev = dev
         self.dev_kind = dev.kind
         self.online = True
+        self.last_input = time.monotonic()   # 刚接入视为活跃：初期电量心跳照常，静默后自停
         # 新枚举的设备上不存在「上一个接管者还活着」——代理权复位（mock 路径没有
         # panic 兜底，real 路径 panic 也会再复位一次，双保险）
         self.proxy = {"holder": "self", "detail": "", "since": now()}
@@ -320,6 +326,7 @@ class Engine:
             return
         cmd = body[2]
         if cmd == 0xEF:
+            self.last_input = time.monotonic()   # 手柄主动上报 = 还醒着（电量心跳判据）
             # 设备→主机数据流（~370Hz，PROTOCOL.md）：不是控制命令，不算外部代理证据。
             # 附带解码 32 键物理位图（拓展键唯一实时信号源，官方按键区分同款通道）
             if len(body) >= 15:
@@ -378,7 +385,10 @@ class Engine:
                 self._external_hit(cmd, body)
 
     def _raw_frame(self, frame):
-        """vendor 接口上的非协议输入帧（去抖：同内容 200ms 内只报一次）。"""
+        """vendor 接口上的非协议输入帧（去抖：同内容 200ms 内只报一次）。
+        ⚠ 不可刷 last_input：实测手柄空闲挂机时该接口仍有持续周期性杂讯帧
+        （2026-09-22 电量心跳静默实验实锤），当活动信号会让心跳永不停止。
+        活动判据只信中断驱动的输入接口（keymonitor：没按键就没报告）。"""
         key = frame.hex()
         t = time.monotonic()
         if t - self._last_raw.get(key, 0.0) < 0.2:
@@ -575,9 +585,42 @@ class Engine:
                 # 只比对重叠区：固件槽位可能比写入长（尾部残留旧帧）或短（帧数截断）
                 n = min(len(blob), len(self._led_blob_raw))
                 if n > 0 and self._led_blob_raw[:n] == blob[:n]:
+                    self.led_save_flash(source=source)
                     return
                 _send_all()
             raise TimeoutError("灯光写入校验不符（已重试）")
+        self.led_save_flash(source=source)
+
+    def _mapping_status(self, source="req"):
+        """cmd161：激活档案槽 + 各槽 version tag。无副作用的 cheap read
+        （openflydigi mapping.read_status 同源布局：body[5]=raw slot（4..7 为
+        Switch bank 别名，归一化回 0..3），body[6+2i..7+2i]=slot i tag LE16，
+        0xFFFF=该槽从未写过）。"""
+        bodies = self.request(protocol.build_crc(161, b""), 161, timeout=1.5, source=source)
+        for body in bodies:
+            if body[2] != 161 or len(body) < 15:
+                continue
+            raw = body[5]
+            active = raw - 4 if 3 < raw <= 7 else (raw if raw <= 7 else 0)
+            versions = [(body[7 + 2 * i] << 8) | body[6 + 2 * i] for i in range(4)]
+            return {"active": active, "versions": versions}
+        return None
+
+    def led_save_flash(self, source="ui"):
+        """cmd166 flash 提交：写灯表（168/169）只进固件工作内存，**活不过下一次
+        休眠**（openflydigi 实测 'applied-but-unsaved does not survive sleep'，
+        所有 stored config 通用规则；2026-09-22 用户灯效休眠丢失实锤）。
+        灯光没有自己的 version tag：161 读激活槽的 mapping tag **原样**回传
+        （换新 tag 会误报档案变化，ADR-018 域外语义按 openflydigi §9）。
+        flash 写是秒级慢操作，超时放大到 10s（SDK 对 166 专用值）。"""
+        st = self._mapping_status(source=source + ":status")
+        ver = st["versions"][st["active"]] & 0xFFFF if st else 0
+        import struct as _s
+        bodies = self.request(protocol.build_crc(166, _s.pack("<H", ver)), 166,
+                              timeout=10.0, source=source + ":save")
+        if not any(b[2] == 166 for b in bodies):
+            raise RuntimeError("cmd166 保存无 ACK（灯效本次上电内有效，休眠会丢）")
+        return {"ok": True, "version": ver}
 
     def led_apply_effect(self, mode, colors, brightness=None, period=None, source="ui",
                          params=None):
