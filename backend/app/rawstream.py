@@ -3,10 +3,11 @@
 # 登记表：消费者活跃才开，全部退场自动关。独立成模块——此前散在 service.py
 # 闭包里，靠「定义先于使用」的书写顺序维系，曾因 import 顺序炸过启动。
 # 消费者：
-#   master  体感总闸（持久态恢复时同样登记）
-#   macro   宏录制 start/stop
-#   padlive 拓展键监听心跳（前端测试页每 15s 打卡，超时自动收流）
-#   manual  /api/exp/imu 手动开关（无 UI，调试用）
+#   master    体感总闸（持久态恢复时同样登记）
+#   macro     宏录制 start/stop
+#   padlive   拓展键监听心跳（前端测试页每 15s 打卡，超时自动收流）
+#   manual    /api/exp/imu 手动开关（无 UI，调试用）
+#   extkeymap 拓展键键盘映射（ADR-030：任一键为 keyboard 模式时占流）
 # 看门狗周期对账，兜住 macro/profile 写配置后 enable_raw_stream 强开的流。
 import threading
 import time
@@ -17,7 +18,8 @@ class RawStreamHub:
         self.engine = engine
         self.timeout = timeout
         self.watchdog_interval = watchdog_interval
-        self.demands = {"master": False, "macro": False, "manual": False}
+        self.demands = {"master": False, "macro": False, "manual": False,
+                        "extkeymap": False}
         self.padlive = 0.0          # 拓展键监听最近一次心跳（monotonic），0=无
         self._lock = threading.Lock()
 
@@ -30,7 +32,7 @@ class RawStreamHub:
         with self._lock:
             fresh = time.monotonic() - self.padlive < self.timeout
         d = self.demands
-        return bool(d["master"] or d["macro"] or d["manual"] or fresh)
+        return bool(d["master"] or d["macro"] or d["manual"] or d["extkeymap"] or fresh)
 
     def eval(self, source="eval"):
         """按需求决策流开关；只在期望态与实际不一致时下发 cmd17（防重复）。"""

@@ -32,6 +32,7 @@ class AppContext:
     dsu: object = None
     gamesim: object = None
     exp_verdicts: object = None
+    extkeymap: object = None       # extkeymap.Runner（ADR-030 键盘映射边沿注入）
 
     def build(self):
         """组装 WS 总线 + 体验区服务群并完成 engine 接线（ADR-029 B7）。
@@ -93,6 +94,19 @@ class AppContext:
         engine.subscribe_motion(_softmap.HUB.on_motion)
         engine.subscribe_motion(_diag_svc.on_motion)
         engine.subscribe(_softmap.HUB.on_key)
+
+        # ---- 拓展键键盘映射（extkeymap.py，ADR-030）：0xEF extkey 事件边沿 → SendInput。
+        # keyboard 模式已在配置中时，恢复流需求（watchdog/attach 会按登记表对账开流）----
+        import extkeymap as _extkeymap
+        _extkm = _extkeymap.Runner(raw=_raw)
+        self.extkeymap = _extkm
+        engine.subscribe(_extkm.on_event)
+        if _extkeymap.has_keyboard(_extkm.cfg):
+            _raw.demands["extkeymap"] = True
+            try:
+                _raw.eval("extkeymap-restore")
+            except Exception:
+                pass
 
         # ---------- 体验区判定留痕（ADR-026） ----------
         import explab as _explab

@@ -1,4 +1,5 @@
-# 拓展键端点（ADR-029 B4 自 service.py 逐字搬出；原 ADR-019：映射读写 + 测试模式）
+# 拓展键端点（ADR-029 B4 自 service.py 逐字搬出；原 ADR-019：映射读写 + 测试模式；
+# ADR-030：完整映射双通道——gamepad 走固件表，keyboard 走软件 SendInput）
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -27,6 +28,35 @@ def build_extkeys_router(ctx):
             if req.on:
                 return extkeys.MAPPER.set_targets(extkeys.TEST_TARGETS)
             return extkeys.MAPPER.restore()
+        except Exception as e:
+            return err(e)
+
+    # ---- ADR-030：完整映射 ----
+    @r.get("/api/extkeys/mapping")
+    def mapping_get():
+        import extkeys
+        import extkeymap
+        try:
+            return {"ok": True, "config": extkeymap.load(),
+                    "targets": extkeys.TARGET_NAMES,
+                    "fw": extkeys.MAPPER.read_mapping()}
+        except Exception as e:
+            return err(e)
+
+    class MappingReq(BaseModel):
+        config: dict
+
+    @r.post("/api/extkeys/mapping")
+    def mapping_post(req: MappingReq):
+        """应用映射：gamepad→固件键表，keyboard/passthrough→透传 255 + 软件注入。"""
+        import extkeys
+        import extkeymap
+        try:
+            cfg = extkeymap.sanitize(req.config)
+            res = extkeymap.apply(cfg, raw=ctx.raw)
+            if ctx.extkeymap is not None:
+                ctx.extkeymap.reload()
+            return {"ok": True, "config": cfg, "fw": res}
         except Exception as e:
             return err(e)
 

@@ -25,4 +25,15 @@ export const macros = {
   extKeysTestMode: (on: boolean) => post('/api/extkeys/testmode', { on }) as Promise<{
     ok: boolean; version: number; mapping?: Array<{ name: string; target_name: string }>
   }>,
+  // ADR-030：拓展键完整映射（gamepad=固件表 / keyboard=软件注入 / passthrough=透传）
+  extKeyMapping: () => fetch('/api/extkeys/mapping').then(r => r.json()) as Promise<{
+    ok: boolean
+    config: Record<string, { mode: 'passthrough' | 'gamepad' | 'keyboard'; target?: number; key?: string }>
+    targets: Record<string, string>
+    fw: Array<{ name: string; target: number; target_name: string }>
+  }>,
+  extKeyMappingSet: (config: Record<string, { mode: string; target?: number; key?: string }>) =>
+    post('/api/extkeys/mapping', { config }) as Promise<{
+      ok: boolean; config?: Record<string, unknown>; error?: string
+    }>,
 }

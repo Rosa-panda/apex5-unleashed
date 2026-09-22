@@ -60,6 +60,9 @@ def key_event(vk, down):
 VK = {name: ord(name.upper()) for name in "abcdefghijklmnopqrstuvwxyz0123456789"}
 VK.update({"space": 0x20, "shift": 0x10, "ctrl": 0x11, "alt": 0x12, "tab": 0x09,
            "enter": 0x0D, "esc": 0x1B, "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27})
+VK.update({f"f{i}": 0x70 + i - 1 for i in range(1, 13)})   # F1-F12（ADR-030 键盘映射）
+VK.update({"capslock": 0x14, "backspace": 0x08, "delete": 0x2E,
+           "home": 0x24, "end": 0x23, "pageup": 0x21, "pagedown": 0x22})
 
 
 def _appdata():

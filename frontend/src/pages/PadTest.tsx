@@ -1,7 +1,7 @@
 // 实时手柄卡（原手柄测试页，2026-09-22 并入总览）：交互式手柄示意图——物理按压/摇杆/
 // 扳机实时映射到图上对应位置。数据源：Gamepad API（标准输入接口）+ 后端 0xEF 拓展键事件。
 import { useEffect, useMemo, useState } from 'react'
-import { Gamepad, Keyboard, Radio } from 'lucide-react'
+import { Gamepad, Keyboard, Radio, SlidersHorizontal } from 'lucide-react'
 import { api, type EngineEvent } from '../api'
 
 interface PadSnap {
@@ -187,6 +187,88 @@ const EXT_CHIP = [
   { key: 'M4', id: 'm4', pos: '背左下' },
 ]
 
+/** 拓展键完整映射（ADR-030）：每键三模式——手柄目标走固件键表（关软件也生效），
+ *  键盘按键走后端 SendInput 注入（需后端运行 + 0xEF 流），透传=彻底静默。 */
+type ExtMode = 'passthrough' | 'gamepad' | 'keyboard'
+const EXT_MAP_KEYS = ['m1', 'm2', 'm3', 'm4', 'lm', 'rm'] as const
+
+function ExtKeyMappingCard() {
+  const [cfg, setCfg] = useState<Record<string, { mode: ExtMode; target?: number; key?: string }>>({})
+  const [targets, setTargets] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    api.extKeyMapping().then(m => {
+      if (m.ok) { setCfg(m.config); setTargets(m.targets) }
+    }).catch(() => {})
+  }, [])
+
+  const setKey = (name: string, patch: { mode: ExtMode; target?: number; key?: string }) =>
+    setCfg(v => ({ ...v, [name]: patch }))
+
+  const apply = async () => {
+    setBusy(true); setMsg('')
+    try {
+      const r = await api.extKeyMappingSet(cfg)
+      setMsg(r.ok ? '已应用：手柄目标写入固件键表，键盘目标即时生效' : `失败：${r.error ?? '未知错误'}`)
+    } catch (e) {
+      setMsg(`失败：${e}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const modeLabel: Record<ExtMode, string> = { gamepad: '手柄按键', keyboard: '键盘按键', passthrough: '透传' }
+  const selCls = 'rounded-md border border-border-soft bg-white/5 px-2 py-1 text-[11px] text-text-mid outline-none'
+
+  return (
+    <div className="card p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-text-mid">
+        <span className="flex items-center gap-2"><SlidersHorizontal size={14} className="text-accent" /> 拓展键映射</span>
+        <span className="text-[11px] text-text-low">手柄目标=固件直出（关软件也生效）；键盘目标=软件注入（需后台运行）</span>
+      </div>
+      <div className="space-y-1.5">
+        {EXT_MAP_KEYS.map(name => {
+          const c = cfg[name]
+          if (!c) return null
+          return (
+            <div key={name} className="flex flex-wrap items-center gap-2 text-[12px]">
+              <span className="w-8 font-mono text-text-mid">{name.toUpperCase()}</span>
+              <select className={selCls} value={c.mode}
+                onChange={e => setKey(name, e.target.value === 'gamepad'
+                  ? { mode: 'gamepad', target: c.target ?? 6 }
+                  : { mode: e.target.value as ExtMode })}>
+                {(Object.entries(modeLabel) as [ExtMode, string][]).map(([m, l]) =>
+                  <option key={m} value={m}>{l}</option>)}
+              </select>
+              {c.mode === 'gamepad' && (
+                <select className={selCls} value={c.target ?? 6}
+                  onChange={e => setKey(name, { mode: 'gamepad', target: Number(e.target.value) })}>
+                  {Object.entries(targets).map(([t, l]) => <option key={t} value={t}>{l}</option>)}
+                </select>
+              )}
+              {c.mode === 'keyboard' && (
+                <input className="w-40 rounded-md border border-border-soft bg-white/5 px-2 py-1 font-mono text-[11px] text-text-mid outline-none placeholder:text-text-low/50"
+                  placeholder="键名：a-z/0-9/f1-f12/space/shift…"
+                  value={c.key ?? ''}
+                  onChange={e => setKey(name, { mode: 'keyboard', key: e.target.value })} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <button className="rounded-md border border-accent/50 bg-accent/15 px-3 py-1 text-[11px] text-accent transition-colors hover:bg-accent/25 disabled:opacity-50"
+          disabled={busy} onClick={apply}>
+          {busy ? '应用中…' : '应用映射'}
+        </button>
+        {msg && <span className="text-[11px] text-text-low">{msg}</span>}
+      </div>
+    </div>
+  )
+}
+
 /** 总览页「实时手柄」卡：示意图 + 拓展键 + 特殊键监听 + 校准浮层（嵌入用） */
 export default function PadLiveCard({ events }: { events: EngineEvent[] }) {
   const pad = useGamepad()
@@ -270,6 +352,9 @@ export default function PadLiveCard({ events }: { events: EngineEvent[] }) {
           </div>
         )}
       </div>
+
+      {/* 拓展键完整映射（ADR-030）：手柄目标=固件键表 / 键盘目标=软件注入 */}
+      <ExtKeyMappingCard />
 
       {/* 特殊键监听 */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

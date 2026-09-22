@@ -112,3 +112,7 @@
 - **ADR-024** asb-vib-seed-generation：ASB 181 条「DS 原生」档案全自动生成 vib 种子参数——官方 34 条调参做题材集 k-NN（Steam genres 特征），回写内置档案走既有 autoswitch 链路；无桥前提下事件级不可转换（机理墙），转的是体验不是配置
 - **ADR-025** official-mod-impersonation：官方 Mod 路线**已实现**（2026-09-20 同日侦察+落地）——DSX ingress（7878/8787，飞智包直通 cmd51 + DSX 社区包近似翻译）+ Mod 管家（CDN 下载/安装/前台驱动拉起/退出收尾）+ 44 条官方 mod 字段并入档案 + /api/mods + 游戏库 Mod 卡（安装/启用/运行态）。插件型（F4SE/ScriptHookV 7 条）v1 拒绝。待真机实测 F1 23 收包
 - **ADR-026** experience-lab：体验区（隐藏功能孵化区）——功能挖掘 16 项全部先进实验专区，注册表驱动前端卡片 + /api/exp/* 前缀 + exp_verdicts.json 判定持久化；真机测过判「好用」才写转正 ADR 迁正式导航。数据流类功能挂 engine 帧分发（单读线程红线）
+- **ADR-027** experience-batch：体验区 15 项软件成品（含体感瞄准 softmap、陀螺算法骨架照抄官方 KeyboardMouseInjectRunner）；见 docs 内体验区清单
+- **ADR-028** motion-hub：体感中心总闸 + 0xEF 流按需开关（rawstream 需求登记表，流常开=手柄不休眠实锤）
+- **ADR-029** structural-decoupling：service.py 拆 routers/appctx/wsbus/motionmaster + 前端 api/panels 拆域（行为零变化）
+- **ADR-030** extkey-full-mapping：拓展键完整映射双通道——手柄目标写固件键表（ADR-019 通路）+ 键盘目标软件注入（0xEF 边沿+SendInput，等价官方 KeyboardMouseInjectRunner/FeizVKB 驱动路线）；官方逆向实锤 Select/Start 与 Menu/Back 是四键，「按了没反应」是目标键不显形非映射失效
