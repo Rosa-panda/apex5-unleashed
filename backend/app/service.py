@@ -45,12 +45,6 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
 
     app.on_event("startup")(bus.grab_loop)
 
-    # ---------- 模型 ----------
-    class PresetReq(BaseModel):
-        name: str
-        note: str = ""
-        actions: list = []
-
     def err(e):
         return JSONResponse({"error": str(e)}, status_code=400)
 
@@ -110,141 +104,9 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
             pass
         return keymonitor.load_labels().items()
 
-    # ---------- 预设 ----------
-    @app.get("/api/presets")
-    def presets_list():
-        return store.list()
-
-    @app.post("/api/presets")
-    def presets_save(req: PresetReq):
-        try:
-            return {"ok": True, "preset": store.save(req.model_dump())}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/presets/{pid}/apply")
-    def presets_apply(pid: str):
-        try:
-            return {"ok": True, "result": store.apply(pid, engine)}
-        except Exception as e:
-            return err(e)
-
-    @app.delete("/api/presets/{pid}")
-    def presets_delete(pid: str):
-        try:
-            store.delete(pid)
-            return {"ok": True}
-        except Exception as e:
-            return err(e)
-
-    # ---------- 游戏档案 ----------
-    class GameReq(BaseModel):
-        name: str
-        exe: list[str]
-        preset_id: str = ""
-        note: str = ""
-
-    class LinkReq(BaseModel):
-        preset_id: str = ""
-
-    class AutoswitchReq(BaseModel):
-        enabled: bool = True
-
-    @app.get("/api/games")
-    def games_list():
-        if games is None:
-            return {"builtin": [], "user": [], "foreground": None, "autoswitch": True,
-                    "universal_vib": False}
-        return games.list()
-
-    @app.post("/api/games")
-    def games_save(req: GameReq):
-        try:
-            return {"ok": True, "game": games.save(req.model_dump())}
-        except Exception as e:
-            return err(e)
-
-    @app.delete("/api/games/{gid}")
-    def games_delete(gid: str):
-        try:
-            games.delete(gid)
-            return {"ok": True}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/games/{gid}/apply")
-    def games_apply(gid: str):
-        try:
-            g = games.all().get(gid)
-            if not g:
-                raise KeyError(gid)
-            if not (g.get("vib") or g.get("preset_id")):
-                return err(ValueError("该档案无震动联动参数且未绑定预设"))
-            games.apply_game(g, engine)
-            return {"ok": True, "result": {"applied": g["name"],
-                                           "vib": bool(g.get("vib")),
-                                           "preset": g.get("preset_id") or ""}}
-        except Exception as e:
-            return err(e)
-
-    class ExeReq(BaseModel):
-        exe: list[str]
-
-    @app.post("/api/games/{gid}/exe")
-    def games_set_exe(gid: str, req: ExeReq):
-        """自定义 exe 定位（特殊版本游戏，ADR-017）。"""
-        try:
-            return {"ok": True, "game": games.set_exe(gid, req.exe)}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/games/import-official")
-    def games_import_official():
-        """导入官方逐游戏适配库（读本机空间站 adapterTriggerGames.json）。"""
-        import officialimport
-        try:
-            return {"ok": True, "result": officialimport.import_official(games)}
-        except Exception as e:
-            return err(e)
-
-    @app.get("/api/games/official-src")
-    def games_official_src():
-        import officialimport
-        return {"available": bool(officialimport.official_path()),
-                "path": officialimport.official_path() or officialimport.OFFICIAL_JSON}
-
-    class UniversalVibReq(BaseModel):
-        enabled: bool
-
-    @app.post("/api/vib/universal")
-    def vib_universal(req: UniversalVibReq):
-        """通用震动联动：游戏震动→扳机反馈（设备端固件路由，任何游戏生效）。"""
-        try:
-            return {"ok": True, "universal_vib": games.set_universal_vib(req.enabled, engine)}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/games/{gid}/link")
-    def games_link(gid: str, req: LinkReq):
-        try:
-            all_ = games.all()
-            if gid not in all_:
-                raise KeyError(gid)
-            g = all_[gid]
-            if g["builtin"]:
-                # 内置档案：复制为用户档案再改，保持内置只读
-                g = games.save({"name": g["name"], "exe": g["exe"],
-                                "note": g.get("note", ""), "preset_id": req.preset_id})
-            else:
-                g["preset_id"] = req.preset_id
-                games.save(g)
-            return {"ok": True, "game": g}
-        except Exception as e:
-            return err(e)
-
-    @app.post("/api/autoswitch")
-    def autoswitch_set(req: AutoswitchReq):
-        return {"ok": True, "autoswitch": games.set_autoswitch(req.enabled)}
+    # ---------- 预设/游戏（ADR-029 B5 起 routers 化）----------
+    app.include_router(routers.build_presets_router(ctx))
+    app.include_router(routers.build_games_router(ctx))
 
     # ---------- 游戏震动修复（飞智虚拟手柄抢 XInput 0 号槽，2026-09-20 原神案例） ----------
     # 不是开关是检测：state 反映设备树实况；enabled(活跃)才有"修复"动作，
@@ -277,8 +139,11 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
         except Exception as e:
             return err(e)
 
+    class VibFixAutoReq(BaseModel):     # 原与游戏档案共用 AutoswitchReq，B5 起模型随各 router 走
+        enabled: bool = True
+
     @app.post("/api/vibfix/auto")
-    def vibfix_auto_set(req: AutoswitchReq):
+    def vibfix_auto_set(req: VibFixAutoReq):
         if games is None:
             return err(RuntimeError("游戏档案模块未初始化"))
         return {"ok": True, "auto": games.set_vibfix_auto(req.enabled)}
@@ -351,8 +216,11 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
         except OSError:
             return {"ok": True, "enabled": False, "command": ""}
 
+    class AutostartReq(BaseModel):      # 原与游戏档案共用 AutoswitchReq，B5 起模型随各 router 走
+        enabled: bool = True
+
     @app.post("/api/settings/autostart")
-    def autostart_set(req: AutoswitchReq):
+    def autostart_set(req: AutostartReq):
         """开机自启：HKCU\\...\\Run 写 pythonw + run_gui.pyw（用户级，不需要管理员）。"""
         import sys
         import winreg
@@ -1005,28 +873,7 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     def exp_diagnostics_data():
         return {"ok": True, **_diag_svc.sampler.data()}
 
-    @app.get("/api/imgcache/status")
-    def imgcache_status():
-        import gameimg
-        return {"ok": True, **gameimg.cache_stats()}
-
-    @app.post("/api/imgcache/clear")
-    def imgcache_clear():
-        import gameimg
-        freed = gameimg.cache_clear()
-        return {"ok": True, "freed_bytes": freed}
-
-    # ---------- 封面图本地代理（gameimg 后台预下载，前端不走外链 CDN） ----------
-    import gameimg
-
-    @app.get("/api/game-img/{gid}")
-    def game_img(gid: str):
-        p = gameimg.cached_path(gid)
-        if p:
-            return FileResponse(p, headers={"Cache-Control": "public, max-age=604800"})
-        # 还没下好：404 + no-store，前端拿到后延迟重试（下载完下次重试即命中）
-        return JSONResponse({"error": "pending"}, status_code=404,
-                            headers={"Cache-Control": "no-store"})
+    # imgcache/game-img 已随 B5 归入 routers/games.py
 
     # ---------- 事件流 ----------
     # /ws 已在 B2 随 routers/ws.py 挂载（bus.attach）
