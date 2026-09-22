@@ -1,8 +1,8 @@
-// 手柄测试页：Gamepad API 实时读标准输入接口（摇杆/按键/扳机模拟量）
-// 震动测试走自家 vendor 通道 (/api/rumble)
-// 特殊键（背键/扩展肩键）：不在标准接口里，吃后端 hidkey(键盘接口)/rawhid(vendor非协议帧) 事件
+// 手柄测试页：中央是可交互手柄示意图——物理按压/摇杆/扳机实时映射到图上对应位置，
+// 直观对照。数据源：Gamepad API（标准输入接口，60fps）+ 后端 0xEF 拓展键事件。
+// 震动测试走自家 vendor 通道 (/api/rumble)。
 import { useEffect, useMemo, useState } from 'react'
-import { Circle, Gamepad, Keyboard, Radio, Vibrate, Zap } from 'lucide-react'
+import { Circle, Gamepad, Keyboard, Radio, Vibrate } from 'lucide-react'
 import { api, type EngineEvent } from '../api'
 
 interface PadSnap {
@@ -34,58 +34,162 @@ function useGamepad() {
   return pad
 }
 
-function Stick({ snap, base }: { snap: PadSnap | null; base: number }) {
-  const x = snap?.axes[base] ?? 0
-  const y = snap?.axes[base + 1] ?? 0
-  const press = snap?.buttons[base === 0 ? 10 : 11]?.pressed ?? false
+// ---- SVG 部件：亮 = 实际按压 ----
+const ON_FILL = 'rgba(34,211,239,.92)'
+const OFF_FILL = '#1a1a2c'
+const ON_STROKE = '#22d3ee'
+const OFF_STROKE_SOLID = '#34345a'
+
+function Dot({ cx, cy, r, label, on, title, dashed }: {
+  cx: number; cy: number; r: number; label: string; on: boolean; title?: string; dashed?: boolean
+}) {
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative h-40 w-40 rounded-full border-2 border-border-soft bg-[#0d0d14]">
-        <div className="absolute inset-0 m-auto h-px w-full bg-border-soft" />
-        <div className="absolute inset-0 m-auto h-full w-px bg-border-soft" />
-        <div
-          className={`absolute h-4 w-4 rounded-full transition-transform duration-[16ms] ${press ? 'bg-accent ring-4 ring-accent/30' : 'bg-accent/80'}`}
-          style={{ left: '50%', top: '50%', transform: `translate(-50%,-50%) translate(${x * 70}px, ${y * 70}px)` }}
-        />
-      </div>
-      <div className="font-mono text-[11px] tabular-nums text-text-low">
-        {x.toFixed(2)}, {y.toFixed(2)} {press ? '· L3' : ''}
-      </div>
+    <g>
+      {title && <title>{title}</title>}
+      <circle cx={cx} cy={cy} r={r}
+        fill={on ? ON_FILL : OFF_FILL}
+        stroke={on ? ON_STROKE : OFF_STROKE_SOLID}
+        strokeWidth={1.5}
+        strokeDasharray={dashed ? '4 3' : undefined}
+        style={{ filter: on ? 'drop-shadow(0 0 7px rgba(34,211,239,.55))' : undefined, transition: 'fill 40ms, filter 40ms' }} />
+      <text x={cx} y={cy + 3.5} textAnchor="middle" fontSize={r >= 15 ? 12 : 10} fontWeight={600}
+        fill={on ? '#062730' : '#8b8ba7'}>{label}</text>
+    </g>
+  )
+}
+
+function Bumper({ x, w, label, on }: { x: number; w: number; label: string; on: boolean }) {
+  return (
+    <g>
+      <title>{label}</title>
+      <rect x={x} y={104} width={w} height={30} rx={15}
+        fill={on ? ON_FILL : OFF_FILL} stroke={on ? ON_STROKE : OFF_STROKE_SOLID} strokeWidth={1.5}
+        style={{ filter: on ? 'drop-shadow(0 0 7px rgba(34,211,239,.55))' : undefined, transition: 'fill 40ms' }} />
+      <text x={x + w / 2} y={123} textAnchor="middle" fontSize={12} fontWeight={600}
+        fill={on ? '#062730' : '#8b8ba7'}>{label}</text>
+    </g>
+  )
+}
+
+/** 扳机：左上/右上竖条，模拟量以填充高度呈现（outline 里液面升降） */
+function TriggerBar({ x, label, v }: { x: number; label: string; v: number }) {
+  const H = 46, W = 26
+  const fh = Math.max(0, Math.min(1, v)) * (H - 6)
+  return (
+    <g>
+      <title>{`${label} ${(v * 100).toFixed(0)}%`}</title>
+      <rect x={x} y={50} width={W} height={H} rx={13} fill="#141422" stroke={v > 0.02 ? ON_STROKE : OFF_STROKE_SOLID} strokeWidth={1.5} />
+      <rect x={x + 3} y={50 + 3 + (H - 6) - fh} width={W - 6} height={fh} rx={10} fill={ON_FILL} opacity={0.85} />
+      <text x={x + W / 2} y={44} textAnchor="middle" fontSize={11} fontWeight={600} fill="#8b8ba7">{label}</text>
+    </g>
+  )
+}
+
+function StickSvg({ cx, cy, x, y, press, title }: {
+  cx: number; cy: number; x: number; y: number; press: boolean; title: string
+}) {
+  const kx = cx + Math.max(-1, Math.min(1, x)) * 14
+  const ky = cy + Math.max(-1, Math.min(1, y)) * 14
+  return (
+    <g>
+      <title>{title}</title>
+      <circle cx={cx} cy={cy} r={34} fill="#141422" stroke={press ? ON_STROKE : OFF_STROKE_SOLID} strokeWidth={press ? 2 : 1.5}
+        style={{ filter: press ? 'drop-shadow(0 0 8px rgba(34,211,239,.5))' : undefined }} />
+      <circle cx={kx} cy={ky} r={20} fill={press ? ON_FILL : '#23233a'} stroke={press ? ON_STROKE : '#3a3a5c'} strokeWidth={1.5}
+        style={{ transition: 'fill 40ms' }} />
+      {press && <text x={cx} y={cy + 72} textAnchor="middle" fontSize={10} fill={ON_STROKE} fontWeight={600}>按下</text>}
+    </g>
+  )
+}
+
+/** 十字键：四片圆角矩形 */
+function Dpad({ cx, cy, on }: { cx: number; cy: number; on: (i: number) => boolean }) {
+  const arm = (px: number, py: number, w: number, h: number, i: number, label: string, lx: number, ly: number) => (
+    <g key={i}>
+      <rect x={px} y={py} width={w} height={h} rx={7}
+        fill={on(i) ? ON_FILL : OFF_FILL} stroke={on(i) ? ON_STROKE : OFF_STROKE_SOLID} strokeWidth={1.5}
+        style={{ filter: on(i) ? 'drop-shadow(0 0 7px rgba(34,211,239,.55))' : undefined, transition: 'fill 40ms' }} />
+      <text x={lx} y={ly} textAnchor="middle" fontSize={12} fontWeight={700} fill={on(i) ? '#062730' : '#8b8ba7'}>{label}</text>
+    </g>
+  )
+  return (
+    <g>
+      {arm(cx - 13, cy - 46, 26, 40, 12, '▲', cx, cy - 26)}   {/* 上 */}
+      {arm(cx - 13, cy + 6, 26, 40, 13, '▼', cx, cy + 33)}    {/* 下 */}
+      {arm(cx - 46, cy - 13, 40, 26, 14, '◀', cx - 26, cy + 4)} {/* 左 */}
+      {arm(cx + 6, cy - 13, 40, 26, 15, '▶', cx + 26, cy + 4)}  {/* 右 */}
+    </g>
+  )
+}
+
+/** 手柄示意图：按键位置 = 实际按键（标准 Gamepad 映射 + 0xEF 拓展键） */
+function PadDiagram({ pad, extNow }: { pad: PadSnap | null; extNow: Set<string> }) {
+  const btn = (i: number) => pad?.buttons[i]?.pressed ?? false
+  const ax = (i: number) => pad?.axes[i] ?? 0
+  return (
+    <div className="relative flex items-center justify-center overflow-hidden rounded-xl border border-border-soft bg-[#0a0a12] p-2">
+      <div className="pointer-events-none absolute inset-0"
+        style={{ background: 'radial-gradient(ellipse 75% 70% at 50% 45%, rgba(34,211,239,.05), transparent 70%)' }} />
+      <svg viewBox="0 0 640 400" className="relative w-full max-w-2xl">
+        {/* 机身 */}
+        <g fill="#12121c" stroke="#2a2a44" strokeWidth={2}>
+          <ellipse cx={150} cy={262} rx={82} ry={96} />
+          <ellipse cx={490} cy={262} rx={82} ry={96} />
+          <rect x={140} y={132} width={360} height={128} rx={64} />
+        </g>
+
+        {/* 头部拓展键 LM / RM（顶部两颗） */}
+        <Dot cx={268} cy={142} r={11} label="LM" on={extNow.has('lm')} title="LM（头部左）" />
+        <Dot cx={372} cy={142} r={11} label="RM" on={extNow.has('rm')} title="RM（头部右）" />
+
+        {/* LOGO / 视图 / 菜单 */}
+        <Dot cx={320} cy={170} r={16} label="⌂" on={btn(16)} title="LOGO" />
+        <Dot cx={293} cy={206} r={13} label="⧉" on={btn(8)} title="视图" />
+        <Dot cx={347} cy={206} r={13} label="☰" on={btn(9)} title="菜单" />
+
+        {/* 左摇杆（推动方向实时映射） */}
+        <StickSvg cx={185} cy={212} x={ax(0)} y={ax(1)} press={btn(10)} title="左摇杆（L3 按下高亮）" />
+        {/* 十字键 */}
+        <Dpad cx={185} cy={318} on={btn} />
+
+        {/* 右摇杆 */}
+        <StickSvg cx={395} cy={318} x={ax(2)} y={ax(3)} press={btn(11)} title="右摇杆（R3 按下高亮）" />
+
+        {/* 面键 ABXY（Xbox 布局：Y上 A下 X左 B右） */}
+        <Dot cx={455} cy={158} r={17} label="Y" on={btn(3)} title="Y / 三角" />
+        <Dot cx={455} cy={242} r={17} label="A" on={btn(0)} title="A / 交叉" />
+        <Dot cx={413} cy={200} r={17} label="X" on={btn(2)} title="X / 方块" />
+        <Dot cx={497} cy={200} r={17} label="B" on={btn(1)} title="B / 圆圈" />
+
+        {/* 肩键 */}
+        <Bumper x={108} w={128} label="LB" on={btn(4)} />
+        <Bumper x={404} w={128} label="RB" on={btn(5)} />
+        {/* 扳机（模拟量） */}
+        <TriggerBar x={158} label="LT" v={pad?.buttons[6]?.value ?? 0} />
+        <TriggerBar x={456} label="RT" v={pad?.buttons[7]?.value ?? 0} />
+
+        {/* 背部拓展键 M1-M4（虚线 = 位于背面，按压照样亮） */}
+        <Dot cx={100} cy={262} r={13} label="M2" on={extNow.has('m2')} title="M2（背左上）" dashed />
+        <Dot cx={132} cy={330} r={13} label="M4" on={extNow.has('m4')} title="M4（背左下）" dashed />
+        <Dot cx={540} cy={262} r={13} label="M1" on={extNow.has('m1')} title="M1（背右上）" dashed />
+        <Dot cx={508} cy={330} r={13} label="M3" on={extNow.has('m3')} title="M3（背右下）" dashed />
+      </svg>
     </div>
   )
 }
 
-const FACE = [
-  { i: 0, label: 'A / 交叉', pos: 'bottom-0 left-1/2 -translate-x-1/2' },
-  { i: 1, label: 'B / 圆圈', pos: 'right-0 top-1/2 -translate-y-1/2' },
-  { i: 2, label: 'X / 方块', pos: 'left-0 top-1/2 -translate-y-1/2' },
-  { i: 3, label: 'Y / 三角', pos: 'top-0 left-1/2 -translate-x-1/2' },
-]
-const DPAD = [
-  { i: 12, label: '↑', pos: 'top-0 left-1/2 -translate-x-1/2' },
-  { i: 13, label: '↓', pos: 'bottom-0 left-1/2 -translate-x-1/2' },
-  { i: 14, label: '←', pos: 'left-0 top-1/2 -translate-y-1/2' },
-  { i: 15, label: '→', pos: 'right-0 top-1/2 -translate-y-1/2' },
-]
-const SMALL = [
-  { i: 4, label: 'LB' }, { i: 5, label: 'RB' }, { i: 6, label: 'LT' }, { i: 7, label: 'RT' },
-  { i: 8, label: '视图' }, { i: 9, label: '菜单' }, { i: 16, label: 'LOGO' },
-]
-
-// 拓展键六颗（ADR-019）：官方命名+物理位置；id=0xEF 键位图事件里的键名
+// 拓展键六颗（ADR-019）：id=0xEF 键位图事件里的键名
 const EXT_CHIP = [
+  { key: 'LM', id: 'lm', pos: '头左' },
+  { key: 'RM', id: 'rm', pos: '头右' },
   { key: 'M1', id: 'm1', pos: '背右上' },
   { key: 'M2', id: 'm2', pos: '背左上' },
   { key: 'M3', id: 'm3', pos: '背右下' },
   { key: 'M4', id: 'm4', pos: '背左下' },
-  { key: 'LM', id: 'lm', pos: '头左·M5' },
-  { key: 'RM', id: 'rm', pos: '头右·M6' },
 ]
 
 export default function PadTest({ events }: { events: EngineEvent[] }) {
   const pad = useGamepad()
-  const btn = (i: number) => pad?.buttons[i]
-  const pressed = (i: number) => btn(i)?.pressed
 
   // 特殊键：后端两条监听通道的最新事件
   const hidkeys = useMemo(() => events.filter(e => e.kind === 'hidkey').slice(-8).reverse(), [events])
@@ -107,128 +211,90 @@ export default function PadTest({ events }: { events: EngineEvent[] }) {
     if (e) setAttrib({ phase: e.phase as string, key: e.key as string | undefined, mapping: e.mapping as Record<string, string> | undefined, missing: e.missing as string[] | undefined })
   }, [attribEvts.length])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  const f2 = (v: number) => v.toFixed(2)
+
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className="mx-auto max-w-5xl space-y-4">
       {!pad && (
         <div className="card flex items-center gap-3 p-5 text-[13px] text-text-mid">
           <Gamepad size={18} className="text-text-low" />
-          未检测到游戏控制器——手柄开机/重插一次（此页读的是 Windows 标准输入接口，与 vendor 协议通道相互独立）
-        </div>
-      )}
-      {pad && (
-        <div className="card px-5 py-3 font-mono text-[11px] text-text-low">
-          已连接：{pad.id}
+          未检测到游戏控制器——手柄开机/重插一次
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {/* 摇杆 */}
-        <div className="card flex flex-col items-center gap-5 p-5">
-          <div className="self-start text-[12px] text-text-mid">摇杆</div>
-          <Stick snap={pad} base={0} />
-          <Stick snap={pad} base={2} />
-        </div>
-
-        {/* 按键 */}
-        <div className="card p-5">
-          <div className="mb-4 text-[12px] text-text-mid">按键</div>
-          <div className="flex items-center gap-6">
-            <div className="relative h-28 w-28 shrink-0">
-              {/* 十字键 */}
-              {DPAD.map(({ i, label, pos }) => (
-                <div key={i} className={`absolute h-9 w-9 ${pos} flex items-center justify-center rounded-md border text-[13px] transition-colors ${
-                  pressed(i) ? 'border-accent bg-accent/20 text-accent' : 'border-border-soft bg-[#161622] text-text-low'
-                }`}>{label}</div>
-              ))}
-            </div>
-            <div className="relative h-28 w-28 shrink-0">
-              {/* 功能键 */}
-              {FACE.map(({ i, label, pos }) => (
-                <div key={i} className={`absolute h-9 w-9 ${pos} flex items-center justify-center rounded-full border text-[11px] transition-colors ${
-                  pressed(i) ? 'border-accent bg-accent/20 text-accent' : 'border-border-soft bg-[#161622] text-text-low'
-                }`} title={label}>{label[0]}</div>
-              ))}
-            </div>
+      {/* 主示意：所有输入实时映射到图上 */}
+      <div className="card p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[13px] font-medium text-text-hi">
+            <Gamepad size={14} className="text-accent" /> 实时示意
           </div>
-          <div className="mt-5 flex flex-wrap gap-2">
-            {SMALL.map(({ i, label }) => (
-              <span key={i} className={`tag ${pressed(i) ? 'border-accent/60 !text-accent' : ''}`}>
-                {label}{i === 6 || i === 7 ? ` ${(btn(i)?.value ?? 0).toFixed(2)}` : ''}
-              </span>
-            ))}
+          <div className="truncate font-mono text-[11px] text-text-low">
+            {pad ? pad.id : '等待手柄…'}
           </div>
         </div>
-
-        {/* 扳机行程 + 震动 */}
-        <div className="card flex flex-col p-5">
-          <div className="mb-4 text-[12px] text-text-mid">扳机模拟行程</div>
-          {(['LT', 'RT'] as const).map((label, k) => {
-            const v = btn(6 + k)?.value ?? 0
-            return (
-              <div key={label} className="mb-4">
-                <div className="mb-1 flex justify-between text-[12px]">
-                  <span className="text-text-mid">{label}</span>
-                  <span className="tabular-nums text-accent">{(v * 100).toFixed(0)}%</span>
-                </div>
-                <div className="h-5 overflow-hidden rounded-md bg-[#0d0d14]">
-                  <div className="h-full bg-gradient-to-r from-accent-dim to-accent transition-[width] duration-[16ms]"
-                    style={{ width: `${v * 100}%` }} />
-                </div>
-              </div>
-            )
-          })}
-          <div className="mt-auto space-y-2 border-t border-border-soft pt-4">
-            <div className="text-[11px] leading-relaxed text-text-low">
-              物理行程 ≠ 模拟值：如果拖满行程数值到不了 1.0，说明手柄行程标定有问题，来这里验证。
-            </div>
-            <div className="flex gap-2">
-              <button className="btn flex-1 justify-center" onClick={() => api.rumble(200, 200, 0.3).catch(() => {})}>
-                <Vibrate size={13} /> 双震 0.3s
-              </button>
-              <button className="btn flex-1 justify-center" onClick={() => api.sine(2, 4, 220).catch(() => {})}>
-                <Circle size={13} /> 正弦 2s
-              </button>
-            </div>
-          </div>
+        <PadDiagram pad={pad} extNow={extKeysNow} />
+        {/* 数值读数：示意图之外的精确值 */}
+        <div className="mt-3 grid grid-cols-2 gap-3 font-mono text-[11px] text-text-low md:grid-cols-4">
+          <div>左摇杆 <span className="text-accent">{f2(pad?.axes[0] ?? 0)}, {f2(pad?.axes[1] ?? 0)}</span></div>
+          <div>右摇杆 <span className="text-accent">{f2(pad?.axes[2] ?? 0)}, {f2(pad?.axes[3] ?? 0)}</span></div>
+          <div>LT <span className="text-accent">{((pad?.buttons[6]?.value ?? 0) * 100).toFixed(0)}%</span></div>
+          <div>RT <span className="text-accent">{((pad?.buttons[7]?.value ?? 0) * 100).toFixed(0)}%</span></div>
         </div>
       </div>
 
-      {/* 拓展键（ADR-019）：直读 0xEF 物理键位图——映射前的真实按压，与老按键天然区分 */}
-      <div className="card p-5">
-        <div className="mb-4 flex items-center gap-2 text-[12px] text-text-mid">
-          <Zap size={14} className="text-accent" /> 拓展键（LM / RM / M1-M4）
-          <span className="text-text-low">· 直读固件物理键位图（0xEF 帧），与老按键天然区分</span>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {EXT_CHIP.map(({ key, id, pos }) => {
-            const on = extKeysNow.has(id)
-            return (
-              <div key={key}
-                className={`flex h-16 w-16 flex-col items-center justify-center rounded-xl border-2 transition-all ${
-                  on ? 'border-accent bg-accent/20 text-accent shadow-[0_0_16px_rgba(34,211,238,.35)]'
-                    : 'border-border-soft bg-[#161622] text-text-mid'}`}>
-                <span className="font-mono text-[13px]">{key}</span>
-                <span className="text-[10px] text-text-low">{pos}</span>
-              </div>
-            )
-          })}
-          <div className="self-center max-w-xs text-[11px] leading-relaxed text-text-low">
-            六键已还原透传（游戏内零占用，不触发任何老键位）。这里亮灯 = 物理按压实时直读，
-            和老按键各走各的信号。宏功能（下一步）直接以此作触发源。
-          </div>
-        </div>
-        {keyMap && (
-          <div className="mt-3 font-mono text-[11px] text-text-low">
-            当前固件映射：{keyMap.map(k => `${k.name.toUpperCase()}→${k.target_name}`).join('  ')}
-          </div>
-        )}
-      </div>
-
-      {/* 特殊键监听（宏的前置侦察） */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="card p-5">
+        {/* 拓展键：示意图之外的补充（映射信息） */}
+        <div className="card p-4">
+          <div className="mb-3 text-[12px] text-text-mid">拓展键 · 0xEF 物理键位图直读</div>
+          <div className="flex flex-wrap gap-2">
+            {EXT_CHIP.map(({ key, id, pos }) => {
+              const on = extKeysNow.has(id)
+              return (
+                <div key={id}
+                  className={`flex h-12 w-14 flex-col items-center justify-center rounded-lg border-2 transition-all ${
+                    on ? 'border-accent bg-accent/20 text-accent shadow-[0_0_14px_rgba(34,211,238,.35)]'
+                      : 'border-border-soft bg-[#161622] text-text-mid'}`}>
+                  <span className="font-mono text-[12px]">{key}</span>
+                  <span className="text-[9px] text-text-low">{pos}</span>
+                </div>
+              )
+            })}
+          </div>
+          {keyMap && (
+            <div className="mt-3 font-mono text-[11px] text-text-low">
+              固件映射：{keyMap.map(k => `${k.name.toUpperCase()}→${k.target_name}`).join('  ')}
+            </div>
+          )}
+        </div>
+
+        {/* 震动测试 */}
+        <div className="card p-4">
+          <div className="mb-3 text-[12px] text-text-mid">震动测试 · vendor 通道</div>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn justify-center" onClick={() => api.rumble(200, 200, 0.3).catch(() => {})}>
+              <Vibrate size={13} /> 双震 0.3s
+            </button>
+            <button className="btn justify-center" onClick={() => api.rumble(500, 0, 0.4).catch(() => {})} title="只有左马达（低频）">
+              <Vibrate size={13} /> 左重
+            </button>
+            <button className="btn justify-center" onClick={() => api.rumble(0, 500, 0.4).catch(() => {})} title="只有右马达（高频）">
+              <Vibrate size={13} /> 右轻
+            </button>
+            <button className="btn justify-center" onClick={() => api.sine(2, 4, 220).catch(() => {})}>
+              <Circle size={13} /> 正弦 2s
+            </button>
+          </div>
+          <div className="mt-3 text-[11px] text-text-low">
+            两条通道都正常 = 手柄双接口健康（标准输入走系统接口，震动走 vendor 协议通道）。
+          </div>
+        </div>
+      </div>
+
+      {/* 特殊键监听 */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="card p-4">
           <div className="mb-3 flex items-center gap-2 text-[12px] text-text-mid">
-            <Keyboard size={14} className="text-accent" /> 键盘接口（背键常见通道）
+            <Keyboard size={14} className="text-accent" /> 键盘接口
           </div>
           <div className="mb-3 flex min-h-8 flex-wrap gap-1.5">
             {lastKeys.length
@@ -241,21 +307,16 @@ export default function PadTest({ events }: { events: EngineEvent[] }) {
             ))}
           </div>
         </div>
-        <div className="card p-5">
+        <div className="card p-4">
           <div className="mb-3 flex items-center gap-2 text-[12px] text-text-mid">
             <Radio size={14} className="text-accent" /> vendor 接口非协议帧
           </div>
           <div className="space-y-0.5 font-mono text-[11px] text-text-low">
             {rawhids.length
               ? rawhids.map((e, i) => <div key={i} className="truncate">{e.ts}  {e.hex as string}</div>)
-              : <span className="text-[12px]">暂无原始帧——若按键时这里跳动，说明该键走 vendor 协议</span>}
+              : <span className="text-[12px] text-text-low">暂无原始帧</span>}
           </div>
         </div>
-      </div>
-
-      <div className="text-center text-[11px] text-text-low">
-        本页输入走 Windows 标准游戏控制器接口（60fps 实时），震动测试走 vendor 协议通道——两条通道都通，说明手柄双接口健康。
-        特殊键确认编码后即可做按键宏（v0.2）。
       </div>
 
       {/* 校准引导浮层 */}
@@ -290,7 +351,7 @@ export default function PadTest({ events }: { events: EngineEvent[] }) {
                     ))}
                     {(attrib.missing ?? []).some(k => k.startsWith('M')) && (
                       <div className="pt-2 text-left text-[11px] leading-relaxed text-text-low">
-                        背键静默 = 固件默认无映射，需设备端 0xA3 映射写入后才有输出（v0.2 逆向中，ADR-016）。
+                        背键静默 = 固件默认无映射，需设备端 0xA3 映射写入后才有输出（ADR-016）。
                       </div>
                     )}
                   </div>
