@@ -8,8 +8,8 @@ from .common import err
 
 def build_macro_router(ctx):
     r = APIRouter()
-    # ctx.raw 在 create_app 后段（exp 服务块）才赋值——端点内经 ctx 取，勿在
-    # build 期快照（B7 收进 AppContext.build 后此注记仍成立：include 晚于构造）
+    # ctx.raw 由 AppContext.build() 构造（ADR-029 B7）；端点内经 ctx 取——
+    # 服务群组装与 router include 的先后由 service.create_app 保证，router 不做假设
 
     @r.get("/api/macro/config")
     def macro_config():

@@ -10,6 +10,9 @@ from . import macro as _macro
 from . import presets as _presets
 from . import games as _games
 from . import settings as _settings
+from . import testbench as _testbench
+from . import explab as _explab
+from . import motion as _motion
 
 build_system_router = _system.build_system_router
 build_ws_router = _ws.build_ws_router
@@ -21,3 +24,6 @@ build_macro_router = _macro.build_macro_router
 build_presets_router = _presets.build_presets_router
 build_games_router = _games.build_games_router
 build_settings_router = _settings.build_settings_router
+build_testbench_router = _testbench.build_testbench_router
+build_explab_router = _explab.build_explab_router
+build_motion_router = _motion.build_motion_router
