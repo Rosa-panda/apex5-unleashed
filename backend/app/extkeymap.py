@@ -12,14 +12,10 @@ import extkeys
 
 CFG_NAME = "extkeymap.json"
 
-# 六键默认 = 老行为（重构前一直在线的固件映射，2026-09-22 已恢复并探针实测 m3/m4 生效）
+# 六键默认 = 透传（出厂真值 FACTORY_K5 全 255；ADR-031：拓展键是一等键，不别名
+# 已有键位——按 M 键只代表 M 键本身，UI 经 0xEF 流显示，映射仅用户显式配置才生效）
 DEFAULTS = {
-    "m1": {"mode": "gamepad", "target": 6},    # 视图
-    "m2": {"mode": "gamepad", "target": 9},    # 菜单/Start（注意：官方枚举 Start(9)≠Menu(24)）
-    "m3": {"mode": "gamepad", "target": 10},   # LB
-    "m4": {"mode": "gamepad", "target": 11},   # RB
-    "lm": {"mode": "gamepad", "target": 16},   # C
-    "rm": {"mode": "gamepad", "target": 17},   # Z
+    name: {"mode": "passthrough"} for name, _kid in extkeys.EXT_KEYS
 }
 MODES = ("passthrough", "gamepad", "keyboard")
 
@@ -61,8 +57,8 @@ def sanitize(cfg):
         mode = c.get("mode") if c.get("mode") in MODES else DEFAULTS[name]["mode"]
         item = {"mode": mode}
         if mode == "gamepad":
-            tgt = c.get("target", DEFAULTS[name]["target"])
-            item["target"] = tgt if tgt in extkeys.TARGET_NAMES else DEFAULTS[name]["target"]
+            tgt = c.get("target", 10)   # 显式选手柄模式但没填目标：兜底 LB（ADR-031 后 DEFAULTS 不含 target）
+            item["target"] = tgt if tgt in extkeys.TARGET_NAMES else 10
         elif mode == "keyboard":
             key = str(c.get("key") or "").strip().lower()
             import softmap

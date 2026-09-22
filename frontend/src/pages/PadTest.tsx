@@ -282,9 +282,19 @@ export default function PadLiveCard({ events }: { events: EngineEvent[] }) {
   const extKeysNow = useMemo(
     () => new Set((events.filter(e => e.kind === 'extkey').slice(-1)[0]?.keys as string[]) ?? []),
     [events])
-  // 拓展键监听开关（ADR-028 修订 2）：0xEF 流默认关（手柄才能休眠），打开监听才
-  // 拉起——立即请求 + 15s 心跳保活；关闭/离开页面即退订，30s 后自动收流
-  const [listening, setListening] = useState(false)
+  // 拓展键监听（ADR-031）：自动跟随页面可见性——进页即开（立即请求 + 15s 心跳保活），
+  // 切走标签页/离开页面自动收流（30s 后流关，手柄可休眠）。手动开关保留为强制关。
+  const [manualOff, setManualOff] = useState(false)
+  const [pageVisible, setPageVisible] = useState(() => !document.hidden)
+  useEffect(() => {
+    const onVis = () => setPageVisible(!document.hidden)
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [])
+  const listening = !manualOff && pageVisible
+  const setListening = (v: boolean | ((prev: boolean) => boolean)) => {
+    setManualOff(() => !(typeof v === 'function' ? v(listening) : v))
+  }
   useEffect(() => {
     if (!listening) return
     api.rawStream(true).catch(() => {})
@@ -319,7 +329,7 @@ export default function PadLiveCard({ events }: { events: EngineEvent[] }) {
                 ? 'border-accent/50 bg-accent/15 text-accent'
                 : 'border-border-soft text-text-low hover:text-text-mid'}`}
             onClick={() => setListening(v => !v)}
-            title={listening ? '监听中：手柄监听期间不会自动休眠' : '打开后才能看到拓展键按压（监听期间手柄不休眠）'}>
+            title={listening ? '监听中（跟页自动）：本页可见时开流，切走即收，监听期间手柄不休眠' : '已强制关闭——点按恢复自动跟页监听'}>
             {listening ? '拓展键监听中' : '拓展键监听关'}
           </button>
           {/* 拓展键迷你章 */}

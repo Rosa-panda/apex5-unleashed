@@ -19,15 +19,15 @@ def check(name, cond):
 
 # ---- sanitize ----
 cfg = extkeymap.sanitize({})
-check("空配置→六键默认", set(cfg) == {"m1", "m2", "m3", "m4", "lm", "rm"}
-      and cfg["m3"] == {"mode": "gamepad", "target": 10}
-      and cfg["rm"] == {"mode": "gamepad", "target": 17})
+check("空配置→六键默认(透传,ADR-031)", set(cfg) == {"m1", "m2", "m3", "m4", "lm", "rm"}
+      and cfg["m3"] == {"mode": "passthrough"}
+      and cfg["rm"] == {"mode": "passthrough"})
 bad = extkeymap.sanitize({"m1": {"mode": "haha"}, "m2": {"mode": "keyboard", "key": "F5"},
                           "m3": {"mode": "gamepad", "target": 999},
                           "m4": {"mode": "keyboard"}})
-check("非法模式回退默认", bad["m1"] == {"mode": "gamepad", "target": 6})
+check("非法模式回退默认(透传)", bad["m1"] == {"mode": "passthrough"})
 check("键名大写归一", bad["m2"] == {"mode": "keyboard", "key": "f5"})
-check("非法目标回退默认", bad["m3"] == {"mode": "gamepad", "target": 10})
+check("非法目标回退LB", bad["m3"] == {"mode": "gamepad", "target": 10})
 check("keyboard 缺键名回退 space", bad["m4"] == {"mode": "keyboard", "key": "space"})
 check("has_keyboard", extkeymap.has_keyboard(bad) and not extkeymap.has_keyboard(cfg))
 
@@ -36,12 +36,12 @@ tmp = tempfile.mkdtemp()
 orig_path = extkeymap.cfg_path
 extkeymap.cfg_path = lambda: os.path.join(tmp, "extkeymap.json")
 try:
-    check("无配置 load→默认", extkeymap.load()["m3"]["target"] == 10)
+    check("无配置 load→默认(透传)", extkeymap.load()["m3"]["mode"] == "passthrough")
     want = extkeymap.sanitize({"m1": {"mode": "keyboard", "key": "f"}})
     extkeymap.save(want)
     got = extkeymap.load()
     check("save→load 往返", got["m1"] == {"mode": "keyboard", "key": "f"}
-          and got["m2"]["target"] == 9)
+          and got["m2"] == {"mode": "passthrough"})
 finally:
     extkeymap.cfg_path = orig_path
 
