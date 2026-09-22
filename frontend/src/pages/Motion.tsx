@@ -86,7 +86,7 @@ export default function Motion() {
           </button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Chip on={!!st?.raw}>0xEF 位图流（拓展键依赖）</Chip>
+          <Chip on={!!st?.raw}>0xEF 位图流（按需）</Chip>
           <Chip on={!!st?.dsu?.enabled}>
             模拟器桥{st?.dsu?.enabled ? ` :${st.dsu.port ?? 26760}` : ''}
           </Chip>
@@ -96,7 +96,11 @@ export default function Motion() {
         <p className="mt-2 text-[11px] leading-relaxed text-text-low">
           开闸 = 常备模拟器桥（Yuzu/Cemu/Dolphin/PCSX2 直连 127.0.0.1:{st?.dsu?.port ?? 26760}）+ 体感数据流通，
           陀螺瞄准尊重你上次的选择、不自动开。关闸 = 桥和瞄准全关、试玩场停止响应；
-          拓展键直读/宏录制用的 0xEF 位图流保持开启（手柄测试页依赖，不受总闸影响）。
+          0xEF 位图流按需供给——只有拓展键监听（测试页）或宏录制在用时才开，没人用自动收流，手柄可正常休眠。
+        </p>
+        <p className="mt-1 text-[11px] leading-relaxed text-text-low">
+          注意：总闸只管<b className="text-text-mid">软件层</b>（桥/瞄准/试玩场）。手柄固件里的陀螺→摇杆映射写在手柄自身档案里，
+          关软件也生效——总闸没开摇杆还在自己动，去下方面板「固件层陀螺映射」关。
         </p>
       </div>
 

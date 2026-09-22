@@ -200,6 +200,16 @@ export default function PadLiveCard({ events }: { events: EngineEvent[] }) {
   const extKeysNow = useMemo(
     () => new Set((events.filter(e => e.kind === 'extkey').slice(-1)[0]?.keys as string[]) ?? []),
     [events])
+  // 拓展键监听开关（ADR-028 修订 2）：0xEF 流默认关（手柄才能休眠），打开监听才
+  // 拉起——立即请求 + 15s 心跳保活；关闭/离开页面即退订，30s 后自动收流
+  const [listening, setListening] = useState(false)
+  useEffect(() => {
+    if (!listening) return
+    api.rawStream(true).catch(() => {})
+    const hb = setInterval(() => api.rawStream(true).catch(() => {}), 15000)
+    return () => { clearInterval(hb); api.rawStream(false).catch(() => {}) }
+  }, [listening])
+  const extNowLive = useMemo(() => (listening ? extKeysNow : new Set<string>()), [listening, extKeysNow])
   const [keyMap, setKeyMap] = useState<Array<{ name: string; target_name: string }> | null>(null)
   useEffect(() => { api.extKeys().then(m => { if (m.ok) setKeyMap(m.keys) }).catch(() => {}) }, [])
 
@@ -220,10 +230,20 @@ export default function PadLiveCard({ events }: { events: EngineEvent[] }) {
           <div className="flex items-center gap-2 text-[12px] text-text-mid">
             <Gamepad size={14} className="text-accent" /> 实时手柄
           </div>
+          {/* 拓展键监听开关：默认关（流关着，手柄可休眠） */}
+          <button
+            className={`rounded-md border px-2 py-0.5 text-[11px] transition-colors ${
+              listening
+                ? 'border-accent/50 bg-accent/15 text-accent'
+                : 'border-border-soft text-text-low hover:text-text-mid'}`}
+            onClick={() => setListening(v => !v)}
+            title={listening ? '监听中：手柄监听期间不会自动休眠' : '打开后才能看到拓展键按压（监听期间手柄不休眠）'}>
+            {listening ? '拓展键监听中' : '拓展键监听关'}
+          </button>
           {/* 拓展键迷你章 */}
           <div className="flex gap-1.5">
             {EXT_CHIP.map(({ key, id }) => {
-              const on = extKeysNow.has(id)
+              const on = extNowLive.has(id)
               return (
                 <span key={id} className={`rounded px-1.5 py-0.5 font-mono text-[10px] transition-all ${
                   on ? 'bg-accent/20 text-accent shadow-[0_0_10px_rgba(34,211,238,.35)]' : 'bg-white/5 text-text-low'}`}>
@@ -236,7 +256,7 @@ export default function PadLiveCard({ events }: { events: EngineEvent[] }) {
             {pad ? pad.id : '未检测到游戏控制器——手柄开机/重插一次'}
           </div>
         </div>
-        <PadDiagram pad={pad} extNow={extKeysNow} />
+        <PadDiagram pad={pad} extNow={extNowLive} />
         {/* 数值读数：示意图之外的精确值 */}
         <div className="mt-3 grid grid-cols-2 gap-3 font-mono text-[11px] text-text-low md:grid-cols-4">
           <div>左摇杆 <span className="text-accent">{f2(pad?.axes[0] ?? 0)}, {f2(pad?.axes[1] ?? 0)}</span></div>

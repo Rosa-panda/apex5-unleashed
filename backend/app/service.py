@@ -391,12 +391,16 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     @app.post("/api/macro/record/start")
     def macro_record_start():
         import macro
+        _raw_demands["macro"] = True     # 录制要吃 0xEF 位图流 → 登记需求开流
+        _raw_eval("macro-rec")
         macro.RECORDER.start()
         return {"ok": True}
 
     @app.post("/api/macro/record/stop")
     def macro_record_stop():
         import macro
+        _raw_demands["macro"] = False    # 撤需求；流是否关由 _raw_eval 按其余消费者决
+        _raw_eval("macro-rec-end")
         return {"ok": True, **macro.RECORDER.stop()}
 
     @app.get("/api/macro/record/status")
@@ -779,6 +783,20 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     engine.subscribe_motion(_maze_svc.on_motion)   # 弹珠迷宫的倾斜源（0xEF 运动流）
     engine.subscribe_motion(_dsu_svc.on_motion)    # 模拟器体感桥（DSU/Cemuhook，#18）
 
+    # ---- 0xEF 流按需开关（ADR-028 修订 2，2026-09-22）：流常开 = 固件把上报当
+    # 活动、手柄永不断电休眠（用户实锤）。改为需求登记表：任一消费者活跃才开，
+    # 全部退场（padlive 心跳 30s 超时）自动关。消费者：体感总闸 / 宏录制 /
+    # 拓展键监听（前端心跳）/ 手动（/api/exp/imu）。宏·档案写入会强开流的
+    # 保险逻辑由 watchdog 30s 对账兜底纠正。 ----
+    _raw_demands = {"master": False, "macro": False, "manual": False, "padlive": 0.0}
+
+    def _raw_eval(source="eval"):
+        on = (_raw_demands["master"] or _raw_demands["macro"] or _raw_demands["manual"]
+              or time.monotonic() - _raw_demands["padlive"] < 30)
+        if bool(engine.raw_motion) != on:
+            engine.set_raw_motion(on, source=source)
+        return on
+
     # ---- 体感中心总闸（ADR-028）：状态持久化，上次开着本次启动自动恢复 ----
     # ⚠ 必须先于 motion_to_ws 定义：HID 线程随时可能来帧，闭包名不能悬空
     def _hub_file():
@@ -806,13 +824,29 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
     # 总闸真相源 = 持久态本身（不再借用 engine.raw_motion——raw 位图流是拓展键/宏的
     # 基础设施恒开，见 engine.attach；总闸只管「体感消费者」）
     _hub = {"master": _hub_load()}
+    _raw_demands["master"] = _hub["master"]
     if _hub["master"]:
         try:
-            _dsu_svc.start()               # 上次开着 → DSU 桥自动回来（raw 流由 attach 恒开）
+            _dsu_svc.start()               # 上次开着 → DSU 桥自动回来
         except Exception:
             pass
-        if engine.online:                  # 设备已先于本接线接入的场景：补发 raw=1
-            engine.set_raw_motion(True, source="master-restore")
+        if engine.online:                  # 设备已先于本接线接入的场景：补开流
+            _raw_eval("master-restore")
+
+    # 流状态对账看门狗：宏/档案写入的 enable_raw_stream 保险、任何别处强开的流，
+    # 30s 内被纠正回需求决策（无人消费即关，手柄恢复可休眠）
+    def _raw_watchdog():
+        import threading as _th
+        _th.current_thread().name = "raw-watchdog"
+        while True:
+            time.sleep(30)
+            if engine.online:
+                try:
+                    _raw_eval("watchdog")
+                except Exception:
+                    pass
+
+    threading.Thread(target=_raw_watchdog, daemon=True).start()
 
     # ---------- 体感帧 WS 推送（ADR-028 补丁：替代前端 40ms HTTP 轮询） ----------
     # 0xEF 流 ~370Hz 全在 HID 线程，HTTP 轮询 25Hz 延迟高且挤占请求队列——弹珠「半天动
@@ -1233,10 +1267,24 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
 
     @app.post("/api/exp/imu")
     def exp_imu_toggle(req: ExpImuReq):
-        """0xEF 运动流总开关（省电）：关掉固件恢复自动休眠。"""
+        """0xEF 运动流手动开关（无 UI，调试用）：走需求登记表 manual 位。"""
         try:
             _require_real()
-            return engine.set_raw_motion(req.enabled)
+            _raw_demands["manual"] = bool(req.enabled)
+            on = _raw_eval("manual")
+            return {"ok": True, "raw": on}
+        except Exception as e:
+            return err(e)
+
+    @app.post("/api/rawstream")
+    def rawstream_heartbeat(req: dict):
+        """拓展键监听心跳（ADR-028 修订 2）：前端测试页打开监听时每 15s 打卡，
+        padlive 新鲜（<30s）才保持 0xEF 流开——页面关了/断网 30s 内自动收流，
+        手柄恢复可休眠。"""
+        try:
+            _raw_demands["padlive"] = time.monotonic() if req.get("on", True) else 0.0
+            on = _raw_eval("padlive")
+            return {"ok": True, "on": bool(req.get("on", True)), "raw": on}
         except Exception as e:
             return err(e)
 
@@ -1277,20 +1325,21 @@ def create_app(engine, store, games=None, ui_hooks=None, mods=None, ingress=None
         note = None
         try:
             if req.enabled:
-                engine.set_raw_motion(True, source="master")   # 兜底确保（attach 已恒开）
                 try:
                     _dsu_svc.start()
                 except Exception as e:
                     note = f"DSU 桥启动失败（体感其余功能不受影响）：{e}"
             else:
-                # 只关消费者（桥+瞄准+体感 UI 推送），不动 0xEF 位图流——
-                # 拓展键直读/宏录制还靠它（2026-09-22 实锤：raw off 连坐拓展键全瞎）
+                # 撤总闸需求：桥+瞄准+体感 UI 推送全关；流是否关由 _raw_eval
+                # 按其余消费者（宏录制/拓展键监听）决——没人用即收流，手柄可休眠
                 _dsu_svc.stop()
                 try:
                     _softmap.HUB.gyro.set_config({"enabled": False})
                 except Exception:
                     pass
             _hub["master"] = bool(req.enabled)
+            _raw_demands["master"] = bool(req.enabled)
+            _raw_eval("master-set" if req.enabled else "master-clear")
             _hub_save(req.enabled)
             _motion_log(f"POST done {req.enabled} in {(time.monotonic() - t0) * 1000:.0f}ms")
             return _motion_master_status(note)

@@ -232,6 +232,8 @@ export const api = {
   // 体感总闸（ADR-028）：联动 运动流+模拟器桥+陀螺瞄准，状态持久化在后端
   motionMaster: () => get('/api/motion/master') as Promise<any>,
   motionMasterSet: (enabled: boolean) => post('/api/motion/master', { enabled }) as Promise<any>,
+  // 0xEF 流心跳（ADR-028 修订 2）：拓展键监听期间每 15s 打卡，30s 无人打卡自动收流
+  rawStream: (on: boolean) => post('/api/rawstream', { on }) as Promise<any>,
   expDiag: (op: string, body: Record<string, unknown> = {}) =>
     post('/api/exp/diagnostics', { op, ...body }) as Promise<any>,
   expDiagData: () => get('/api/exp/diagnostics') as Promise<any>,

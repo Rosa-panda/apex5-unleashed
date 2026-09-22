@@ -80,8 +80,8 @@ class Engine:
         self.versions = None                 # cmd1 七模块固件版本（body[15..29)，ADR-027）
         self.owner = None                    # cmd16 占用方读数（ADR-027 仲裁升级）
         self.motion_subs = []                # 0xEF 运动数据订阅（体感/摇杆映射，高频不走事件日志）
-        self.raw_motion = False              # 体感总闸（ADR-028）：默认关（省电，大部分游戏用不到）；
-                                             # 持久化在 motion_hub.json，service 启动时恢复；attach 服从本态
+        self.raw_motion = False              # 0xEF 位图流实际状态（RAM 态，休眠/重启作废）
+        self._raw_wanted = False             # 流需求位（service 需求登记表决策，attach 按此恢复）
         self._motion_count = 0
         self._rx_cmd = None                  # request() 阻塞问答的捕获槽
         self._rx_buf = []
@@ -120,11 +120,13 @@ class Engine:
         """cmd17 raw 位开关（语义实锤：openflydigi gyro-probe enable_raw(raw=1/0)，
         0xFF=不动）。用户实测：流常开时固件把上报当活动，手柄永不断电休眠——
         关掉即恢复自动休眠。代价：迷宫/体感桥/陀螺瞄准没数据，拓展键监测与
-        宏录制同流也停。RAM 态：手柄休眠/重启后本开关态作废，attach 会重开。"""
+        宏录制同流也停。RAM 态：手柄休眠/重启后本开关态作废，attach 按
+        _raw_wanted 恢复（ADR-028 修订 2：按需开流，默认关）。"""
         import extkeys
         self._send(extkeys.build(17, bytes([255, 1 if on else 0, 255, 255, 255])),
                    source=source)
         self.raw_motion = bool(on)
+        self._raw_wanted = bool(on)
         self._emit("raw_motion", enabled=bool(on))
         return {"ok": True, "enabled": bool(on)}
 
@@ -201,12 +203,13 @@ class Engine:
         self._emit("device", online=True, dev_kind=dev.kind, detail="已连接")
         if dev.kind == "real":
             self.panic(source="hygiene")          # ADR-010 启动卫生检查
-            # 重开 0xEF 位图流（开关 RAM 态，休眠/重启会丢）。基础设施恒开：拓展键
-            # 直读（手柄测试页）、宏录制、体感全吃这一条流，不是体感专属——
-            # 2026-09-22 实锤：总闸关 → raw off → 拓展键全瞎。总闸只关消费者。
-            import extkeys
-            self.raw_motion = True         # 标志与实际流一致（attach 后恒开）
-            self._send(extkeys.build(17, bytes([255, 1, 255, 255, 255])), source="attach")
+            # 0xEF 位图流按需恢复（开关 RAM 态，休眠/重启会丢）。需求位由 service
+            # 需求登记表决策（拓展键监听心跳/宏录制/体感总闸/手动），无人消费不开——
+            # 流常开会让固件把上报当活动，手柄永不休眠（2026-09-22 用户实锤）。
+            if self._raw_wanted:
+                import extkeys
+                self._send(extkeys.build(17, bytes([255, 1, 255, 255, 255])), source="attach")
+                self.raw_motion = True
         self.refresh_battery()                    # 心跳一发，电量随回复异步进账（_capture_battery）
         if dev.kind == "real":
             threading.Thread(target=self._post_attach, daemon=True, name="post-attach").start()
