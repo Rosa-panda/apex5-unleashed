@@ -316,7 +316,7 @@ function FrameCanvas({ rgbNum, deviceFrames, bean, onPushed }: {
 }) {
   const empty = () => Array.from({ length: 1 }, () => Array.from({ length: rgbNum }, () => [...BLACK]))
   const [grid, setGrid] = useState<number[][][]>(empty)
-  const [brush, setBrush] = useState(2)                 // 默认红（0=黑，-1=橡皮）
+  const [brush, setBrush] = useState(2)                 // 默认红（0=黑）
   const [name, setName] = useState('')
   const [saved, setSaved] = useState<{ name: string; hash: string; frames: number[][][] }[]>([])
   const [busy, setBusy] = useState(false)
@@ -335,7 +335,7 @@ function FrameCanvas({ rgbNum, deviceFrames, bean, onPushed }: {
   }, [deviceFrames, rgbNum])
 
   const paint = (f: number, i: number) => setGrid(g => g.map((row, fi) => fi !== f ? row
-    : row.map((c, ii) => ii !== i ? c : brush < 0 ? [...BLACK] : [...BRUSHES[brush]])))
+    : row.map((c, ii) => ii !== i ? c : [...BRUSHES[brush]])))
   // 末帧平移：只错动最后一帧 1 位——「+复制上帧 → 末帧右移」反复按，
   // 就是图案沿灯带跑的跑马灯（动其他帧会毁掉已画好的序列）
   const shift = (d: number) => setGrid(g => {
@@ -398,11 +398,8 @@ function FrameCanvas({ rgbNum, deviceFrames, bean, onPushed }: {
         <div className="text-[13px] font-medium">帧画布 · 手绘灯效</div>
         <span className="text-[10px] text-text-low">{grid.length}/{CANVAS_ROWS} 帧（固件容量上限）· {rgbNum} 灯</span>
       </div>
-      {/* 画笔行 */}
+      {/* 画笔行（黑=灭灯，取代原橡皮） */}
       <div className="flex items-center gap-1.5">
-        <button onClick={() => setBrush(-1)}
-          className={`flex h-6 w-8 items-center justify-center rounded-md border text-[10px] transition-colors ${
-            brush === -1 ? 'border-accent/60 text-accent' : 'border-border-soft text-text-low'}`}>橡皮</button>
         {BRUSHES.map((c, i) => (
           <button key={i} onClick={() => setBrush(i)} style={{ background: hex(c) }}
             className={`h-6 w-6 rounded-md border-2 transition-transform ${brush === i ? 'scale-110 border-accent' : 'border-black/40'}`} />
