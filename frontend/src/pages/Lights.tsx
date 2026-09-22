@@ -21,7 +21,7 @@ const LIB: Style[] = [
   { id: 'aurora', name: '极光', mode: 'aurora', colors: [[0, 255, 140], [0, 120, 255], [160, 0, 255]] },
   { id: 'rainbow', name: '彩虹循环', mode: 'rainbow', colors: [[255, 0, 0]] },
   { id: 'wipe', name: '扫描', mode: 'wipe', colors: [[0, 170, 255]] },
-  { id: 'flow', name: '彩虹流光', mode: 'flow', colors: [[255, 0, 0], [255, 200, 0], [0, 255, 60], [0, 200, 255], [120, 0, 255]] },
+  { id: 'flow', name: '极电流光', mode: 'flow', colors: [[0, 255, 255], [80, 0, 255]], period: 8 },
   { id: 'police', name: '警灯流光', mode: 'flow', colors: [[255, 20, 20], [20, 80, 255]], period: 4 },
 ]
 
@@ -161,13 +161,13 @@ function PadPreview({ mode, colors, brightness, period, rgbNum, frames, loopMs }
   )
 }
 
-/** 风格卡迷你预览：4fps 自走帧，预览同款帧算法 */
-function MiniStrip({ mode, colors }: { mode: Mode; colors: number[][] }) {
+/** 风格卡迷你预览：自走帧（节奏按 period 缩放），预览同款帧算法 */
+function MiniStrip({ mode, colors, period = 10 }: { mode: Mode; colors: number[][]; period?: number }) {
   const [t, setT] = useState(0)
   useEffect(() => {
-    const id = setInterval(() => setT(v => (v + 0.04) % 1), 250)
+    const id = setInterval(() => setT(v => (v + 0.04) % 1), Math.max(60, period * 25))
     return () => clearInterval(id)
-  }, [])
+  }, [period])
   return (
     <div className="mb-1.5 flex h-5 items-end gap-0.5 overflow-hidden rounded bg-black/40">
       {Array.from({ length: 8 }, (_, i) => (
@@ -387,9 +387,10 @@ export default function Lights() {
                     onChange={e => edit(() => setBrightness(+e.target.value))} className="mt-1 w-full accent-[#22d3ee]" />
                 </label>
                 <label className="text-[12px] text-text-mid">
-                  节奏 <span className="font-mono text-accent">{period}</span>
-                  <input type="range" min={1} max={60} value={period}
-                    onChange={e => edit(() => setPeriod(+e.target.value))} className="mt-1 w-full accent-[#22d3ee]" />
+                  速度 <span className="font-mono text-accent">{61 - period}</span>
+                  <span className="ml-1 text-[10px] text-text-low">右快左慢</span>
+                  <input type="range" min={1} max={60} value={61 - period}
+                    onChange={e => edit(() => setPeriod(61 - +e.target.value))} className="mt-1 w-full accent-[#22d3ee]" />
                 </label>
               </div>
             )}
@@ -412,7 +413,7 @@ export default function Lights() {
                 className={`rounded-lg border p-2 text-left transition-all ${
                   styleId === 'custom' ? 'border-accent/50 bg-accent/10' : 'border-border-soft'}`}
                 title="在左边改配色/参数后自动进入这里">
-                <MiniStrip mode={curStyle.mode} colors={needsColors ? colors : []} />
+                <MiniStrip mode={curStyle.mode} colors={needsColors ? colors : []} period={period} />
                 <div className={`text-[11px] ${styleId === 'custom' ? 'text-accent' : 'text-text-mid'}`}>自定义</div>
               </button>
               {/* 熄灯卡 */}
@@ -426,7 +427,7 @@ export default function Lights() {
                 <button key={s.id} onClick={() => pickStyle(s)}
                   className={`rounded-lg border p-2 text-left transition-all hover:border-accent/40 ${
                     styleId === s.id ? 'border-accent/50 bg-accent/10' : 'border-border-soft'}`}>
-                  <MiniStrip mode={s.mode} colors={s.colors} />
+                  <MiniStrip mode={s.mode} colors={s.colors} period={s.period} />
                   <div className={`text-[11px] ${styleId === s.id ? 'text-accent' : 'text-text-mid'}`}>{s.name}</div>
                 </button>
               ))}
