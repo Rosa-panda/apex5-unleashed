@@ -289,11 +289,11 @@ export default function Lights() {
   })
   const addColor = () => edit(() => setColors(cs => [...cs, [255, 255, 255]]))
   const delColor = () => edit(() => setColors(cs => cs.slice(0, -1)))
-  const randomStyle = () => edit(() => {
+  const randomStyle = () => edit(() => {                 // 只随机配色，不动灯效/亮度/速度
     const h = Math.random() * 360
-    const mk = (dh: number, s: number, l: number) => hslToRgb((h + dh + 360) % 360, s, l)
-    setMode('aurora')
-    setColors([mk(0, 0.85, 0.55), mk(140, 0.8, 0.5), mk(220, 0.85, 0.6)])
+    const mk = (dh: number) => hslToRgb((h + dh) % 360, 0.85, 0.55)
+    const n = multiColor ? Math.max(2, colors.length) : 1
+    setColors(Array.from({ length: n }, (_, i) => mk(i * 137.5)))   // 黄金角散布，和谐配色
   })
   const restore = async () => {
     setSync('writing')
@@ -312,6 +312,7 @@ export default function Lights() {
   const su = SYNC_UI[sync]
 
   const needsColors = mode !== 'off' && mode !== 'rainbow'
+  const multiColor = mode === 'gradient' || mode === 'flow' || mode === 'aurora'
   const minColors = mode === 'gradient' ? 2 : 1
   const curStyle = styleId === 'custom'
     ? { ...CUSTOM, mode, colors: needsColors ? colors : [] }
@@ -358,25 +359,24 @@ export default function Lights() {
               {/* 配色槽位（彩虹不吃配色，藏起来防误导） */}
               {needsColors ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  {colors.map((c, i) => (
+                  {(multiColor ? colors : colors.slice(0, 1)).map((c, i) => (
                     <label key={i} className="relative h-11 w-11 cursor-pointer overflow-hidden rounded-xl border-2 border-white/15 transition-transform hover:scale-105"
                       style={{ background: hex(c), boxShadow: `0 0 14px ${hex(c)}66` }}>
                       <input type="color" value={hex(c)} onChange={e => setColor(i, e.target.value)}
                         className="absolute inset-0 cursor-pointer opacity-0" />
                     </label>
                   ))}
-                  {colors.length < 5 && (
+                  {multiColor && colors.length < 5 && (
                     <button className="flex h-11 w-11 items-center justify-center rounded-xl border border-dashed border-border-soft text-text-low transition-colors hover:border-accent/50 hover:text-accent"
-                      onClick={addColor}>+</button>
+                      onClick={addColor} title="加一色（渐变/流光类可叠到 5 色）">+</button>
                   )}
-                  {colors.length > 1 && (
+                  {multiColor && colors.length > 2 && (
                     <button className="flex h-11 w-11 items-center justify-center rounded-xl border border-dashed border-border-soft text-text-low transition-colors hover:border-err/50 hover:text-err"
-                      onClick={delColor}>-</button>
+                      onClick={delColor} title="减一色">-</button>
                   )}
-                  <button className="btn !px-3 !py-1.5 text-[12px]" onClick={randomStyle} title="随机一套谐和配色">
-                    <Dices size={13} /> 随机
+                  <button className="btn !px-3 !py-1.5 text-[12px]" onClick={randomStyle} title="只随机配色，当前灯效不变">
+                    <Dices size={13} /> 随机配色
                   </button>
-                  {colors.length < minColors && <span className="text-[11px] text-warn">该灯效至少 {minColors} 色</span>}
                 </div>
               ) : (
                 <div className="text-[11px] text-text-low">
