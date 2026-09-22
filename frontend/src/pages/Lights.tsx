@@ -313,7 +313,6 @@ export default function Lights() {
 
   const needsColors = mode !== 'off' && mode !== 'rainbow'
   const multiColor = mode === 'gradient' || mode === 'flow' || mode === 'aurora'
-  const minColors = mode === 'gradient' ? 2 : 1
   const curStyle = styleId === 'custom'
     ? { ...CUSTOM, mode, colors: needsColors ? colors : [] }
     : styleId === 'foreign'
