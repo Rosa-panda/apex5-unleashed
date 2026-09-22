@@ -298,7 +298,7 @@ type Sync = 'idle' | 'queued' | 'writing' | 'ok' | 'err'
 // 固件槽位容量 10 帧（ADR-033 修订 5）：画布行数即物理上限，不做分页。
 const CANVAS_ROWS = 10
 const BRUSHES: number[][] = [
-  [255, 255, 255], [255, 40, 40], [255, 140, 0], [255, 220, 0],
+  [0, 0, 0], [255, 255, 255], [255, 40, 40], [255, 140, 0], [255, 220, 0],
   [60, 255, 120], [0, 200, 255], [70, 90, 255], [210, 0, 255],
 ]
 const BLACK = [0, 0, 0]
@@ -316,7 +316,7 @@ function FrameCanvas({ rgbNum, deviceFrames, bean, onPushed }: {
 }) {
   const empty = () => Array.from({ length: 1 }, () => Array.from({ length: rgbNum }, () => [...BLACK]))
   const [grid, setGrid] = useState<number[][][]>(empty)
-  const [brush, setBrush] = useState(1)
+  const [brush, setBrush] = useState(2)                 // 默认红（0=黑，-1=橡皮）
   const [name, setName] = useState('')
   const [saved, setSaved] = useState<{ name: string; hash: string; frames: number[][][] }[]>([])
   const [busy, setBusy] = useState(false)
