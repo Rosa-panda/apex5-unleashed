@@ -24,7 +24,10 @@ datas = [
 ]
 
 hiddenimports = [
-    # uvicorn 的 loop/protocol 按字符串 importlib 动态选装，静态分析看不见
+    # uvicorn 的 loop/protocol 按字符串 importlib 动态选装，静态分析看不见；
+    # websockets 是 WS 升级的运行时依赖（requirements 已补，CI 干净环境实测缺它
+    # 会 "No supported WebSocket library detected" → 前端一直「无法连接后台」）
+    "websockets",
     "uvicorn.loops.asyncio",
     "uvicorn.protocols.http.h11_impl",
     "uvicorn.protocols.http.httptools_impl",
