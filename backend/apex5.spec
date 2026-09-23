@@ -34,7 +34,8 @@ if os.path.exists(_GIT_SHA_PATH):
 
 
 def _ver_info():
-    """exe 文件属性（右键→详细信息）的版本资源，数字/字符串版本都从 VERSION 来。"""
+    """exe 文件属性（右键→详细信息）的版本资源，数字/字符串版本都从 VERSION 来。
+    ⚠ PyInstaller 的容器参数名是 kids 不是 children（CI 实测 TypeError）。"""
     from PyInstaller.utils.win32.versioninfo import (
         FixedFileInfo, StringFileInfo, StringStruct, StringTable,
         VarFileInfo, VarStruct, VSVersionInfo)
@@ -43,7 +44,7 @@ def _ver_info():
     return VSVersionInfo(
         ffi=FixedFileInfo(filevers=parts, prodvers=parts, mask=0x3F, flags=0x0,
                           OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
-        children=[
+        kids=[
             StringFileInfo([StringTable("080404b0", [
                 StringStruct("CompanyName", "Apex5 Unleashed"),
                 StringStruct("FileDescription", "Apex5 Unleashed —— 八爪鱼5 工具箱"),
