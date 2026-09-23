@@ -23,6 +23,12 @@
 
 ## 快速开始
 
+### 普通用户（推荐）
+
+到 [Releases](https://github.com/Rosa-panda/apex5-unleashed/releases) 下载最新 `Apex5Unleashed-v*-win64.zip`，解压后双击 `Apex5Unleashed.exe` 即可——无需安装 Python 或 Node。运行日志在 `%APPDATA%\Apex5Unleashed\apex5.log`。
+
+### 开发者（源码运行）
+
 ```powershell
 # 后端依赖
 pip install -r backend/requirements.txt
@@ -35,6 +41,10 @@ python backend/run.py          # GUI + 托盘
 python backend/run.py --mock   # 强制 Mock
 python backend/run.py --no-gui # 无窗口（开发/CI）
 ```
+
+### 打包发布
+
+push `v*` tag（如 `v0.1.0`）→ GitHub Actions 自动云端打包并在 Releases 页挂出 zip；本地打包用 `python -m PyInstaller backend/apex5.spec --noconfirm`（产物在 `backend/dist/Apex5Unleashed/`）。
 
 ## 路线图
 
