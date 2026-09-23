@@ -34,7 +34,9 @@ jobs:
           npm run build
 
       - name: PyInstaller 打包
-        run: python -m PyInstaller backend/apex5.spec --noconfirm
+        # 显式指定输出目录：PyInstaller 默认落在 cwd 的 dist/，而 cwd 随调用位置漂移
+        # （首跑在仓库根执行 → 产物到了根 dist/，压 zip 步骤找 backend/dist 扑空）
+        run: python -m PyInstaller backend/apex5.spec --noconfirm --distpath backend/dist --workpath backend/build
 
       - name: 压 zip（解压即用，无需安装）
         run: Compress-Archive -Path backend/dist/Apex5Unleashed/* -DestinationPath Apex5Unleashed-${{ github.ref_name }}-win64.zip
