@@ -1,0 +1,46 @@
+# 自动发版：push v* tag → 云端打包 Windows 产物 → 挂到 Releases
+# 打包命令与本地完全一致（backend/apex5.spec，路径全部按 SPECPATH 解析，与 cwd 无关）
+name: build-release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write          # 创建 Release 必需
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 安装后端依赖 + PyInstaller
+        run: pip install -r backend/requirements.txt pyinstaller
+
+      - name: 构建前端
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: PyInstaller 打包
+        run: python -m PyInstaller backend/apex5.spec --noconfirm
+
+      - name: 压 zip（解压即用，无需安装）
+        run: Compress-Archive -Path backend/dist/Apex5Unleashed/* -DestinationPath Apex5Unleashed-${{ github.ref_name }}-win64.zip
+
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Apex5Unleashed-${{ github.ref_name }}-win64.zip
+          generate_release_notes: true
