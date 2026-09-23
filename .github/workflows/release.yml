@@ -1,14 +1,21 @@
-# 自动发版：push v* tag → 云端打包 Windows 产物 → 挂到 Releases
-# 打包命令与本地完全一致（backend/apex5.spec，路径全部按 SPECPATH 解析，与 cwd 无关）
+# 全自动发版（零指令）：
+#   push main → 云端打包 → VERSION  bumped 且对应 v* 尚不存在 → 自动发正式 Release；
+#   否则滚动替换 nightly 预发布。push v* tag → 发正式 Release（tag 必须与 VERSION 一致）。
+# 版本唯一真相源 = 仓库根 VERSION（界面 /api/version、exe 文件属性、Release 全从它来）。
+# 打包命令与本地完全一致（backend/apex5.spec，路径全部按 SPECPATH 解析，与 cwd 无关）。
 name: build-release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    tags: ["v*"]
 
 permissions:
   contents: write          # 创建 Release 必需
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true # 连续推送只保留最新一次构建（正式 tag 各自独立 ref 不受影响）
 
 jobs:
   windows:
@@ -24,6 +31,9 @@ jobs:
         with:
           node-version: "20"
 
+      - name: 版本一致性检查（VERSION 唯一真相源）
+        run: python tools/check_version.py
+
       - name: 安装后端依赖 + PyInstaller
         run: pip install -r backend/requirements.txt pyinstaller
 
@@ -33,16 +43,54 @@ jobs:
           npm ci
           npm run build
 
+      - name: 落盘构建元数据（GIT_SHA → 产物内 /api/version 显示 nightly 来源）
+        run: git rev-parse --short HEAD | Out-File -FilePath GIT_SHA -Encoding ascii -NoNewline
+
       - name: PyInstaller 打包
         # 显式指定输出目录：PyInstaller 默认落在 cwd 的 dist/，而 cwd 随调用位置漂移
         # （首跑在仓库根执行 → 产物到了根 dist/，压 zip 步骤找 backend/dist 扑空）
         run: python -m PyInstaller backend/apex5.spec --noconfirm --distpath backend/dist --workpath backend/build
 
-      - name: 压 zip（解压即用，无需安装）
-        run: Compress-Archive -Path backend/dist/Apex5Unleashed/* -DestinationPath Apex5Unleashed-${{ github.ref_name }}-win64.zip
+      - name: 计算版本与 zip 名
+        run: |
+          $v = (Get-Content VERSION -Raw).Trim()
+          "APP_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            "ZIP_NAME=Apex5Unleashed-$v-win64.zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          } else {
+            "ZIP_NAME=Apex5Unleashed-nightly-win64.zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
 
-      - name: 发布 Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: Apex5Unleashed-${{ github.ref_name }}-win64.zip
-          generate_release_notes: true
+      - name: 压 zip（解压即用，无需安装）
+        run: Compress-Archive -Path backend/dist/Apex5Unleashed/* -DestinationPath $env:ZIP_NAME
+
+      - name: 发布（VERSION bump → 自动正式版；否则滚动 nightly）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = "v$env:APP_VERSION"
+          $isTag = $env:GITHUB_REF_TYPE -eq 'tag'
+          if ($isTag -and $env:GITHUB_REF_NAME -ne $tag) {
+            Write-Error "tag $($env:GITHUB_REF_NAME) 与 VERSION($env:APP_VERSION) 不一致——改 VERSION 或改 tag，两者必须同步"
+            exit 1
+          }
+          $sha = (git rev-parse --short HEAD).Trim()
+          $exists = [bool](git ls-remote --tags origin "refs/tags/$tag")
+          if ($isTag -or -not $exists) {
+            # 正式版：tag 推送，或 main 上该 VERSION 从未发过（bump VERSION 即自动发版）
+            gh release delete $tag --yes --cleanup-tag --repo $env:GITHUB_REPOSITORY
+            if ($LASTEXITCODE -ne 0) { Write-Host "无旧 $tag 可清理，继续" }
+            gh release create $tag $env:ZIP_NAME --repo $env:GITHUB_REPOSITORY --latest `
+              --title "v$env:APP_VERSION" --target $env:GITHUB_SHA `
+              --notes "正式版 v$env:APP_VERSION（自动发布，构建于 commit $sha）。"
+            Write-Host "已发布正式版 $tag"
+          } else {
+            # nightly：VERSION 未 bump 的 main 推送 → 滚动替换开发版预发布
+            gh release delete nightly --yes --cleanup-tag --repo $env:GITHUB_REPOSITORY
+            if ($LASTEXITCODE -ne 0) { Write-Host "无旧 nightly 可清理，继续" }
+            gh release create nightly $env:ZIP_NAME --repo $env:GITHUB_REPOSITORY --prerelease `
+              --title "开发版 nightly（v$env:APP_VERSION @ $sha）" --target $env:GITHUB_SHA `
+              --notes "main 分支最新自动构建（v$env:APP_VERSION @ commit $sha），每次推送滚动替换。正式版见 v* 标签的 Release。"
+            Write-Host "nightly 已更新"
+          }

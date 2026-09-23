@@ -3,6 +3,8 @@ import { post } from './http'
 import type { EngineSnapshot } from './types'
 
 export const system = {
+  version: () =>
+    fetch('/api/version').then(r => r.json()) as Promise<{ version: string; sha: string }>,
   uiError: (msg: string, stack: string, where: string) =>
     fetch('/api/ui-error', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

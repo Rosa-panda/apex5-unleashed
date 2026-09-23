@@ -43,10 +43,6 @@ python backend/run.py --mock   # 强制 Mock
 python backend/run.py --no-gui # 无窗口（开发/CI）
 ```
 
-### 打包发布
-
-push `v*` tag（如 `v0.1.0`）→ GitHub Actions 自动云端打包并在 Releases 页挂出 zip；本地打包用 `python -m PyInstaller backend/apex5.spec --noconfirm`（产物在 `backend/dist/Apex5Unleashed/`）。
-
 ## 路线图
 
 - **v0.1** ✅ 协议引擎 + 扳机实验室 + 预设/游戏库 + 灯光 + 屏幕 + 拓展键 + 板载宏 + 托盘 + Mock 全链路

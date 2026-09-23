@@ -1,9 +1,37 @@
 # 系统/基础端点（ADR-029 B2 自 service.py 逐字搬出）：
-# favicon/health/ui-error/show/device/state/modes/open-folder
+# favicon/health/ui-error/show/device/state/modes/open-folder/version
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import protocol
+
+
+def _app_version():
+    """工具自身版本：唯一真相源 = 仓库根 VERSION 文件（界面/exe 属性/Release 全从它读，
+    禁止在任何地方硬编码版本号——2026-09-23 侧栏 v0.3.2 与 Release v0.1.0 打架的教训）。
+    frozen 下 VERSION 由 apex5.spec 打进 _MEIPASS；GIT_SHA 是 CI 构建时落的提交短哈希
+    （源码态无此文件），用于区分 nightly 构建。"""
+    import os
+    import sys
+    if getattr(sys, "frozen", False):
+        base = sys._MEIPASS
+    else:
+        # 本文件在 backend/app/routers/ 下，回退 4 层到仓库根（VERSION 所在；
+        # ⚠ ADR-029 拆分后比老 service.py 深一层，dirname 少一层就找不到）
+        base = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))))
+    try:
+        with open(os.path.join(base, "VERSION"), encoding="utf-8") as f:
+            v = f.read().strip()
+    except OSError:
+        v = "unknown"
+    sha = ""
+    try:
+        with open(os.path.join(base, "GIT_SHA"), encoding="utf-8") as f:
+            sha = f.read().strip()
+    except OSError:
+        pass
+    return v, sha
 
 
 def build_system_router(ctx):
@@ -31,6 +59,11 @@ def build_system_router(ctx):
     @r.get("/api/health")
     def health():
         return {"ok": True, "mock": engine.force_mock, "online": engine.online}
+
+    @r.get("/api/version")
+    def version():
+        v, sha = _app_version()
+        return {"version": v, "sha": sha}
 
     class UiErrorReq(BaseModel):
         msg: str = ""

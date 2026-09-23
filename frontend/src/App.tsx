@@ -39,6 +39,13 @@ export default function App() {
   const [toast, setToast] = useState('')
   const lastAutoRef = useRef<EngineEvent | null>(null)
   const toastTimer = useRef(0)
+  // 版本号：唯一真相源 = 仓库根 VERSION（后端 /api/version），禁止在界面硬编码
+  const [appVer, setAppVer] = useState('')
+  useEffect(() => {
+    api.version()
+      .then(v => setAppVer(v.sha ? `${v.version} (${v.sha})` : v.version))
+      .catch(() => {})
+  }, [])
 
   const proxy = snap?.proxy
   const taken = proxy?.holder === 'external'
@@ -101,7 +108,7 @@ export default function App() {
           </svg>
           <div>
             <div className="text-[13px] font-semibold tracking-wide">Apex5 Unleashed</div>
-            <div className="text-[10px] text-text-low">v0.3.2 · 八爪鱼5 工具箱</div>
+            <div className="text-[10px] text-text-low">{appVer ? `v${appVer} · 八爪鱼5 工具箱` : '八爪鱼5 工具箱'}</div>
           </div>
         </div>
 
