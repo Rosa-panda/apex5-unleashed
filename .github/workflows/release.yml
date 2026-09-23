@@ -51,13 +51,22 @@ jobs:
         # （首跑在仓库根执行 → 产物到了根 dist/，压 zip 步骤找 backend/dist 扑空）
         run: python -m PyInstaller backend/apex5.spec --noconfirm --distpath backend/dist --workpath backend/build
 
-      - name: 计算版本与 zip 名
+      - name: 计算版本、归属与 zip 名（命名跟随归属，首跑实锤：main 自动发正式版时 zip 曾误名 nightly）
         run: |
+          $ErrorActionPreference = 'Stop'
           $v = (Get-Content VERSION -Raw).Trim()
           "APP_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+          $isTag = $env:GITHUB_REF_TYPE -eq 'tag'
+          if ($isTag -and $env:GITHUB_REF_NAME -ne "v$v") {
+            Write-Error "tag $($env:GITHUB_REF_NAME) 与 VERSION($v) 不一致——改 VERSION 或改 tag，两者必须同步"
+            exit 1
+          }
+          $exists = [bool](git ls-remote --tags origin "refs/tags/v$v")
+          if ($isTag -or -not $exists) {
+            "PUBLISH_MODE=stable" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
             "ZIP_NAME=Apex5Unleashed-$v-win64.zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           } else {
+            "PUBLISH_MODE=nightly" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
             "ZIP_NAME=Apex5Unleashed-nightly-win64.zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           }
 
@@ -70,14 +79,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $tag = "v$env:APP_VERSION"
-          $isTag = $env:GITHUB_REF_TYPE -eq 'tag'
-          if ($isTag -and $env:GITHUB_REF_NAME -ne $tag) {
-            Write-Error "tag $($env:GITHUB_REF_NAME) 与 VERSION($env:APP_VERSION) 不一致——改 VERSION 或改 tag，两者必须同步"
-            exit 1
-          }
           $sha = (git rev-parse --short HEAD).Trim()
-          $exists = [bool](git ls-remote --tags origin "refs/tags/$tag")
-          if ($isTag -or -not $exists) {
+          if ($env:PUBLISH_MODE -eq 'stable') {
             # 正式版：tag 推送，或 main 上该 VERSION 从未发过（bump VERSION 即自动发版）
             gh release delete $tag --yes --cleanup-tag --repo $env:GITHUB_REPOSITORY
             if ($LASTEXITCODE -ne 0) { Write-Host "无旧 $tag 可清理，继续" }
