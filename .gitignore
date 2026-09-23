@@ -9,5 +9,9 @@ frontend/dist/
 # 运行时杂物
 *.log
 
+# PyInstaller 打包产物 / 中间物（发布物由 CI 自动构建，不入库）
+backend/build/
+backend/dist/
+
 # 设备配置转储（备份 bin 含整机配置槽，属本机数据）
 backend/*.bin

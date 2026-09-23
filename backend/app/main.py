@@ -78,9 +78,14 @@ def main():
     ui_hooks = {"show": None}          # main 后半段窗口就绪后填入（/api/show 二次启动唤起用）
     app = service.create_app(eng, store, games, ui_hooks=ui_hooks, mods=mods, ingress=ingress)
 
-    # 静态前端（存在才挂）
+    # 静态前端（存在才挂）。frozen（PyInstaller 产物）下前端 dist 作为 datas 打进
+    # _MEIPASS/frontend/dist（见 backend/apex5.spec）；源码态仍按仓库相对路径找。
     import os
-    web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
+    import sys as _sys
+    if getattr(_sys, "frozen", False):
+        web_dir = os.path.join(_sys._MEIPASS, "frontend", "dist")
+    else:
+        web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
     if os.path.isdir(web_dir):
         from fastapi.responses import FileResponse
         from fastapi.staticfiles import StaticFiles
