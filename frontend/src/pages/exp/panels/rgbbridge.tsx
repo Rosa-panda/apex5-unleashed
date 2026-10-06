@@ -21,7 +21,7 @@ export function RgbBridgePanel() {
         <button className={st.enabled ? BTN_ACC : BTN} onClick={toggle}>
           {st.enabled ? `运行中 127.0.0.1:${st.port}（点此停止）` : `已停止（点此启动 :${st.port}）`}
         </button>
-        <span className="text-[10px] text-text-low">DSX 等往 7878 发的 RGB 颜色 → 翻译成手柄灯效（官方静默丢弃的部分）</span>
+        <span className="text-[10px] text-text-low">把游戏发来的灯光颜色 → 翻译成手柄灯效（官方静默丢弃的部分）</span>
       </Row>
       {st.enabled && (
         <Row label="测试色">

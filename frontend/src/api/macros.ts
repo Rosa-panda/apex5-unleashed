@@ -1,9 +1,11 @@
 // 宏/拓展键域（ADR-029 F1 自 api.ts 拆出；宏 ADR-021）
-import { post } from './http'
+import { get, post } from './http'
 import type { Macro, MacroAction } from './types'
 
 export const macros = {
-  macroConfig: () => fetch('/api/macro/config').then(r => r.json()) as Promise<{
+  // GET 带 {error} 检查：mock/无设备时后端回 {"error":"vendor 接口未找到"}，
+  // 不检查会把 undefined.macros 灌进 state 炸渲染（错误边界接住=整页不可用）
+  macroConfig: () => get('/api/macro/config') as Promise<{
     cfg: number; version: number; macros: Macro[]
   }>,
   macroWrite: (macros: Macro[], unbind: string[] = []) =>

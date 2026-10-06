@@ -45,7 +45,7 @@ export function DsuPanel() {
             加速度(g)：{st.preview.accel.join(', ')}<br />
             陀螺(deg/s)：pitch {st.preview.gyro[0]} ｜ yaw {st.preview.gyro[1]} ｜ roll {st.preview.gyro[2]}
           </>
-        ) : '等待 0xEF 运动流…（手柄在线即自动来数）'}
+        ) : '等待体感数据…（手柄在线即自动来数）'}
       </div>
       <Row label="轴向">
         {['pitch', 'yaw', 'roll'].map((k, i) => (

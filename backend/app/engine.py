@@ -1,5 +1,6 @@
 # 引擎层：锁存账本状态机 + HID worker(ADR-012) + panic + 启动卫生(ADR-010) + 代理权检测(ADR-006)
 import math
+import struct
 import threading
 import time
 from collections import deque
@@ -31,6 +32,29 @@ SS_INIT_MIN = 3           # 窗口内命中 ≥3 种标记 cmd 即判 init
 # 0xEF 帧 32 键物理位图（官方 OperatorDataParser 同源，映射前状态，ADR-019）：
 # body[11..14] = keyId 0-31 的实时按压；拓展键 id18-23 与固件映射无关，天然区别于老按键
 EXTKEY_BITNAMES = {18: "m1", 19: "m2", 20: "m3", 21: "m4", 22: "lm", 23: "rm"}
+
+# 灯效 mode → 帧生成器（led_apply_effect 用；模块级常量，免得每次调用重建 20 个闭包）
+_LED_GENERATORS = {
+    "on": lambda cn, cs, **kw: protocol.led_frames_solid(cs[0], cn),
+    "off": lambda cn, cs, **kw: protocol.led_frames_solid((0, 0, 0), cn),
+    "breath": lambda cn, cs, **kw: protocol.led_frames_breath(cs[0], cn),
+    "gradient": lambda cn, cs, **kw: protocol.led_frames_gradient(cs, cn),
+    "flow": lambda cn, cs, **kw: protocol.led_frames_flow(cs, cn),
+    "blink": lambda cn, cs, **kw: protocol.led_frames_blink(cs[0], cn),
+    "heartbeat": lambda cn, cs, **kw: protocol.led_frames_heartbeat(cs[0], cn),
+    "wipe": lambda cn, cs, **kw: protocol.led_frames_wipe(cs, cn),
+    "comet": lambda cn, cs, **kw: protocol.led_frames_comet(cs, cn, **kw),
+    "duosweep": lambda cn, cs, **kw: protocol.led_frames_duosweep(cs, cn, **kw),
+    "rain": lambda cn, cs, **kw: protocol.led_frames_rain(cs, cn, **kw),
+    "chase": lambda cn, cs, **kw: protocol.led_frames_chase(cs, cn, **kw),
+    "pulse": lambda cn, cs, **kw: protocol.led_frames_pulse(cs, cn, **kw),
+    "fire": lambda cn, cs, **kw: protocol.led_frames_fire(cs, cn),
+    "auroraflow": lambda cn, cs, **kw: protocol.led_frames_auroraflow(cs, cn),
+    "typewriter": lambda cn, cs, **kw: protocol.led_frames_typewriter(cs, cn),
+    "rainbow": lambda cn, cs, **kw: protocol.led_frames_rainbow(cn),
+    "hueflash": lambda cn, cs, **kw: protocol.led_frames_hueflash(cn),
+    "aurora": lambda cn, cs, **kw: protocol.led_frames_aurora(cs, cn),
+    "default": lambda cn, cs, **kw: protocol.led_frames_solid(cs[0], cn)}
 
 
 def now():
@@ -65,6 +89,7 @@ class Engine:
         self._bus = []                                      # 订阅者回调
         self._stop = threading.Event()
         self._last_external = 0.0
+        self._last_proc_scan = 0.0          # 上次进程扫描时刻（tasklist 节流用）
         self._bg_process_hint = None
         self._last_raw = {}
         self._rumble_timer = None
@@ -138,12 +163,11 @@ class Engine:
     def _dispatch_motion(self, body):
         """0xEF 帧运动段（ADR-027 D2：body 索引 = openflydigi raw-1）：
         摇杆 LX/LY/RX/RY @3/5/7/9、陀螺 @17/19/21、加速度 @23/25/27，i16 LE。"""
-        import struct as _s
         if len(body) < 29:
             return
-        lx, ly, rx, ry = _s.unpack_from("<4h", body, 3)
-        gx, gy, gz = _s.unpack_from("<3h", body, 17)
-        ax, ay, az = _s.unpack_from("<3h", body, 23)
+        lx, ly, rx, ry = struct.unpack_from("<4h", body, 3)
+        gx, gy, gz = struct.unpack_from("<3h", body, 17)
+        ax, ay, az = struct.unpack_from("<3h", body, 23)
         self._motion_count += 1
         m = {"t": time.monotonic(), "lx": lx, "ly": ly, "rx": rx, "ry": ry,
              "gyro": [gx, gy, gz], "accel": [ax, ay, az]}
@@ -156,8 +180,10 @@ class Engine:
     # ---------- 阻塞问答（体验区配置读：cmd3/cmd16/cmd2 等，ADR-027） ----------
     def request(self, frame, cmd_id, timeout=1.0, source="req"):
         """发一帧并等同命令号回复（body 列表）。超时返回已收到的（可能为空）。"""
-        self._rx_cmd = cmd_id
+        # 先清缓冲再开匹配：若反过来，上一条同命令号的迟到回复可能正好落在两行
+        # 之间——worker 按新 cmd 匹配后 append 进旧缓冲，随即被清掉，本次问答丢 ACK
         self._rx_buf = []
+        self._rx_cmd = cmd_id
         try:
             self._send(frame, source)
             t0 = time.monotonic()
@@ -494,6 +520,8 @@ class Engine:
         self._notify_state()
 
     def bind_grip(self, side, params, source="ui"):
+        if side not in protocol.SIDE:
+            raise ValueError("side")
         payload = protocol.grip_payload(protocol.SIDE[side], params or {})
         self._send(protocol.build(protocol.CMD_GRIP, payload), source)
         self.state["gripBind"][side] = {**(params or {}), "source": source, "applied_at": now()}
@@ -515,6 +543,7 @@ class Engine:
             return None
         self._led_rx = []
         self._led_rx_done = False
+        self._led_blob_raw = b""    # 本轮读回前清空：设备对 0xA7 完全静默时不得拿旧 blob 参与写校验
         try:
             self._send(protocol.led_read_frame(0), source)
             t0 = time.monotonic()
@@ -522,8 +551,16 @@ class Engine:
                 time.sleep(0.02)
             if not self._led_rx:
                 return None
-            self._led_blob_raw = b"".join(
-                bytes(p[6:26]) for p in sorted(self._led_rx, key=lambda p: p[4] if len(p) > 4 else 0))
+            packs = sorted(self._led_rx, key=lambda p: p[4] if len(p) > 4 else 0)
+            # 完整性核验（0xA7 实测有丢包，见 led_write）：[3]=总包数 [4]=包序号。
+            # 缺包/重包时按序拼接会错位成半张错表——blob 清空判读取失败，
+            # 让写校验/备份走明确的「读不到」路径，而不是拿错表比对出莫名重试
+            total = packs[0][3] if len(packs[0]) > 3 else 0
+            seqs = [p[4] for p in packs if len(p) > 4]
+            if total <= 0 or len(packs) != total or len(set(seqs)) != total:
+                self._led_blob_raw = b""
+                return None
+            self._led_blob_raw = b"".join(bytes(p[6:26]) for p in packs)
             self._led_bean = protocol.parse_led_bean(self._led_blob_raw)
             return self._led_bean
         finally:
@@ -615,8 +652,7 @@ class Engine:
         flash 写是秒级慢操作，超时放大到 10s（SDK 对 166 专用值）。"""
         st = self._mapping_status(source=source + ":status")
         ver = st["versions"][st["active"]] & 0xFFFF if st else 0
-        import struct as _s
-        bodies = self.request(protocol.build_crc(166, _s.pack("<H", ver)), 166,
+        bodies = self.request(protocol.build_crc(166, struct.pack("<H", ver)), 166,
                               timeout=10.0, source=source + ":save")
         if not any(b[2] == 166 for b in bodies):
             raise RuntimeError("cmd166 保存无 ACK（灯效本次上电内有效，休眠会丢）")
@@ -635,30 +671,20 @@ class Engine:
             colors = [colors]
         colors = [tuple(max(0, min(255, int(c))) for c in rgb) for rgb in colors] or [(255, 255, 255)]
         params = {k: v for k, v in (params or {}).items() if v is not None}
-        gen = {"on": lambda cn, cs, **kw: protocol.led_frames_solid(cs[0], cn),
-               "off": lambda cn, cs, **kw: protocol.led_frames_solid((0, 0, 0), cn),
-               "breath": lambda cn, cs, **kw: protocol.led_frames_breath(cs[0], cn),
-               "gradient": lambda cn, cs, **kw: protocol.led_frames_gradient(cs, cn),
-               "flow": lambda cn, cs, **kw: protocol.led_frames_flow(cs, cn),
-               "blink": lambda cn, cs, **kw: protocol.led_frames_blink(cs[0], cn),
-               "heartbeat": lambda cn, cs, **kw: protocol.led_frames_heartbeat(cs[0], cn),
-               "wipe": lambda cn, cs, **kw: protocol.led_frames_wipe(cs, cn),
-               "comet": lambda cn, cs, **kw: protocol.led_frames_comet(cs, cn, **kw),
-               "duosweep": lambda cn, cs, **kw: protocol.led_frames_duosweep(cs, cn, **kw),
-               "rain": lambda cn, cs, **kw: protocol.led_frames_rain(cs, cn, **kw),
-               "chase": lambda cn, cs, **kw: protocol.led_frames_chase(cs, cn, **kw),
-               "pulse": lambda cn, cs, **kw: protocol.led_frames_pulse(cs, cn, **kw),
-               "fire": lambda cn, cs, **kw: protocol.led_frames_fire(cs, cn),
-               "auroraflow": lambda cn, cs, **kw: protocol.led_frames_auroraflow(cs, cn),
-               "typewriter": lambda cn, cs, **kw: protocol.led_frames_typewriter(cs, cn),
-               "rainbow": lambda cn, cs, **kw: protocol.led_frames_rainbow(cn),
-               "hueflash": lambda cn, cs, **kw: protocol.led_frames_hueflash(cn),
-               "aurora": lambda cn, cs, **kw: protocol.led_frames_aurora(cs, cn),
-               "default": lambda cn, cs, **kw: protocol.led_frames_solid(cs[0], cn)}.get(mode)
+        gen = _LED_GENERATORS.get(mode)
         if gen is None:
             raise ValueError("mode")
         frames_b = gen(rgb_num, colors, **params)
-        n_frames = len(frames_b) // (rgb_num * 3)
+        frame_len = rgb_num * 3
+        n_frames = len(frames_b) // frame_len
+        # 槽位容量显式裁剪（2026-09-23 落实遗留项）：固件只存 LED_SLOT_BYTES 帧数据，
+        # 超出的帧过去被固件静默丢弃（comet 12 帧→10 帧播放且校验只比重叠区蒙混过关）——
+        # 现在写入前裁齐、loop_end 按实写帧数收口、truncated 数量进事件与返回值告警。
+        cap_frames = max(1, protocol.LED_SLOT_BYTES // frame_len)
+        truncated = max(0, n_frames - cap_frames)
+        if truncated:
+            frames_b = frames_b[:cap_frames * frame_len]
+            n_frames = cap_frames
         bean = dict(bean)
         bean["led_mode"] = 0 if mode == "off" else 1
         if brightness is not None:
@@ -667,7 +693,9 @@ class Engine:
         if period is not None:
             bean["loop_time"] = max(1, min(255, int(period)))
         self.led_write(bean, frames_b, source=source)
-        self._emit("led", effect=mode, frames=n_frames, brightness=bean["brightness"])
+        self._emit("led", effect=mode, frames=n_frames, brightness=bean["brightness"],
+                   truncated=truncated)
+        return {"ok": True, "frames": n_frames, "truncated": truncated}
 
     # ---------- 屏幕上传（ADR-018 R4 二期：串口 OTA，离线自检已过，真机待用户确认） ----------
     def screen_flash(self, frames, interval_ms=100, restore_default=False, source="ui"):
@@ -768,9 +796,15 @@ class Engine:
             self.unbind_grip(s, source="test")
 
     # ---------- 代理权-进程归因 + 自动接管回来（线程D调用） ----------
-    def scan_proxy_processes(self):
+    def scan_proxy_processes(self, min_interval=10.0):
         """进程扫描只做【归因命名】，不单独判定接管（进程在场≠在写总线）。
-        接管唯一铁证 = _external_hit 的总线外部命令。"""
+        接管唯一铁证 = _external_hit 的总线外部命令。
+        节流：tasklist 是子进程（单次几十到几百 ms），监控线程 0.5Hz 全速轮询
+        等于常驻烧一份 CPU；进程起落是秒级事件，10s 内只扫一次，归因结论不变。"""
+        t = time.monotonic()
+        if t - self._last_proc_scan < min_interval:
+            return
+        self._last_proc_scan = t
         import subprocess
         try:
             out = subprocess.run(

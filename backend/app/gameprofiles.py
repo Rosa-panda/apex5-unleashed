@@ -64,6 +64,7 @@ class GameProfiles:
         self._active_game = None              # 自动切换当前生效适配的游戏名（None=无）
         self._active_uni = False              # 通用联动是否为自动切换所套（手动设置不算）
         self._cache = ({}, 0.0)               # (档案dict, 加载时刻) —— 档案多了不能每秒全量读盘
+        self._list_cache = None               # (builtin列表, user列表, 加载时刻)——游戏库页 3s 轮询
         self.subscribers = []                 # 前台变化订阅者（fn(exe)，Mod 管家挂这）
         self._load_settings()
 
@@ -87,8 +88,17 @@ class GameProfiles:
         return out
 
     def list(self):
-        return {"builtin": list(self._load(builtin_games_dir(), True).values()),
-                "user": list(self._load(games_dir(), False).values()),
+        # 游戏库页每 3s 轮询本端点：全量重读+解析几百个 JSON 太重，与 all() 同享
+        # 5s TTL（save/delete 走 _bust 主动失效，写后可见性不变）。
+        # ⚠ TTL 内重复调用返回同一批 dict/list 对象（调用方只许序列化，勿原地修改——
+        # 改了会污染缓存；要改先 save() 走正规写路径）。
+        b, u, ts = self._list_cache or (None, None, 0.0)
+        now = time.time()
+        if b is None or now - ts >= 5.0:
+            b = list(self._load(builtin_games_dir(), True).values())
+            u = list(self._load(games_dir(), False).values())
+            self._list_cache = (b, u, now)
+        return {"builtin": b, "user": u,
                 "foreground": self.foreground,
                 "autoswitch": self.autoswitch,
                 "universal_vib": self.universal_vib,
@@ -106,6 +116,7 @@ class GameProfiles:
 
     def _bust(self):
         self._cache = ({}, 0.0)
+        self._list_cache = None
 
     # ---------------- 开关持久化（重启不丢：用户勾过一次就一直算数） ----------------
     @staticmethod

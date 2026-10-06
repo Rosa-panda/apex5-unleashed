@@ -18,16 +18,21 @@ def cache_dir():
 
 
 def cached_path(gid):
-    """已缓存的封面路径（任意图片后缀），无则 None。"""
-    hits = glob.glob(os.path.join(cache_dir(), gid + ".*"))
-    return hits[0] if hits else None
+    """已缓存的封面路径（任意图片后缀），无则 None。
+    .part 是下载中的临时文件：算命中会把半截图片发给前端，必须排除
+    （排除后前端对该封面 404 → 走既有退避重试，下完即命中）。"""
+    for hit in glob.glob(os.path.join(cache_dir(), gid + ".*")):
+        if not hit.endswith(".part"):
+            return hit
+    return None
 
 
 def cache_stats():
-    """缓存概况：{"count": 文件数, "bytes": 总字节}。"""
-    files = glob.glob(os.path.join(cache_dir(), "*.*"))
+    """缓存概况：{"count": 文件数, "bytes": 总字节}。.part 下载中临时文件不计。"""
+    files = [f for f in glob.glob(os.path.join(cache_dir(), "*.*"))
+             if os.path.isfile(f) and not f.endswith(".part")]
     return {"count": len(files),
-            "bytes": sum(os.path.getsize(f) for f in files if os.path.isfile(f))}
+            "bytes": sum(os.path.getsize(f) for f in files)}
 
 
 def cache_clear():
@@ -75,10 +80,18 @@ def start_prefetch(games):
         failed = {}                                    # url → 上次失败时刻
         while True:
             try:
+                # 一轮一次目录扫描建索引（小写文件名列表），此后逐游戏做前缀匹配
+                # ——等价 cached_path 的 glob "gid.*"（Windows glob 大小写不敏感），
+                # 免掉每游戏一次 glob = 每轮几百次目录遍历。
+                # ⚠ 跳过 .part：崩溃残留的孤儿 .part 若算「已存在」，预下载永不重下、
+                # 路由永远 404（cached_path 排除 .part），互锁到手动清缓存——跳过后
+                # 下轮自动重下自愈
+                names = [fn.lower() for fn in os.listdir(cache_dir())
+                         if not fn.endswith(".part")]
                 todo = []
                 for g in games.all().values():
                     url = g.get("image")
-                    if not url or cached_path(g["id"]):
+                    if not url or any(n.startswith(g["id"].lower() + ".") for n in names):
                         continue
                     if time.time() - failed.get(url, 0) < 600:
                         continue

@@ -179,20 +179,6 @@ def main():
     # 不留永久改动）；永久禁用只在设置页被显式点击时发生。
     import vibfix as vibfix_mod
 
-    if vibfix_mod.needs_selfheal():
-        # 上次会话是临时修复但软件没走正常退出（崩溃/重启杀了哨兵）。
-        # 自动修复开着 → 禁用马上还要重建，残留续用即可（省一次 UAC）；
-        # 自动修复关着 → 启动自愈还原原状，绝不留下用户不知情的禁用。
-        if games.vibfix_auto:
-            vibfix_mod.ledger_record("temporary", "disabled")
-            eng._emit("vibfix", state="carryover",
-                      detail="上次会话的临时修复残留继续生效（自动修复开启，保持禁用）")
-        else:
-            eng._emit("vibfix", state="selfheal",
-                      detail="检测到上次会话临时修复的残留（本软件未正常退出），正在请求授权恢复原状…")
-            if vibfix_mod.restore():
-                eng._emit("vibfix", state="restored", detail="虚拟手柄已恢复，系统回到原始状态")
-
     def vibfix_watch(_exe):
         if not (games.vibfix_auto and vibfix_mod.auto_fix_allowed()):
             return
@@ -207,9 +193,29 @@ def main():
             eng._emit("vibfix", state="denied",
                       detail="未获授权，虚拟手柄仍在抢震动；可到设置页手动修复，或关闭自动修复避免再次询问")
 
+    def _vibfix_boot_check():
+        """启动期 vibfix 自检（自愈残留 + 首次占用检测）。
+        ⚠ 必须在后台线程跑：ShellExecuteW(runas) 的 UAC 弹窗会阻塞调用线程，
+        在主线程开窗前同步执行 = 空间站虚拟手柄在场时整个启动卡死（窗口都不出）。
+        挪到线程后 UAC 照弹，但窗口先起，授权语境（vibfix 事件）也能经 WS 到 UI。"""
+        if vibfix_mod.needs_selfheal():
+            # 上次会话是临时修复但软件没走正常退出（崩溃/重启杀了哨兵）。
+            # 自动修复开着 → 禁用马上还要重建，残留续用即可（省一次 UAC）；
+            # 自动修复关着 → 启动自愈还原原状，绝不留下用户不知情的禁用。
+            if games.vibfix_auto:
+                vibfix_mod.ledger_record("temporary", "disabled")
+                eng._emit("vibfix", state="carryover",
+                          detail="上次会话的临时修复残留继续生效（自动修复开启，保持禁用）")
+            else:
+                eng._emit("vibfix", state="selfheal",
+                          detail="检测到上次会话临时修复的残留（本软件未正常退出），正在请求授权恢复原状…")
+                if vibfix_mod.restore():
+                    eng._emit("vibfix", state="restored", detail="虚拟手柄已恢复，系统回到原始状态")
+        if games.vibfix_auto:
+            vibfix_watch(None)                 # 启动时也查一次（游戏内启动本工具的场景）
+
     games.subscribers.append(vibfix_watch)
-    if games.vibfix_auto:
-        vibfix_watch(None)                 # 启动时也查一次（游戏内启动本工具的场景）
+    threading.Thread(target=_vibfix_boot_check, daemon=True, name="vibfix-boot").start()
     try:                                       # 封面图后台预下载（gameimg，失败不影响主流程）
         import gameimg
         gameimg.start_prefetch(games)

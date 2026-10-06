@@ -2,8 +2,9 @@
 // 任何手动改色/改参自动转入「自定义」（不动原预设），650ms 防抖自动写灯表。
 // 预览算法与后端帧生成器同思路（gradient=整条过渡 / flow=空间相位流动 / …）。
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Dices, Loader2, RotateCcw, TriangleAlert } from 'lucide-react'
+import { Check, ChevronDown, Dices, Loader2, RotateCcw, TriangleAlert } from 'lucide-react'
 import { api, type LedBean, type LedDetect } from '../api'
+import { fill } from '../components/rangeFill'
 
 type Mode = 'off' | 'on' | 'breath' | 'gradient' | 'flow' | 'blink' | 'heartbeat' | 'wipe' | 'comet' | 'duosweep' | 'rain' | 'chase' | 'pulse' | 'fire' | 'auroraflow' | 'typewriter' | 'rainbow' | 'aurora' | 'hueflash'
 
@@ -472,6 +473,8 @@ export default function Lights() {
   const [devFrames, setDevFrames] = useState<number[][] | null>(null)
   const [devLoop, setDevLoop] = useState(300)
   const [foreign, setForeign] = useState(false)
+  const [trunc, setTrunc] = useState('')                 // 槽位容量裁剪告警文案（空=无）
+  const [canvasOpen, setCanvasOpen] = useState(false)    // 帧画布折叠态（hidden 保挂载，草稿不丢）
 
   // ---- 自动写入引擎：650ms 防抖 + 串行队列（写一次 ~1-2s，绝不并发打手柄） ----
   const touched = useRef(false)          // 首次进页不回写：状态以设备为准
@@ -532,7 +535,11 @@ export default function Lights() {
       if (mode === 'chase') p.speed_b = prm.speedB ?? 3
       if (mode === 'pulse' && prm.center != null) p.center = prm.center
       if (mode === 'duosweep') p.blend = prm.blend !== false
-      await api.ledApply(mode, mode === 'off' ? [] : colors, mode === 'off' ? undefined : brightness, period, p)
+      const r = await api.ledApply(mode, mode === 'off' ? [] : colors, mode === 'off' ? undefined : brightness, period, p)
+      // 槽位容量告警：truncated=0 时清空，不残留上次告警
+      setTrunc(r && r.truncated > 0
+        ? `该灯效超出固件槽位容量，已按 ${r.frames} 帧截断写入（丢弃 ${r.truncated} 帧，预览与真机一致后为准）`
+        : '')
       setSync('ok')
       setForeign(false)
       setDevFrames(null)
@@ -603,12 +610,9 @@ export default function Lights() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      {/* 顶栏：标题 + 同步状态 */}
+      {/* 同步状态行（页标题已由顶栏报头承担，不再重复） */}
       <div className="flex items-center justify-between">
-        <div>
-          <div className="text-[15px] font-semibold text-text-hi">灯光工坊</div>
-          <div className="text-[11px] text-text-low">灯效库选款式，配色随便改——所有调整自动写入手柄</div>
-        </div>
+        <div className="text-[12px] text-text-low">灯效库选款式，配色随便改——所有调整自动写入手柄</div>
         <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] ${su.cls}`} data-sync={sync}>
           {sync === 'writing' && <Loader2 size={12} className="animate-spin" />}
           {sync === 'ok' && <Check size={12} />}
@@ -616,6 +620,13 @@ export default function Lights() {
           {su.text}
         </div>
       </div>
+
+      {/* 槽位容量裁剪告警（WIP：engine 裁剪后 truncated>0 时提示） */}
+      {trunc && (
+        <div className="flex items-center gap-2 rounded-xl border border-warn/30 bg-warn/10 px-4 py-2.5 text-[12px] leading-relaxed text-warn">
+          <TriangleAlert size={14} className="shrink-0" /> {trunc}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
         {/* 左：预览台 + 编辑器 */}
@@ -672,13 +683,13 @@ export default function Lights() {
                 <label className="text-[12px] text-text-mid">
                   亮度 <span className="font-mono text-accent">{brightness}</span>
                   <input type="range" min={1} max={255} value={brightness}
-                    onChange={e => edit(() => setBrightness(+e.target.value))} className="mt-1 w-full accent-[#22d3ee]" />
+                    onChange={e => edit(() => setBrightness(+e.target.value))} className="mt-1 w-full accent-[#22d3ee]" style={fill(brightness, 1, 255)} />
                 </label>
                 <label className="text-[12px] text-text-mid">
                   速度 <span className="font-mono text-accent">{ltToSpeed(period)}</span>
                   <span className="ml-1 text-[10px] text-text-low">右快左慢</span>
                   <input type="range" min={1} max={60} value={ltToSpeed(period)}
-                    onChange={e => edit(() => setPeriod(speedToLt(+e.target.value)))} className="mt-1 w-full accent-[#22d3ee]" />
+                    onChange={e => edit(() => setPeriod(speedToLt(+e.target.value)))} className="mt-1 w-full accent-[#22d3ee]" style={fill(ltToSpeed(period), 1, 60)} />
                 </label>
               </div>
             )}
@@ -697,21 +708,21 @@ export default function Lights() {
               <label className="block text-[12px] text-text-mid">
                 彗星拖尾 <span className="font-mono text-accent">{prm.tail ?? 3}</span> 珠
                 <input type="range" min={1} max={5} value={prm.tail ?? 3}
-                  onChange={e => edit(() => setPrm(p => ({ ...p, tail: +e.target.value })))} className="mt-1 w-full accent-[#22d3ee]" />
+                  onChange={e => edit(() => setPrm(p => ({ ...p, tail: +e.target.value })))} className="mt-1 w-full accent-[#22d3ee]" style={fill(prm.tail ?? 3, 1, 5)} />
               </label>
             )}
             {mode === 'chase' && (
               <label className="block text-[12px] text-text-mid">
                 追及倍速 <span className="font-mono text-accent">{prm.speedB ?? 3}</span>×
                 <input type="range" min={2} max={5} value={prm.speedB ?? 3}
-                  onChange={e => edit(() => setPrm(p => ({ ...p, speedB: +e.target.value })))} className="mt-1 w-full accent-[#22d3ee]" />
+                  onChange={e => edit(() => setPrm(p => ({ ...p, speedB: +e.target.value })))} className="mt-1 w-full accent-[#22d3ee]" style={fill(prm.speedB ?? 3, 2, 5)} />
               </label>
             )}
             {mode === 'pulse' && (
               <label className="block text-[12px] text-text-mid">
                 脉冲圆心 <span className="font-mono text-accent">{(prm.center ?? Math.floor((bean?.rgb_num ?? 10) / 2)) + 1}</span> 号灯
                 <input type="range" min={0} max={(bean?.rgb_num ?? 10) - 1} value={prm.center ?? Math.floor((bean?.rgb_num ?? 10) / 2)}
-                  onChange={e => edit(() => setPrm(p => ({ ...p, center: +e.target.value })))} className="mt-1 w-full accent-[#22d3ee]" />
+                  onChange={e => edit(() => setPrm(p => ({ ...p, center: +e.target.value })))} className="mt-1 w-full accent-[#22d3ee]" style={fill(prm.center ?? Math.floor((bean?.rgb_num ?? 10) / 2), 0, (bean?.rgb_num ?? 10) - 1)} />
               </label>
             )}
             {mode === 'duosweep' && (
@@ -731,16 +742,29 @@ export default function Lights() {
             )}
           </div>
 
-          {/* 帧画布（ADR-034 辅路径）：逐帧手绘直写灯表；写入后预览立即回放画布帧 */}
-          <FrameCanvas rgbNum={bean?.rgb_num ?? 12} deviceFrames={devFrames} bean={bean}
-            onPushed={flat => {
-              touched.current = true
-              setForeign(false)
-              setStyleId('custom')
-              setDevFrames(flat)
-              setDevLoop(Math.max(30, (bean?.loop_time ?? 10) * MS_PER_LT))
-              refresh()
-            }} />
+          {/* 帧画布（ADR-034 辅路径）：逐帧手绘直写灯表；默认折叠（hidden 保挂载，画布草稿不丢） */}
+          <div>
+            <button className="flex w-full items-center justify-between rounded-xl border border-border-soft/80 bg-inset px-4 py-2.5 text-[12px] text-text-mid transition-colors hover:border-line-strong hover:text-text-hi"
+              onClick={() => setCanvasOpen(o => !o)}>
+              <span className="flex items-center gap-2">
+                <ChevronDown size={13} className={canvasOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                高级 · 帧画布手绘灯效
+              </span>
+              <span className="text-[11px] text-text-low">逐帧手绘直写灯表</span>
+            </button>
+            <div className={canvasOpen ? 'mt-3' : 'hidden'}>
+              <FrameCanvas rgbNum={bean?.rgb_num ?? 12} deviceFrames={devFrames} bean={bean}
+                onPushed={flat => {
+                  touched.current = true
+                  setForeign(false)
+                  setStyleId('custom')
+                  setDevFrames(flat)
+                  setDevLoop(Math.max(30, (bean?.loop_time ?? 10) * MS_PER_LT))
+                  setTrunc('')            // 画布直写：清掉模板灯效可能残留的截断告警
+                  refresh()
+                }} />
+            </div>
+          </div>
         </div>
 
         {/* 右：灯效库 + 设备操作 */}
@@ -748,27 +772,31 @@ export default function Lights() {
           <div className="card p-4">
             <div className="mb-3 text-[13px] font-medium">灯效库</div>
             <div className="grid grid-cols-2 gap-2">
+              {/* 选中指示统一：白描边 + 名称点亮（避免青框压在彩色灯效内容上撞色） */}
               {/* 自定义卡（编辑态实时预览） */}
               <button onClick={() => { }}
-                className={`rounded-lg border p-2 text-left transition-all ${
-                  styleId === 'custom' ? 'border-accent/50 bg-accent/10' : 'border-border-soft'}`}
+                className={`rounded-lg border p-2 text-left transition-colors ${
+                  styleId === 'custom' ? 'border-text-mid/70 bg-white/5' : 'border-border-soft'}`}
                 title="在左边改配色/参数后自动进入这里">
                 <MiniStrip mode={curStyle.mode} colors={needsColors ? colors : []} period={period} />
-                <div className={`text-[11px] ${styleId === 'custom' ? 'text-accent' : 'text-text-mid'}`}>自定义</div>
+                <div className={`mt-1 text-[11px] ${styleId === 'custom' ? 'text-text-hi' : 'text-text-mid'}`}>自定义</div>
               </button>
               {/* 熄灯卡 */}
               <button onClick={() => pickStyle(OFF_STYLE)}
-                className={`rounded-lg border p-2 text-left transition-all hover:border-warn/40 ${
-                  styleId === 'off' ? 'border-warn/50 bg-warn/10' : 'border-border-soft'}`}>
+                className={`rounded-lg border p-2 text-left transition-colors hover:border-line-strong ${
+                  styleId === 'off' ? 'border-text-mid/70 bg-white/5' : 'border-border-soft'}`}>
                 <MiniStrip mode="off" colors={[]} />
-                <div className="text-[11px] text-text-mid">熄灯</div>
+                <div className={`mt-1 text-[11px] ${styleId === 'off' ? 'text-text-hi' : 'text-text-mid'}`}>熄灯</div>
               </button>
               {LIB.map(s => (
                 <button key={s.id} onClick={() => pickStyle(s)}
-                  className={`rounded-lg border p-2 text-left transition-all hover:border-accent/40 ${
-                    styleId === s.id ? 'border-accent/50 bg-accent/10' : 'border-border-soft'}`}>
+                  className={`relative rounded-lg border p-2 text-left transition-colors hover:border-line-strong ${
+                    styleId === s.id ? 'border-text-mid/70 bg-white/5' : 'border-border-soft'}`}>
+                  {styleId === s.id && (
+                    <Check size={12} className="absolute right-1.5 top-1.5 text-text-hi" />
+                  )}
                   <MiniStrip mode={s.mode} colors={s.colors} period={s.period} />
-                  <div className={`text-[11px] ${styleId === s.id ? 'text-accent' : 'text-text-mid'}`}>{s.name}</div>
+                  <div className={`mt-1 text-[11px] ${styleId === s.id ? 'text-text-hi' : 'text-text-mid'}`}>{s.name}</div>
                 </button>
               ))}
             </div>

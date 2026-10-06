@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../../api'
 import { BTN, BTN_ACC, CurveCanvas, Err, NoDev, Row, useFlash } from '../ui'
+import { fill } from '../../../components/rangeFill'
 
 const STICK_PRESETS: Array<[string, number, number, number, number, number]> = [
   ['默认', 0, 0, 63, 63, 127],
@@ -48,11 +49,11 @@ export function StickCfgPanel() {
         <div className="flex-1 space-y-1.5">
           <Row label={`死区 ${s.center}`}>
             <input type="range" min={0} max={100} value={s.center} className="w-32"
-              onChange={e => setLocal({ center: +e.target.value })} />
+              onChange={e => setLocal({ center: +e.target.value })} style={fill(s.center, 0, 100)} />
           </Row>
           <Row label={`边缘收缩 ${s.edge}`}>
             <input type="range" min={0} max={100} value={s.edge} className="w-32"
-              onChange={e => setLocal({ edge: +e.target.value })} />
+              onChange={e => setLocal({ edge: +e.target.value })} style={fill(s.edge, 0, 100)} />
           </Row>
           <Row label="控制点">
             {pt.map((v, i) => (
@@ -81,9 +82,9 @@ export function StickCfgPanel() {
       </Row>
       <Row label={`扳机行程 ${t.zero}..${t.end}`}>
         <input type="range" min={0} max={200} value={t.zero} className="w-28"
-          onChange={e => saveTrigger(+e.target.value, Math.max(+e.target.value + 5, t.end))} />
+          onChange={e => saveTrigger(+e.target.value, Math.max(+e.target.value + 5, t.end))} style={fill(t.zero, 0, 200)} />
         <input type="range" min={t.zero + 5} max={255} value={t.end} className="w-28"
-          onChange={e => saveTrigger(t.zero, +e.target.value)} />
+          onChange={e => saveTrigger(t.zero, +e.target.value)} style={fill(t.end, t.zero + 5, 255)} />
         <span className="text-[10px] text-text-low">拖动即写（线性镜像控制点，官方唯一组合）</span>
       </Row>
       <Err e={msg} />

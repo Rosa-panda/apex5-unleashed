@@ -51,10 +51,10 @@ def build_led_router(ctx):
     @r.post("/api/led/apply")
     def led_apply(req: LedApplyReq):
         try:
-            engine.led_apply_effect(req.mode, [tuple(c) for c in req.colors],
-                                    brightness=req.brightness, period=req.period,
-                                    params=req.params)
-            return {"ok": True}
+            # 返回 frames/truncated：槽位容量裁剪告警由前端展示（2026-09-23）
+            return engine.led_apply_effect(req.mode, [tuple(c) for c in req.colors],
+                                           brightness=req.brightness, period=req.period,
+                                           params=req.params)
         except Exception as e:
             return err(e)
 

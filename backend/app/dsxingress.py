@@ -46,6 +46,15 @@ DSX_RIGID_LEVELS = {   # DSX 固定阻尼档 → race resistance 档（比例放
     "VeryHard": 190, "Hardest": 230, "Rigid": 255, "GameCube": 160,
 }
 
+# dsx wire 模式号 → race resistance 档（模块装载时反转一次；8 个有档位的模式号
+# 互不相同——Choppy(9) 只登记了模式号、没有档位，反转后不产生条目，mode9 新旧
+# 逻辑同样都返回 None——反转查表与原「遍历 + 每项重建映射 dict」逐包判定完全
+# 等价，省掉每包 9 次 dict 构建）
+_RIGID_BY_MODE = {{"VerySoft": 2, "Soft": 3, "Hard": 4, "VeryHard": 5,
+                   "Hardest": 6, "Rigid": 7, "GameCube": 1, "Medium": 10,
+                   "Choppy": 9}[name]: lvl
+                  for name, lvl in DSX_RIGID_LEVELS.items()}
+
 MIN_INTERVAL = 0.015        # 每侧 HID 写出最小间隔（15ms ≈ 66Hz，够 F1 遥测满频）
 
 
@@ -54,6 +63,13 @@ def _b(v, default=0):
         return int(v) & 0xFF
     except (TypeError, ValueError):
         return default
+
+
+def _b8(v):
+    """四舍五入并钳到 0..255。DSX mod 发来的参数不保证在标称量程内（如 Resistance
+    的 start>9），换算后 bytes() 会因越界抛 ValueError——此前一条畸形包就能炸掉
+    整个接收线程（_loop 对 _handle_trigger 无兜底），这里在源头钳位。"""
+    return max(0, min(255, round(v)))
 
 
 class DsxIngress:
@@ -139,7 +155,12 @@ class DsxIngress:
                     continue
                 params = ins_i.get("parameters")
                 if isinstance(params, list) and len(params) >= 3:
-                    self._handle_trigger(params)
+                    try:
+                        self._handle_trigger(params)
+                    except Exception:
+                        # 单条指令异常只丢这条（计数），接收线程绝不能死——
+                        # 此前未捕获异常会让 _loop 整个退出，ingress 静默瘫痪到重启
+                        self.ignored += 1
 
     # ---------- 翻译 ----------
     def _handle_trigger(self, params):
@@ -169,18 +190,16 @@ class DsxIngress:
         if dsx_mode == 0:                       # Normal
             return bytes([0])
         if dsx_mode == 13 and len(r) >= 2:      # Resistance(start 0-9, force 0-8) → race
-            return bytes([1, round(r[0] / 9 * 255), max(1, round(r[1] / 8 * 255)), 1])
+            return bytes([1, _b8(r[0] / 9 * 255), max(1, _b8(r[1] / 8 * 255)), 1])
         if dsx_mode == 14 and len(r) >= 3:      # Bow(start,end,force,..) → race 弓感近似
-            return bytes([1, round(r[0] / 8 * 255), max(1, round(r[2] / 8 * 255)), 1])
+            return bytes([1, _b8(r[0] / 8 * 255), max(1, _b8(r[2] / 8 * 255)), 1])
         if dsx_mode == 8 and len(r) >= 1:       # VibrateTrigger(intensity) → vibration
             return bytes([5, 10, max(1, r[0]), r[0], 40, 1])
         if dsx_mode == 11:                      # VibrateTriggerPulse → vibration 脉动感
             return bytes([5, 10, 30, 80, 30, 1])
-        for name, lvl in DSX_RIGID_LEVELS.items():   # 固定阻尼档
-            if dsx_mode == {"VerySoft": 2, "Soft": 3, "Hard": 4, "VeryHard": 5,
-                            "Hardest": 6, "Rigid": 7, "GameCube": 1, "Medium": 10,
-                            "Choppy": 9}.get(name):
-                return bytes([1, 0, lvl, 1])
+        lvl = _RIGID_BY_MODE.get(dsx_mode)      # 固定阻尼档
+        if lvl is not None:
+            return bytes([1, 0, lvl, 1])
         return None                              # CustomTriggerValue/Gun 系：布局差异大，不硬译
 
     # ---------- 写出（去重 + 限频，ADR-009 防洪坝） ----------

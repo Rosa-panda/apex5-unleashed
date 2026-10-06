@@ -14,18 +14,16 @@ function Toggle({ on, onChange, label, desc }: {
   desc: string
 }) {
   return (
-    <button onClick={() => onChange(!on)}
-      className="flex w-full items-start gap-3 rounded-lg border border-border-soft bg-[#0d0d14] p-3 text-left transition-colors hover:border-accent-dim">
-      <span className={`mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors ${
-        on ? 'bg-accent' : 'bg-white/15'}`}>
-        <span className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
-          on ? 'translate-x-4' : ''}`} />
-      </span>
+    <div className="flex w-full items-start gap-3 rounded-xl border border-border-soft/80 bg-inset p-3 transition-colors hover:border-line-strong">
+      <label className="switch mt-0.5">
+        <input type="checkbox" checked={on} aria-label={label} onChange={e => onChange(e.target.checked)} />
+        <span className="switch-track" />
+      </label>
       <span className="min-w-0">
-        <span className={`block text-[13px] ${on ? 'text-accent' : 'text-text-mid'}`}>{label}</span>
+        <span className={`block text-[13px] ${on ? 'text-text-hi' : 'text-text-mid'}`}>{label}</span>
         <span className="mt-0.5 block text-[11px] leading-snug text-text-low">{desc}</span>
       </span>
-    </button>
+    </div>
   )
 }
 
@@ -54,7 +52,7 @@ export default function Settings() {
     b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="mx-auto max-w-3xl space-y-5">
       {/* ---------- 联动行为 ---------- */}
       <div className="card p-5">
         <div className="mb-3 flex items-center gap-2 text-[12px] text-text-mid">
@@ -115,10 +113,13 @@ export default function Settings() {
         )}
         {vibfix?.state === 'disabled' && (
           <div className="space-y-2">
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-[12px] leading-relaxed text-emerald-200">
-              {vibfix.ledger.mode === 'permanent'
-                ? <>已永久禁用（{vibfix.ledger.since} 由本软件执行）。这里永远可见、随时可恢复，不会变成无头案。</>
-                : <>临时修复中：虚拟手柄已禁用，真手柄独占震动。<b>本软件退出后系统自动还原原状</b>。</>}
+            <div className="flex items-center gap-2 rounded-xl border border-border-soft/80 bg-inset p-3 text-[12px] text-text-mid">
+              <span className="status-dot bg-ok" />
+              <span>
+                {vibfix.ledger.mode === 'permanent'
+                  ? <>虚拟手柄已<b className="text-text-hi">永久禁用</b>（{vibfix.ledger.since} 由本软件执行），随时可恢复</>
+                  : <>震动修复生效中：虚拟手柄已临时禁用，真手柄独占震动，<b className="text-text-hi">本软件退出后自动还原</b></>}
+              </span>
             </div>
             <button className="btn !py-1 text-[12px]"
               onClick={() => api.vibfixSet(true)
@@ -135,9 +136,8 @@ export default function Settings() {
               onChange={v => api.vibfixAuto(v)
                 .then(() => { flash('✓ 已保存'); load() })
                 .catch(() => flash('✗ 保存失败'))} />
-            <div className="text-[11px] text-text-low">
-              每次出手都记录在账本（数据文件夹 vibfix.json，时间/方向/模式留痕）；
-              修复与恢复都要过一次 Windows 授权弹窗（UAC），软件不会静默改驱动。
+            <div className="text-[11px] leading-relaxed text-text-low" title="每次出手都记录在数据文件夹的修复账本里（时间/方向/模式留痕）；修复与恢复都要过一次 Windows 授权弹窗，软件不会静默改驱动。">
+              每次出手都留痕可查（见数据文件夹账本）；修复与恢复需要你点一次 Windows 授权，软件绝不静默改动 · 悬停查看详情
             </div>
           </div>
         )}
@@ -150,7 +150,7 @@ export default function Settings() {
         </div>
         <div className="space-y-2">
           <Toggle on={autostart} label="开机自动启动"
-            desc="写入当前用户的注册表 Run 项（不需要管理员）；开机后在托盘待命，不弹窗。"
+            desc="开机后在托盘待命，不弹窗；写入当前用户的启动项（不需要管理员）。"
             onChange={v => api.setAutostart(v)
               .then(() => { setAutostart(v); flash(v ? '✓ 已开启开机自启' : '✓ 已关闭开机自启') })
               .catch(() => flash('✗ 写入失败'))} />
@@ -213,9 +213,11 @@ export default function Settings() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-[11px] text-text-low">
-        <Gamepad2 size={12} /> <ToggleLeft size={12} />
-        路线图：统一游戏配置格式（ADR-015）、社区预设分享。DS 虚拟手柄桥接已废弃（ADR-020）。
+      <div
+        className="flex cursor-help items-center gap-2 text-[11px] text-text-low"
+        title="路线图：统一游戏配置格式、社区预设分享。DS 虚拟手柄桥接方案已废弃。"
+      >
+        <Gamepad2 size={12} /> <ToggleLeft size={12} /> 路线图与已废弃功能 · 悬停查看
         {msg && <span className="ml-auto text-[12px] text-accent">{msg}</span>}
       </div>
     </div>

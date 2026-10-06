@@ -351,7 +351,7 @@ export default function PadLiveCard({ events }: { events: EngineEvent[] }) {
             {EXT_CHIP.map(({ key, id }) => {
               const on = extNowLive.has(id)
               return (
-                <span key={id} className={`rounded px-1.5 py-0.5 font-mono text-[10px] transition-all ${
+                <span key={id} className={`rounded px-1.5 py-0.5 font-mono text-[10px] transition-colors ${
                   on ? 'bg-accent/20 text-accent shadow-[0_0_10px_rgba(34,211,238,.35)]' : 'bg-white/5 text-text-low'}`}>
                   {key}
                 </span>
@@ -399,7 +399,7 @@ export default function PadLiveCard({ events }: { events: EngineEvent[] }) {
         </div>
         <div className="card p-4">
           <div className="mb-3 flex items-center gap-2 text-[12px] text-text-mid">
-            <Radio size={14} className="text-accent" /> vendor 接口非协议帧
+            <Radio size={14} className="text-accent" /> 原始数据帧（调试）
           </div>
           <div className="space-y-0.5 font-mono text-[11px] text-text-low">
             {rawhids.length
@@ -441,7 +441,7 @@ export default function PadLiveCard({ events }: { events: EngineEvent[] }) {
                     ))}
                     {(attrib.missing ?? []).some(k => k.startsWith('M')) && (
                       <div className="pt-2 text-left text-[11px] leading-relaxed text-text-low">
-                        背键静默 = 固件默认无映射，需设备端 0xA3 映射写入后才有输出（ADR-016）。
+                        背键没反应 = 固件默认未映射；写好背键映射配置后就有输出了。
                       </div>
                     )}
                   </div>

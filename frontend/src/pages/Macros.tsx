@@ -1,9 +1,10 @@
 // 宏页（ADR-021 v3.1 方案）：板载宏存在 profile blob 的宏页里（163/164/165 一次连宏带绑定写入）。
 // 执行在固件：写完关软件也生效。宏没有名字字段，以触发键为身份；上限 5 条 / 全页 128 步 / 10ms 精度。
 import { useEffect, useRef, useState } from 'react'
-import { Circle, CircleStop, Copy, Download, Pencil, Play, RotateCcw, Save, Trash2, Upload, Wand2 } from 'lucide-react'
+import { Check, Circle, CircleStop, Copy, Download, Pencil, Play, RotateCcw, Save, Trash2, TriangleAlert, Upload, Wand2 } from 'lucide-react'
 import { api, type EngineEvent, type Macro } from '../api'
 import { DeviceGate } from '../Offline'
+import { fill } from '../components/rangeFill'
 
 // 0xEF 位图 32 键全名（与后端 protocol.KEY32_NAMES 同源）
 const KEY_NAMES: Record<number, string> = {
@@ -39,7 +40,10 @@ export default function Macros({ events, online }: { events: EngineEvent[]; onli
 
   const refresh = () => api.macroConfig()
     .then(r => { setMacros(r.macros); setVersion(r.version); setMsg('') })
-    .catch(e => setMsg(`✗ 读取失败：${(e as Error).message}`))
+    .catch(e => {
+      const raw = (e as Error).message || ''
+      setMsg(`✗ ${raw.includes('vendor') || raw.includes('接口') ? '暂时读不到手柄配置——请确认手柄已连接并唤醒，然后点「重试」' : raw}`)
+    })
   useEffect(() => { refresh() }, [])
   // 设备从离线恢复时自动补一次读取（进页面时手柄还没插上的场景）
   const wasOnline = useRef(online)
@@ -204,7 +208,7 @@ export default function Macros({ events, online }: { events: EngineEvent[]; onli
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-[14px] font-medium">
           <Wand2 size={15} className="text-accent" /> 板载宏
-          <span className="text-[11px] font-normal text-text-low">V{version} · 存在固件里，关掉本软件照样触发</span>
+          <span className="text-[11px] font-normal text-text-low">固件配置 V{version} · 存在固件里，关掉本软件照样触发</span>
         </div>
         <div className="flex gap-2">
           <button className="btn !px-2.5 !py-1 text-[11px]" disabled={busy} onClick={refresh}>
@@ -233,8 +237,10 @@ export default function Macros({ events, online }: { events: EngineEvent[]; onli
           </button>
         </div>
         {macros.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border-soft py-8 text-center text-[12px] text-text-low">
-            设备里还没有宏。点「新建宏」→ 录一段按键 → 写入，第一个宏就住进手柄了。
+          <div className="rounded-xl border border-dashed border-border-soft px-6 py-12 text-center">
+            <Wand2 size={22} className="mx-auto mb-2 text-text-faint" />
+            <div className="text-[13px] text-text-mid">设备里还没有宏</div>
+            <div className="mt-1 text-[12px] text-text-low">点右上「+ 新建宏」→ 录一段按键 → 写入，第一个宏就住进手柄了</div>
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -301,7 +307,7 @@ export default function Macros({ events, online }: { events: EngineEvent[]; onli
               <label className="text-[12px] text-text-mid">
                 循环间隔 <span className="font-mono text-accent">{edit.interval}ms</span>
                 <input type="range" min={30} max={2540} step={10} value={edit.interval}
-                  onChange={e => setEdit({ ...edit, interval: +e.target.value })} className="mt-1 block w-32 accent-[#22d3ee]" />
+                  onChange={e => setEdit({ ...edit, interval: +e.target.value })} className="mt-1 block w-32 accent-[#22d3ee]" style={fill(edit.interval, 30, 2540)} />
               </label>
             )}
           </div>
@@ -378,14 +384,27 @@ export default function Macros({ events, online }: { events: EngineEvent[]; onli
           </div>
         </div>
       )}
-      {!edit && msg && <div className="text-[12px] text-text-mid">{msg}</div>}
+      {!edit && msg && (
+        <div className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[12px] ${
+          msg.startsWith('✗') ? 'border-err/40 bg-err/10 text-err' : 'border-ok/35 bg-ok/10 text-text-mid'}`}>
+          {msg.startsWith('✗')
+            ? <TriangleAlert size={13} className="shrink-0" />
+            : <Check size={13} className="shrink-0 text-ok" />}
+          <span className="min-w-0 flex-1">{msg.startsWith('✗') ? msg.slice(1).trim() : msg}</span>
+          {msg.startsWith('✗') && (
+            <button className="btn !px-2.5 !py-1 text-[11px]" onClick={refresh}>
+              <RotateCcw size={11} /> 重试
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* 说明 */}
-      <div className="card p-4 text-[11px] leading-relaxed text-text-low">
-        写入即存进手柄当前配置槽并自动把触发键切到宏模式（键表 target=32）：游戏里按对应拓展键就播放宏，
-        关掉本软件照样触发，与扳机/震动联动互不干扰。删除宏会把它的触发键还原成透传。
-        限制：≤5 条宏、单条 ≤64 步 / 655s、全部宏合计 ≤128 步、时间精度 10ms。
-        宏与键位映射存在同一份配置里，「备份」会连同当时整个配置槽一起存下。首次使用建议先点一次。
+      {/* 说明（一句话 + 悬浮详情） */}
+      <div
+        className="card cursor-help p-3 text-[12px] leading-relaxed text-text-low"
+        title="宏写入后存在手柄配置槽里，游戏里按对应拓展键就播放，关掉本软件照样触发；删除宏会把它的触发键还原成透传。限制：≤5 条宏、单条 ≤64 步 / 655 秒、全部合计 ≤128 步。宏与键位映射存在同一份配置里，「备份」会连同当时整个配置槽一起存下，首次使用建议先备份一次。"
+      >
+        宏存在手柄里，关软件也生效 · 悬停查看限制与备份说明
       </div>
     </div>
   )

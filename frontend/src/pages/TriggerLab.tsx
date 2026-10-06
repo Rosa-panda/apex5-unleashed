@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Crosshair, Eye, Save, Waves, Vibrate, Eraser, FlaskConical } from 'lucide-react'
 import { api, type EngineSnapshot } from '../api'
+import { friendlySource } from './Overview'
 
 const MODE_META: Record<string, { label: string; desc: string }> = {
   normal: { label: 'Normal 原生', desc: '无附加力，恢复手柄出厂手感' },
@@ -75,117 +76,120 @@ export default function TriggerLab({ snap }: { snap: EngineSnapshot | null }) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      {/* 引导：这页是干嘛的、怎么用 */}
-      <div className="card flex items-start gap-3 p-4 text-[12px] leading-relaxed text-text-mid">
-        <FlaskConical size={16} className="mt-0.5 shrink-0 text-accent" />
-        <div>
-          <span className="text-text-hi">扳机实验室</span>：直接调 LT/RT 扳机手感的实验台。
-          流程：<span className="text-accent">选模式 → 拖参数 → 点「应用效果」手上立刻感受</span>；
-          「开启预览」后拖动滑块实时生效，不用反复点按钮。
-          调到满意 → 起个名字保存为<span className="text-accent">预设</span>，之后可在游戏库里绑定到某款游戏（进游戏自动套用）。
-          改的是手柄固件里的扳机效果，<span className="text-warn">软件退出前会自动复位</span>，放心试。
-        </div>
+    <div className="mx-auto max-w-5xl space-y-5">
+      {/* 引导：一句话 + 悬浮详情 */}
+      <div
+        className="card cursor-help p-3 text-[12px] leading-relaxed text-text-mid"
+        title="流程：选模式 → 拖参数 → 点「应用效果」手上立刻感受；「开启预览」后拖动滑块实时生效。调到满意起名保存为预设，可在游戏库绑定到游戏自动套用。改的是手柄固件里的扳机效果，软件退出前会自动复位，放心试。"
+      >
+        <FlaskConical size={13} className="mr-1.5 inline text-text-low" />
+        选模式 → 拖参数 → 应用 · 悬停看玩法
       </div>
 
-      {/* 侧选择 + 模式选择 */}
-      <div className="card p-5">
-        <div className="mb-3 flex items-center gap-2 text-[12px] text-text-mid">
-          <Crosshair size={14} className="text-accent" /> 目标与模式
-        </div>
-        <div className="mb-4 flex items-center gap-2">
-          <span className="text-[12px] text-text-low">扳机：</span>
-          {([['left', 'LT'], ['right', 'RT'], ['both', '双侧']] as const).map(([v, l]) => (
-            <button key={v} onClick={() => setSide(v)}
-              className={`btn ${side === v ? 'border-accent/60 text-accent' : ''}`}>
-              {l}
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-          {Object.entries(MODE_META).map(([m, meta]) => (
-            <button key={m} onClick={() => setMode(m)}
-              className={`rounded-lg border p-3 text-left transition-colors ${
-                mode === m ? 'border-accent/60 bg-accent/8' : 'border-border-soft bg-[#161622] hover:border-accent-dim'
-              }`}>
-              <div className={`text-[13px] font-medium ${mode === m ? 'text-accent' : ''}`}>{meta.label}</div>
-              <div className="mt-0.5 text-[11px] leading-snug text-text-low">{meta.desc}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 参数 */}
-      {fields.length > 0 && (
-        <div className="card p-5">
-          <div className="mb-4 text-[12px] text-text-mid">参数（数值越大通常越强，官方协议范围内实时校验）</div>
-          <div className="space-y-4">
-            {fields.map((f) => FIELD_IS_TOGGLE[f] ? (
-              <div key={f} className="flex items-center justify-between">
-                <span className="text-[13px]">{FIELD_LABEL[f] ?? f}</span>
-                <button onClick={() => setParams({ ...params, [f]: params[f] ? 0 : 1 })}
-                  className={`tag ${params[f] ? 'border-accent/50 text-accent' : ''}`}>
-                  {params[f] ? '开' : '关'}
+      {/* 侧选择 + 模式选择（左栏）/ 参数与执行（右栏）——调参工作台双区动线 */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="card p-5 lg:col-span-5">
+          <div className="mb-3 flex items-center gap-2 text-[12px] text-text-mid">
+            <Crosshair size={14} className="text-text-mid" /> 目标与模式
+          </div>
+          <div className="mb-4 flex items-center gap-2">
+            <span className="text-[12px] text-text-low">扳机：</span>
+            <div className="segmented">
+              {([['left', 'LT'], ['right', 'RT'], ['both', '双侧']] as const).map(([v, l]) => (
+                <button key={v} onClick={() => setSide(v)} className={side === v ? 'on' : ''}>
+                  {l}
                 </button>
-              </div>
-            ) : (
-              <div key={f}>
-                <div className="mb-1.5 flex items-center justify-between text-[13px]">
-                  <span>{FIELD_LABEL[f] ?? f}</span>
-                  <span className="tabular-nums text-accent">{params[f]}</span>
-                </div>
-                <input type="range" min={1} max={255} value={params[f] ?? 1}
-                  onChange={(e) => setParams({ ...params, [f]: +e.target.value })}
-                  className="w-full" />
-              </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+            {Object.entries(MODE_META).map(([m, meta]) => (
+              <button key={m} onClick={() => setMode(m)}
+                className={`rounded-xl border p-3 text-left transition-colors ${
+                  mode === m ? 'card-selected text-text-hi' : 'card-hover text-text-mid'
+                }`}>
+                <div className={`text-[13px] font-medium ${mode === m ? 'text-accent' : ''}`}>{meta.label}</div>
+                <div className="mt-0.5 text-[11px] leading-snug text-text-low">{meta.desc}</div>
+              </button>
             ))}
           </div>
         </div>
-      )}
 
-      {/* 操作 */}
-      <div className="card space-y-3 p-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="btn btn-primary" onClick={() => send(true)}>
-            <Waves size={13} /> 应用效果
-          </button>
-          <button className={`btn ${previewOn ? 'border-accent/60 text-accent' : ''}`}
-            onClick={() => { setPreviewOn(!previewOn); if (previewOn) sides.forEach(s => api.clearTrigger(s)) }}>
-            <Eye size={13} /> {previewOn ? '预览中（拖滑块实时生效）' : '开启预览'}
-          </button>
-          <button className="btn" onClick={() => sides.forEach((s) => api.clearTrigger(s).catch(() => {}))}>
-            <Eraser size={13} /> 清除为 Normal
-          </button>
-          <span className="ml-auto text-[11px] text-text-low">
-            当前扳机：{sides.map((s) => `${s === 'left' ? 'LT' : 'RT'}=${snap?.state.triggers[s as 'left' | 'right']?.mode ?? 'normal'}`).join(' · ')}
-          </span>
-        </div>
+        <div className="space-y-4 lg:col-span-7">
+          {/* 参数 */}
+          {fields.length > 0 && (
+            <div className="card p-5">
+              <div className="mb-4 text-[12px] text-text-mid">参数（数值越大通常越强，官方协议范围内实时校验）</div>
+              <div className="space-y-4">
+                {fields.map((f) => FIELD_IS_TOGGLE[f] ? (
+                  <div key={f} className="flex items-center justify-between">
+                    <span className="text-[13px]">{FIELD_LABEL[f] ?? f}</span>
+                    <button onClick={() => setParams({ ...params, [f]: params[f] ? 0 : 1 })}
+                      className={`tag ${params[f] ? 'border-accent/50 text-accent' : ''}`}>
+                      {params[f] ? '开' : '关'}
+                    </button>
+                  </div>
+                ) : (
+                  <div key={f}>
+                    <div className="mb-1.5 flex items-center justify-between text-[13px]">
+                      <span>{FIELD_LABEL[f] ?? f}</span>
+                      <span className="rounded-md border border-border-soft/80 bg-inset px-2 py-0.5 font-mono text-[12px] tabular-nums text-text-hi">{params[f]}</span>
+                    </div>
+                    <input type="range" min={1} max={255} value={params[f] ?? 1}
+                      onChange={(e) => setParams({ ...params, [f]: +e.target.value })}
+                      style={{ '--fill': `${(((params[f] ?? 1) - 1) / 254) * 100}%` } as CSSProperties}
+                      className="w-full" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-border-soft pt-3">
-          <input
-            value={saveName} onChange={(e) => setSaveName(e.target.value)}
-            placeholder="把当前参数存为预设（如：生化9 后坐力）…"
-            className="w-56 rounded-md border border-border-soft bg-[#0d0d14] px-3 py-1.5 text-[12px] outline-none focus:border-accent-dim"
-          />
-          <button className="btn" disabled={!saveName.trim() || saving} onClick={doSave}>
-            <Save size={13} /> {saving ? '保存中…' : '保存'}
-          </button>
-          <div className="ml-auto flex gap-2">
-            <button className="btn" onClick={() => api.pulse().catch(() => {})}>
-              <Vibrate size={13} /> 震动测试
-            </button>
-            <button className="btn" onClick={() => api.sine(3, 3, 220).catch(() => {})}>
-              <Waves size={13} /> 正弦扫频 3s
-            </button>
+          {/* 操作 */}
+          <div className="card space-y-3 p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <button className="btn btn-primary" onClick={() => send(true)}>
+                <Waves size={13} /> 应用效果
+              </button>
+              <button className={`btn ${previewOn ? 'border-accent/60 text-accent' : ''}`}
+                onClick={() => { setPreviewOn(!previewOn); if (previewOn) sides.forEach(s => api.clearTrigger(s)) }}>
+                <Eye size={13} /> {previewOn ? '预览中（拖滑块实时生效）' : '开启预览'}
+              </button>
+              <button className="btn" onClick={() => sides.forEach((s) => api.clearTrigger(s).catch(() => {}))}>
+                <Eraser size={13} /> 清除为 Normal
+              </button>
+              <span className="ml-auto text-[11px] text-text-low">
+                当前扳机：{sides.map((s) => `${s === 'left' ? 'LT' : 'RT'}=${snap?.state.triggers[s as 'left' | 'right']?.mode ?? 'normal'}`).join(' · ')}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 border-t border-border-soft/70 pt-3">
+              <input
+                value={saveName} onChange={(e) => setSaveName(e.target.value)}
+                placeholder="把当前参数存为预设（如：生化9 后坐力）…"
+                className="input w-56 !text-[12px]"
+              />
+              <button className="btn" disabled={!saveName.trim() || saving} onClick={doSave}>
+                <Save size={13} /> {saving ? '保存中…' : '保存'}
+              </button>
+              <div className="ml-auto flex gap-2">
+                <button className="btn" onClick={() => api.pulse().catch(() => {})}>
+                  <Vibrate size={13} /> 震动测试
+                </button>
+                <button className="btn" onClick={() => api.sine(3, 3, 220).catch(() => {})}>
+                  <Waves size={13} /> 正弦扫频 3s
+                </button>
+              </div>
+            </div>
           </div>
+
+          {cur && (
+            <div className="text-center text-[11px] text-text-low">
+              最近应用：{MODE_META[cur.mode]?.label ?? cur.mode} · 来源 {friendlySource(cur.source)} · {cur.applied_at}
+            </div>
+          )}
         </div>
       </div>
-
-      {cur && (
-        <div className="text-center text-[11px] text-text-low">
-          最近应用：{cur.mode} · 来源 {cur.source} · {cur.applied_at}
-        </div>
-      )}
     </div>
   )
 }

@@ -38,6 +38,8 @@ TRIGGER_MODES = {
     "lock":      dict(fields=[("stroke", 1, 255), ("strength", 1, 255), ("match", 0, 1)]),
     "vibration": dict(fields=[("stroke", 1, 255), ("press", 1, 255), ("strength", 1, 255), ("freq", 1, 255), ("match", 0, 1)]),
 }
+# wire 模式号 = TRIGGER_MODES 声明序（dict 保序），预计算免得每次发包都 list()+index()
+TRIGGER_MODE_IDS = {name: i for i, name in enumerate(TRIGGER_MODES)}
 GRIP_FIELDS = [("filter", 0, 255), ("scale", 0, 255), ("stroke", 0, 255),
                ("press", 0, 255), ("strength", 0, 255), ("freq", 0, 255)]
 
@@ -70,7 +72,7 @@ def trigger_payload(apply, side, mode, params):
         return None
     values = [clamp(params.get(f[0]), f[1], f[2]) if params.get(f[0]) is not None else f[1]
               for f in spec["fields"]]
-    mode_id = list(TRIGGER_MODES).index(mode)
+    mode_id = TRIGGER_MODE_IDS[mode]
     return bytes([1 if apply else 0, side, mode_id] + values)
 
 
@@ -93,6 +95,8 @@ def mock_ack_frame(cmd_id):
 # ---------------- 灯光协议（ADR-018：官方 WriteRgbConfigCommand / LedConfigParser 反编译） ----------------
 # 官方 SDK 帧带累加和 CRC：len[4] = cmd 起到 CRC 前的字节数（= payload + 2），CRC = sum(frame[3:3+len]) & 0xFF
 LED_PACK_SIZE = 20
+LED_SLOT_BYTES = 360   # 固件灯表槽位帧数据容量（实测 12 灯珠 V3 只存 10 帧=360B，宁短勿截）；
+                       # 通用容量按帧 = LED_SLOT_BYTES // (rgb_num*3)，写入侧显式裁剪防静默截断
 LED_TYPES = {"off": 6, "on": 5, "breath": 2, "gradient": 3, "flow": 1, "default": 7}
 LED_MODE_PROTO = {"off": 0, "on": 1, "smart": 2}
 

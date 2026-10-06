@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../../api'
 import { BTN, BTN_ACC, Err, NoDev, Row, useFlash } from '../ui'
+import { fill } from '../../../components/rangeFill'
 
 export function StickMapPanel() {
   const [st, setSt] = useState<any>(null)
@@ -49,13 +50,13 @@ export function StickMapPanel() {
       ) : (
         <Row label={`速度 ${c.sens}`}>
           <input type="range" min={5} max={120} value={c.sens} className="w-40"
-            onChange={e => set({ sens: +e.target.value })} />
+            onChange={e => set({ sens: +e.target.value })} style={fill(c.sens, 5, 120)} />
           <span className="text-[10px] text-text-low">摇杆实时 [{st.stats.last_xy.map((v: number) => v.toFixed(0)).join(', ')}]</span>
         </Row>
       )}
       <Row label={`死区 ${c.deadzone}`}>
         <input type="range" min={500} max={8000} step={100} value={c.deadzone} className="w-40"
-          onChange={e => set({ deadzone: +e.target.value })} />
+          onChange={e => set({ deadzone: +e.target.value })} style={fill(c.deadzone, 500, 8000)} />
       </Row>
       <Err e={msg} />
     </div>

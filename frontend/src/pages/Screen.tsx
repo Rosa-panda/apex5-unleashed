@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MonitorPlay, Upload, TriangleAlert } from 'lucide-react'
 import { api } from '../api'
 import type { EngineEvent } from '../api'
+import { fill } from '../components/rangeFill'
 
 type ConvInfo = { frames: number; interval_ms: number; total_frames: number; truncated: boolean; seconds: number }
 
@@ -80,9 +81,29 @@ export default function Screen({ events }: { events: EngineEvent[] }) {
 
   return (
     <div className="max-w-3xl space-y-4">
+      {/* 手柄屏幕预览位（160×80 同比例）：没推图时给一块"屏幕"，页面不再空洞 */}
+      <div className="card flex items-center gap-5 p-4">
+        <div className="flex h-[100px] w-[200px] shrink-0 items-center justify-center rounded-lg border border-border-soft bg-inset">
+          {file ? (
+            <span className="px-2 text-center text-[11px] text-text-mid">
+              {busy ? '解析中…' : info ? `${info.frames} 帧待写入` : '解析失败，请换个文件'}
+            </span>
+          ) : (
+            <span className="flex flex-col items-center gap-1 text-text-faint">
+              <MonitorPlay size={20} />
+              <span className="text-[10px]">160 × 80 屏幕</span>
+            </span>
+          )}
+        </div>
+        <div className="min-w-0 text-[12px] leading-relaxed text-text-mid">
+          <div className="text-[13px] font-medium text-text-hi">推送动画到手柄屏幕</div>
+          选一张 GIF 或图片 → 抽帧 → 写入。烧写走固件通道，手柄会自动重启（约 15 秒）。
+        </div>
+      </div>
+
       <div className="card p-4">
         <div className="mb-3 flex items-center gap-2 text-[14px] font-medium">
-          <MonitorPlay size={15} className="text-accent" /> 屏幕自定义动画
+          <MonitorPlay size={15} className="text-text-mid" /> 屏幕自定义动画
         </div>
 
         <input ref={fileRef} type="file" accept="image/gif,image/*" className="hidden"
@@ -101,7 +122,7 @@ export default function Screen({ events }: { events: EngineEvent[] }) {
             onChange={e => setTarget(+e.target.value)}
             onMouseUp={() => file && convert(file, target)}
             onTouchEnd={() => file && convert(file, target)}
-            className="mt-1 w-full accent-[#22d3ee]" />
+            className="mt-1 w-full accent-[#22d3ee]" style={fill(target, 1, 255)} />
           <div className="text-[11px] text-text-low">
             烧写约 3 秒/帧（真机实测），高帧率 GIF 等距抽帧保持原速，观感几乎无差
           </div>
@@ -139,26 +160,32 @@ export default function Screen({ events }: { events: EngineEvent[] }) {
       {/* 动画开关（cmd 19/9、19/8，官方同款功能） */}
       <div className="card p-4">
         <div className="mb-3 text-[13px] font-medium">动画显示</div>
-        <div className="flex flex-wrap gap-2">
-          <button className={`btn ${flags?.animation_on ? 'btn-primary' : ''}`} disabled={!flags}
-            onClick={toggleAnimation}>
-            {flags ? (flags.animation_on ? '动画：开启中' : '动画：已关闭') : '动画状态读取中…'}
-          </button>
-          <button className={`btn ${flags?.status_bar ? 'btn-primary' : ''}`} disabled={!flags}
-            onClick={toggleStatusBar}>
-            {flags ? (flags.status_bar ? '状态栏：常亮' : '状态栏：默认') : '…'}
-          </button>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between rounded-xl border border-border-soft/80 bg-inset p-3">
+            <span className="text-[13px] text-text-mid">面板动画</span>
+            <label className="switch">
+              <input type="checkbox" checked={!!flags?.animation_on} disabled={!flags} aria-label="面板动画" onChange={toggleAnimation} />
+              <span className="switch-track" />
+            </label>
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-border-soft/80 bg-inset p-3">
+            <span className="text-[13px] text-text-mid">状态栏常亮</span>
+            <label className="switch">
+              <input type="checkbox" checked={!!flags?.status_bar} disabled={!flags} aria-label="状态栏常亮" onChange={toggleStatusBar} />
+              <span className="switch-track" />
+            </label>
+          </div>
         </div>
-        <div className="mt-2 text-[11px] text-text-low">
-          关闭动画后面板熄灭，按 Logo 键可临时点亮状态栏（官方「息屏显示」位，语义按真机实测）。
+        <div className="mt-2 text-[11px] text-text-low" title="关闭动画后面板熄灭，按 Logo 键可临时点亮状态栏（官方「息屏显示」位，语义按真机实测）">
+          关闭动画后面板熄灭，按 Logo 键可临时点亮状态栏 · 悬停查看说明
         </div>
       </div>
 
-      <div className="card p-4 text-[11px] leading-relaxed text-text-low">
-        <div className="mb-1 text-[12px] text-text-mid">安全说明（ADR-018 R4）</div>
-        · 帧格式已用官方出厂动画逐字节验证；写入地址由芯片读回的图区基址限定，程序固件区不可达
-        · 写入过程每包等待设备回执，任一步失败立即中止
-        · 出厂动画可用官方空间站随时恢复
+      <div className="card p-4 text-[12px] leading-relaxed text-text-low">
+        <div className="mb-1 text-[12px] text-text-mid">写入保护</div>
+        · 帧格式已用官方出厂动画逐字节验证；写入地址被限定在图区，碰不到程序固件
+        · 写入过程每包等设备回执，任一步失败立即中止
+        · 出厂动画随时可用官方空间站恢复
       </div>
     </div>
   )

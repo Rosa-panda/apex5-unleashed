@@ -66,7 +66,7 @@ export default function PresetLibrary({ snap }: { snap: EngineSnapshot | null })
           const active = activePresetName === p.name
           const games = linked[p.id] ?? []
           return (
-            <div key={p.id} className={`card group p-4 transition-colors ${active ? 'border-accent/60' : 'hover:border-accent-dim'}`}>
+            <div key={p.id} className={`card group p-4 ${active ? 'card-selected' : 'card-hover'}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 text-[13px] font-medium">
@@ -105,8 +105,10 @@ export default function PresetLibrary({ snap }: { snap: EngineSnapshot | null })
           )
         })}
         {list.length === 0 && (
-          <div className="card p-4 text-[12px] text-text-low">
-            {isBuiltin ? '暂无' : '暂无自定义预设——去扳机实验室调好参数保存一个'}
+          <div className="card rounded-xl border-dashed p-8 text-center text-[12px] text-text-low md:col-span-2">
+            {isBuiltin ? '暂无内置预设' : (
+              <>暂无自定义预设——去<span className="text-accent">扳机实验室</span>调好参数保存一个</>
+            )}
           </div>
         )}
       </div>
@@ -115,14 +117,12 @@ export default function PresetLibrary({ snap }: { snap: EngineSnapshot | null })
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div className="card flex items-start gap-3 p-4 text-[12px] leading-relaxed text-text-mid">
-        <FlaskConical size={16} className="mt-0.5 shrink-0 text-accent" />
-        <div>
-          <span className="text-text-hi">预设</span> = 一套打包好的扳机/震动手感配置（LT/RT 模式 + 参数 + 握把路由）。
-          生效的两条路：<span className="text-accent">① 点 ▶ 立即套用</span>（马上写入手柄，手上可感）；
-          <span className="text-accent">② 在游戏库绑定到游戏</span>，切进该游戏自动套用、切出自动恢复。
-          当前生效的预设会标<span className="text-accent">「生效中」</span>，侧栏设备卡也能看到。
-        </div>
+      <div
+        className="card cursor-help p-3 text-[12px] leading-relaxed text-text-mid"
+        title="预设=一套打包好的扳机/震动手感配置（LT/RT 模式+参数+握把路由）。生效两条路：① 点 ▶ 立即套用（马上写入手柄，失败自动回滚）；② 在游戏库绑定到游戏，切进自动套用、切出自动恢复。当前生效的会标「生效中」，侧栏设备卡也能看到。"
+      >
+        <FlaskConical size={13} className="mr-1.5 inline text-text-low" />
+        点 ▶ 立即套用，或绑定游戏自动生效 · 悬停看详情
       </div>
       <div className="flex items-center justify-between">
         <div className="text-[12px] text-text-mid">{activePresetName

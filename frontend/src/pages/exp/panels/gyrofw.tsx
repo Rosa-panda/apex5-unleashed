@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../../api'
 import { BTN, BTN_ACC, Err, KEY_NAMES, NoDev, Row, useFlash } from '../ui'
+import { fill } from '../../../components/rangeFill'
 
 const MOTION_TARGETS = [['0', '关闭'], ['1', '左摇杆（赛车）'], ['2', '右摇杆（射击）']]
 const MOTION_KEYS: Array<[number, string]> = [
@@ -45,11 +46,11 @@ export function GyroFwPanel() {
           </Row>
           <Row label={`死区 ${m.dead_zone}`}>
             <input type="range" min={0} max={100} value={m.dead_zone} className="w-32"
-              onChange={e => save({ dead_zone: +e.target.value })} />
+              onChange={e => save({ dead_zone: +e.target.value })} style={fill(m.dead_zone, 0, 100)} />
           </Row>
           <Row label={`灵敏度 X/Y ${m.sens_x}/${m.sens_y}`}>
-            <input type="range" min={0} max={100} value={m.sens_x} className="w-28" onChange={e => save({ sens_x: +e.target.value })} />
-            <input type="range" min={0} max={100} value={m.sens_y} className="w-28" onChange={e => save({ sens_y: +e.target.value })} />
+            <input type="range" min={0} max={100} value={m.sens_x} className="w-28" onChange={e => save({ sens_x: +e.target.value })} style={fill(m.sens_x, 0, 100)} />
+            <input type="range" min={0} max={100} value={m.sens_y} className="w-28" onChange={e => save({ sens_y: +e.target.value })} style={fill(m.sens_y, 0, 100)} />
           </Row>
         </>
       )}

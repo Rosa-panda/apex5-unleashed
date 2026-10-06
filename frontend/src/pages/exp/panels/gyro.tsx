@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react'
 import { api } from '../../../api'
 import { usePolling } from '../../../hooks/usePolling'
 import { BTN, BTN_ACC, Err, NoDev, Row, useFlash } from '../ui'
+import { fill } from '../../../components/rangeFill'
 
 export function GyroPanel() {
   const [st, setSt] = useState<any>(null)
@@ -44,11 +45,11 @@ export function GyroPanel() {
       </Row>
       <Row label={`灵敏度 ${c.sens}`}>
         <input type="range" min={1} max={200} value={c.sens} className="w-40"
-          onChange={e => set({ sens: +e.target.value })} />
+          onChange={e => set({ sens: +e.target.value })} style={fill(c.sens, 1, 200)} />
       </Row>
       <Row label={`像素增益 ${c.gain}`}>
         <input type="range" min={2} max={40} step={0.5} value={c.gain} className="w-32"
-          onChange={e => set({ gain: +e.target.value })} />
+          onChange={e => set({ gain: +e.target.value })} style={fill(c.gain, 2, 40)} />
         <span className="text-[10px] text-text-low">手感待真机调（官方标定常数未公开）</span>
       </Row>
       <Row label="轴向">

@@ -83,33 +83,30 @@ export default function Motion() {
           </button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Chip on={!!st?.raw}>0xEF 位图流（按需）</Chip>
+          <Chip on={!!st?.raw}>体感数据流（按需）</Chip>
           <Chip on={!!st?.dsu?.enabled}>
             模拟器桥{st?.dsu?.enabled ? ` :${st.dsu.port ?? 26760}` : ''}
           </Chip>
           <Chip on={!!st?.gyro?.enabled}>陀螺瞄准</Chip>
           {err && <span className="text-[11px] text-err">{err}</span>}
         </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-text-low">
-          开闸 = 常备模拟器桥（Yuzu/Cemu/Dolphin/PCSX2 直连 127.0.0.1:{st?.dsu?.port ?? 26760}）+ 体感数据流通，
-          陀螺瞄准尊重你上次的选择、不自动开。关闸 = 桥和瞄准全关、试玩场停止响应；
-          0xEF 位图流按需供给——只有拓展键监听（测试页）或宏录制在用时才开，没人用自动收流，手柄可正常休眠。
-        </p>
-        <p className="mt-1 text-[11px] leading-relaxed text-text-low">
-          注意：总闸只管<b className="text-text-mid">软件层</b>（桥/瞄准/试玩场）。手柄固件里的陀螺→摇杆映射写在手柄自身档案里，
-          关软件也生效——总闸没开摇杆还在自己动，去下方面板「固件层陀螺映射」关。
+        <p
+          className="mt-2 cursor-help text-[11px] leading-relaxed text-text-low"
+          title={`开闸 = 常备模拟器桥（Yuzu/Cemu/Dolphin/PCSX2 直连本机 ${st?.dsu?.port ?? 26760} 端口）+ 体感数据流通，陀螺瞄准尊重上次选择、不自动开；关闸 = 桥和瞄准全关、试玩场停止响应。数据流按需供给：只有拓展键监听或宏录制在用才开，没人用自动收流，手柄可正常休眠。注意：总闸只管软件层（桥/瞄准/试玩场）；手柄固件里的陀螺→摇杆映射写在手柄自身档案里，关软件也生效——总闸没开摇杆还在自己动，去下方面板「固件层陀螺映射」关。`}
+        >
+          开闸 = 桥 + 体感流通 · 关闸全停 · 悬停看细节
         </p>
       </div>
 
       <Section
         title="试玩场 · 弹珠迷宫"
-        desc="手柄当板子，倾斜滚弹珠到终点。matter.js 物理（240Hz 子步）+ 撞墙音效/手柄震动——练手感、验延迟，先把这里玩顺再进游戏。总闸关闭时无体感输入。">
+        desc="手柄当板子，倾斜滚弹珠到终点——练手感、验延迟，先把这里玩顺再进游戏。总闸关闭时无体感输入。">
         <MazePanel />
       </Section>
 
       <Section
         title="模拟器桥（DSU/Cemuhook UDP）"
-        desc="把 0xEF 运动流翻译成标准 DSU 协议，喂给 Yuzu / Cemu / Dolphin / PCSX2。模拟器里「控制器 → Motion Source → UDP」填 127.0.0.1 即可。">
+        desc="把手柄的运动数据翻译成标准 DSU 协议，喂给 Yuzu / Cemu / Dolphin / PCSX2。模拟器里「控制器 → Motion Source → UDP」填本机地址即可。">
         <DsuPanel />
       </Section>
 

@@ -2,7 +2,7 @@
 // + 官方事件级 Mod（DSX ingress）：安装/启用/运行态一键管理
 // 按几百款规模设计 —— 搜索(名称/英文名/进程名) + 筛选 + 封面卡 + 分段渲染
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Crosshair, Download, FolderOpen, MonitorPlay, Play, Plus, Search, Trash2, Link2, Zap } from 'lucide-react'
+import { Crosshair, Download, FolderOpen, Info, MonitorPlay, Play, Plus, Search, Trash2, Link2, Zap } from 'lucide-react'
 import { api, type Preset } from '../api'
 import { usePolling } from '../hooks/usePolling'
 
@@ -73,6 +73,147 @@ function GameImg({ gid }: { gid: string }) {
   )
 }
 
+// 游戏卡：模块级组件。此前内联定义在 GameLibrary 里，每次 3s 轮询 setData 都让
+// React 把它当成新组件类型 → 全部可见卡整棵卸载重挂（封面 GameImg 的 ready/重试
+// 状态丢失、图片重走加载、预设下拉焦点被重置）。提出来后子树按 key 复用，零重挂。
+function GameCard({ g, picking, setPicking, presets, fg, mods,
+                    onApply, onLink, onDel, onPickExe, onModAction, onDetail }: {
+  g: GameProfile
+  picking: boolean
+  setPicking: (v: boolean) => void
+  presets: Preset[]
+  fg: string | null
+  mods: ModsStatus
+  onApply: (g: GameProfile) => void
+  onLink: (g: GameProfile, preset_id: string) => void
+  onDel: (g: GameProfile) => void
+  onPickExe: (g: GameProfile) => void
+  onModAction: (g: GameProfile, what: 'install' | 'uninstall' | 'enable' | 'disable' | 'stop') => void
+  onDetail: (g: GameProfile) => void
+}) {
+  const active = !!fg && g.exe.some(e => e.replace(/\.exe$/i, '') === fg.replace(/\.exe$/i, ''))
+  const ms = mods.mods.find(m => m.gid === g.id)
+  const pluginType = (g.mod?.start_type ?? 1) !== 1
+  return (
+      <div className={`card overflow-hidden p-0 ${active ? 'card-selected' : 'card-hover'}`}>
+        {/* 封面条 */}
+        <div className="relative h-20 w-full overflow-hidden bg-inset">
+          {g.image
+            ? <GameImg gid={g.id} />
+            : <div className="flex h-full items-center justify-center text-text-low"><MonitorPlay size={18} /></div>}
+          <div className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/80 to-transparent px-3 pb-1 pt-4">
+            <span className="truncate text-[13px] font-medium">{g.name}</span>
+            {active && <span className="tag shrink-0 border-accent/50 !text-accent">正在玩</span>}
+          </div>
+          {g.vib && !g.asb && !g.vib_source && (
+            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-accent" title="飞智官方手工调参：震动联动扳机，进游戏自动生效">
+              <Zap size={9} /> 官方适配
+            </div>
+          )}
+          {g.vib && !g.asb && g.vib_source === 'genre-seed' && (
+            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-sky-300" title="无官方参数，按游戏题材从官方调参学习生成，进游戏自动生效">
+              <Zap size={9} /> 题材适配
+            </div>
+          )}
+          {g.asb && g.vib_source === 'asb-seed' && (
+            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-violet-300" title="原生 DualSense 扳机游戏，参数按题材从官方调参学习生成，进游戏自动生效">
+              DS转官
+            </div>
+          )}
+          {g.asb && g.vib_source === 'asb-seed-fallback' && (
+            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-violet-300/70" title="原生 DualSense 扳机游戏，未取到题材标签，套用通用参数">
+              DS转官·通用
+            </div>
+          )}
+          {g.asb && !g.vib && (
+            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-violet-300/70" title="原生 DualSense 扳机游戏：暂无参数，可开通用震动联动兜底">
+              DS 原生
+            </div>
+          )}
+          {g.mod_only && (ms?.running ? (
+            <div className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-accent" title="官方事件级 Mod 运行中：游戏遥测→扳机力反馈实时联动">
+              <Zap size={9} /> Mod 运行中
+            </div>
+          ) : (
+            <div className={`absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] ${ms?.enabled ? 'text-amber-300' : 'text-amber-400/70'}`} title={pluginType ? '官方 Mod 为游戏目录插件型（F4SE/ScriptHookV），暂不支持自动安装' : '官方事件级 Mod：安装并启用后，进游戏自动拉起，扳机获得事件级力反馈'}>
+              Mod条目{ms?.enabled ? '·已启用' : ''}
+            </div>
+          ))}
+        </div>
+        <div className="p-3">
+          <button className="w-full truncate text-left font-mono text-[10px] text-text-low hover:text-accent"
+            title={(g.note || '') + '\n' + g.exe.join(' · ')}
+            onClick={() => onDetail(g)}>
+            {g.exe.length ? `${g.exe.slice(0, 3).join(' · ')}${g.exe.length > 3 ? ` +${g.exe.length - 3}` : ''}` : '（清单未录进程名 · 可手动定位）'}
+          </button>
+          {/* 扳机预设绑定：「走/不走」表达——未启用时是按钮，点了展开选择；启用后显示所选预设 */}
+          <div className="mt-2 flex items-center gap-1.5">
+            <Link2 size={11} className={`shrink-0 ${g.preset_id ? 'text-accent' : 'text-text-low'}`} />
+            {g.preset_id || picking ? (
+              <select
+                value={g.preset_id}
+                autoFocus={picking && !g.preset_id}
+                onChange={(e) => onLink(g, e.target.value)}
+                onBlur={() => setPicking(false)}   // picking 状态在父级（按 g.id 单选，防多卡同时展开）
+                title="切进本游戏自动套用该预设的扳机配置，切出自动解绑；选「不套用」= 关闭"
+                className={`min-w-0 flex-1 rounded border bg-[#0d0d14] px-1.5 py-1 text-[11px] outline-none focus:border-accent-dim ${
+                  g.preset_id ? 'border-accent/40 text-accent' : 'border-border-soft text-text-mid'}`}
+              >
+                <option value="">不套用扳机预设</option>
+                {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            ) : (
+              <button
+                className="min-w-0 flex-1 truncate rounded border border-border-soft bg-[#0d0d14] px-1.5 py-1 text-left text-[11px] text-text-low hover:text-text-mid"
+                title="点这里为游戏选择扳机预设（进游戏自动套用，切出自动解绑）"
+                onClick={() => setPicking(true)}
+              >
+                扳机预设：不走
+              </button>
+            )}
+            <button className="btn !px-2 !py-1" disabled={!(g.preset_id || g.vib)} onClick={() => onApply(g)} title="立即套用（震动联动 + 预设）">
+              <Play size={11} />
+            </button>
+            <button className="btn !px-2 !py-1" onClick={() => onPickExe(g)} title="特殊版本？选择游戏 exe 定位">
+              <FolderOpen size={11} />
+            </button>
+            {!g.builtin && (
+              <button className="btn btn-danger !px-2 !py-1" onClick={() => onDel(g)} title="删除">
+                <Trash2 size={11} />
+              </button>
+            )}
+          </div>
+          {/* Mod 管家行：官方事件级适配，安装→启用→进游戏自动拉起 */}
+          {g.mod && !pluginType && (
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
+              <span className={`shrink-0 ${ms?.running ? 'text-accent' : ms?.enabled ? 'text-amber-300' : 'text-text-low'}`}>
+                {ms?.running ? '⚡运行中' : ms?.installing ? '⇣下载中…' : ms?.enabled ? '已启用' : ms?.installed ? '已装' : '未装'}
+              </span>
+              {!ms?.installed && !ms?.installing && (
+                <button className="btn !flex-1 !justify-center !py-0.5 !text-[10px]" onClick={() => onModAction(g, 'install')}
+                  title={`从飞智官方 CDN 下载 Mod（${g.mod.version ?? ''}），本机安装`}>
+                  <Download size={9} /> 安装 Mod
+                </button>
+              )}
+              {ms?.installed && (
+                <button className={`btn !flex-1 !justify-center !py-0.5 !text-[10px] ${ms.enabled ? 'btn-danger' : 'btn-primary'}`}
+                  onClick={() => onModAction(g, ms.enabled ? 'disable' : 'enable')}
+                  title={ms.enabled ? '停用：不再自动拉起（运行中会立即停止）' : '启用后进游戏自动拉起官方 Mod，扳机事件级联动'}>
+                  {ms.enabled ? '停用' : '启用'}
+                </button>
+              )}
+              {ms?.running && (
+                <button className="btn !py-0.5 !text-[10px]" onClick={() => onModAction(g, 'stop')} title="立即停止当前 Mod">
+                  ■
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+  )
+}
+
 export default function GameLibrary() {
   const [data, setData] = useState<GamesResp>({ builtin: [], user: [], foreground: null, autoswitch: true, universal_vib: false })
   const [presets, setPresets] = useState<Preset[]>([])
@@ -84,6 +225,7 @@ export default function GameLibrary() {
   const [detail, setDetail] = useState<GameProfile | null>(null)
   const [pickFor, setPickFor] = useState<string | null>(null)   // 正在展开预设选择的卡片 id
   const [mods, setMods] = useState<ModsStatus>({ mods: [], active_gid: null, ingress: null })
+  const [addOpen, setAddOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const exeTarget = useRef<string | null>(null)
 
@@ -96,7 +238,6 @@ export default function GameLibrary() {
 
   const fg = data.foreground
   const presetName = (id: string) => presets.find(p => p.id === id)?.name ?? id
-  const hit = (g: GameProfile) => !!fg && g.exe.some(e => e.replace(/\.exe$/i, '') === fg.replace(/\.exe$/i, ''))
 
   const pool = useMemo(() => [...data.user, ...data.builtin], [data])
   const filtered = useMemo(() => {
@@ -138,6 +279,7 @@ export default function GameLibrary() {
     try {
       await api.saveGame({ name: form.name.trim(), exe: form.exe.split(/[,，\s]+/), preset_id: form.preset_id, note: '' })
       setForm({ name: '', exe: '', preset_id: '' })
+      setAddOpen(false)
       setMsg('✓ 已添加')
     } catch (e) { setMsg(`✗ ${(e as Error).message}`) }
     load()
@@ -156,8 +298,7 @@ export default function GameLibrary() {
     try { await api.setUniversalVib(on) } catch (e) { setMsg(`✗ ${(e as Error).message}`) }
   }
 
-  // Mod 管家（ADR-025）：该游戏的 mod 状态行（没有 mod 条目则 null）
-  const modState = (g: GameProfile) => mods.mods.find(m => m.gid === g.id)
+  // Mod 管家：安装/启停/停止 → 刷新
   const modAction = async (g: GameProfile, what: 'install' | 'uninstall' | 'enable' | 'disable' | 'stop') => {
     try {
       if (what === 'install') {
@@ -191,140 +332,12 @@ export default function GameLibrary() {
     load()
   }
 
-  const Card = ({ g, picking, setPicking }: {
-    g: GameProfile
-    picking: boolean
-    setPicking: (v: boolean) => void
-  }) => {
-    const active = hit(g)
-    const ms = modState(g)
-    const pluginType = (g.mod?.start_type ?? 1) !== 1
-    return (
-      <div className={`card group overflow-hidden p-0 transition-colors ${active ? 'border-accent/60' : 'hover:border-accent-dim'}`}>
-        {/* 封面条 */}
-        <div className="relative h-16 w-full overflow-hidden bg-[#0d0d14]">
-          {g.image
-            ? <GameImg gid={g.id} />
-            : <div className="flex h-full items-center justify-center text-text-low"><MonitorPlay size={18} /></div>}
-          <div className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/80 to-transparent px-3 pb-1 pt-4">
-            <span className="truncate text-[13px] font-medium">{g.name}</span>
-            {active && <span className="tag shrink-0 border-accent/50 !text-accent">正在玩</span>}
-          </div>
-          {g.vib && !g.asb && !g.vib_source && (
-            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-accent" title="飞智官方手工调参：震动联动扳机，进游戏自动生效">
-              <Zap size={9} /> 官方适配
-            </div>
-          )}
-          {g.vib && !g.asb && g.vib_source === 'genre-seed' && (
-            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-sky-300" title="无官方参数，按游戏题材从官方调参学习生成（ADR-024），进游戏自动生效">
-              <Zap size={9} /> 题材适配
-            </div>
-          )}
-          {g.asb && g.vib_source === 'asb-seed' && (
-            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-violet-300" title="原生 DualSense 扳机游戏，参数按题材从官方调参学习生成（ADR-024），进游戏自动生效">
-              DS转官
-            </div>
-          )}
-          {g.asb && g.vib_source === 'asb-seed-fallback' && (
-            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-violet-300/70" title="原生 DualSense 扳机游戏，未取到题材标签，套用通用参数（ADR-024）">
-              DS转官·通用
-            </div>
-          )}
-          {g.asb && !g.vib && (
-            <div className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-violet-300/70" title="原生 DualSense 扳机游戏：暂无参数，可开通用震动联动兜底">
-              DS 原生
-            </div>
-          )}
-          {g.mod_only && (ms?.running ? (
-            <div className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-accent" title="官方事件级 Mod 运行中：游戏遥测→扳机力反馈实时联动（ADR-025）">
-              <Zap size={9} /> Mod 运行中
-            </div>
-          ) : (
-            <div className={`absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] ${ms?.enabled ? 'text-amber-300' : 'text-amber-400/70'}`} title={pluginType ? '官方 Mod 为游戏目录插件型（F4SE/ScriptHookV），暂不支持自动安装' : '官方事件级 Mod：安装并启用后，进游戏自动拉起，扳机获得事件级力反馈'}>
-              Mod条目{ms?.enabled ? '·已启用' : ''}
-            </div>
-          ))}
-        </div>
-        <div className="p-3">
-          <button className="w-full truncate text-left font-mono text-[10px] text-text-low hover:text-accent"
-            title={(g.note || '') + '\n' + g.exe.join(' · ')}
-            onClick={() => setDetail(g)}>
-            {g.exe.length ? `${g.exe.slice(0, 3).join(' · ')}${g.exe.length > 3 ? ` +${g.exe.length - 3}` : ''}` : '（清单未录进程名 · 可手动定位）'}
-          </button>
-          {/* 扳机预设绑定：「走/不走」表达——未启用时是按钮，点了展开选择；启用后显示所选预设 */}
-          <div className="mt-2 flex items-center gap-1.5">
-            <Link2 size={11} className={`shrink-0 ${g.preset_id ? 'text-accent' : 'text-text-low'}`} />
-            {g.preset_id || picking ? (
-              <select
-                value={g.preset_id}
-                autoFocus={picking && !g.preset_id}
-                onChange={(e) => link(g, e.target.value)}
-                onBlur={() => setPicking(false)}   // picking 状态在父级（内联组件每 3s 随父重挂，state 放这必丢）
-                title="切进本游戏自动套用该预设的扳机配置，切出自动解绑；选「不套用」= 关闭"
-                className={`min-w-0 flex-1 rounded border bg-[#0d0d14] px-1.5 py-1 text-[11px] outline-none focus:border-accent-dim ${
-                  g.preset_id ? 'border-accent/40 text-accent' : 'border-border-soft text-text-mid'}`}
-              >
-                <option value="">不套用扳机预设</option>
-                {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            ) : (
-              <button
-                className="min-w-0 flex-1 truncate rounded border border-border-soft bg-[#0d0d14] px-1.5 py-1 text-left text-[11px] text-text-low hover:text-text-mid"
-                title="点这里为游戏选择扳机预设（进游戏自动套用，切出自动解绑）"
-                onClick={() => setPicking(true)}
-              >
-                扳机预设：不走
-              </button>
-            )}
-            <button className="btn !px-2 !py-1" disabled={!(g.preset_id || g.vib)} onClick={() => apply(g)} title="立即套用（震动联动 + 预设）">
-              <Play size={11} />
-            </button>
-            <button className="btn !px-2 !py-1" onClick={() => pickExe(g)} title="特殊版本？选择游戏 exe 定位">
-              <FolderOpen size={11} />
-            </button>
-            {!g.builtin && (
-              <button className="btn btn-danger !px-2 !py-1" onClick={() => del(g)} title="删除">
-                <Trash2 size={11} />
-              </button>
-            )}
-          </div>
-          {/* Mod 管家行（ADR-025）：官方事件级适配，安装→启用→进游戏自动拉起 */}
-          {g.mod && !pluginType && (
-            <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
-              <span className={`shrink-0 ${ms?.running ? 'text-accent' : ms?.enabled ? 'text-amber-300' : 'text-text-low'}`}>
-                {ms?.running ? '⚡运行中' : ms?.installing ? '⇣下载中…' : ms?.enabled ? '已启用' : ms?.installed ? '已装' : '未装'}
-              </span>
-              {!ms?.installed && !ms?.installing && (
-                <button className="btn !flex-1 !justify-center !py-0.5 !text-[10px]" onClick={() => modAction(g, 'install')}
-                  title={`从飞智官方 CDN 下载 Mod（${g.mod.version ?? ''}），本机安装`}>
-                  <Download size={9} /> 安装 Mod
-                </button>
-              )}
-              {ms?.installed && (
-                <button className={`btn !flex-1 !justify-center !py-0.5 !text-[10px] ${ms.enabled ? 'btn-danger' : 'btn-primary'}`}
-                  onClick={() => modAction(g, ms.enabled ? 'disable' : 'enable')}
-                  title={ms.enabled ? '停用：不再自动拉起（运行中会立即停止）' : '启用后进游戏自动拉起官方 Mod，扳机事件级联动'}>
-                  {ms.enabled ? '停用' : '启用'}
-                </button>
-              )}
-              {ms?.running && (
-                <button className="btn !py-0.5 !text-[10px]" onClick={() => modAction(g, 'stop')} title="立即停止当前 Mod">
-                  ■
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-4">
       <input ref={fileRef} type="file" accept=".exe" className="hidden" onChange={onExePicked} />
 
-      {/* 工具条：搜索 + 筛选 + 自动切换 + 通用联动 + 官方导入 */}
-      <div className="card flex flex-wrap items-center gap-3 px-4 py-3">
+      {/* 工具条：搜索 + 筛选 + 自动切换 + 通用联动 + 官方导入（sticky：滚动几百款时搜索常驻） */}
+      <div className="card sticky top-0 z-10 flex flex-wrap items-center gap-3 bg-[#0d0d15f5] px-4 py-3 backdrop-blur">
         <div className="flex min-w-56 flex-1 items-center gap-2 rounded-lg border border-border-soft bg-[#0d0d14] px-3 py-1.5">
           <Search size={14} className="shrink-0 text-text-low" />
           <input
@@ -345,62 +358,77 @@ export default function GameLibrary() {
           <Download size={12} /> 导入官方适配
         </button>
         <label className="flex cursor-pointer items-center gap-2 text-[12px] text-text-mid" title="任何游戏：游戏震动→扳机反馈，不震动→无反馈（设备端固件路由）">
-          <input type="checkbox" checked={data.universal_vib}
-            onChange={(e) => toggleUniversal(e.target.checked)}
-            className="accent-[#22d3ee]" />
+          <span className="switch">
+            <input type="checkbox" checked={data.universal_vib}
+              onChange={(e) => toggleUniversal(e.target.checked)} />
+            <span className="switch-track" />
+          </span>
           通用震动联动
         </label>
         <label className="flex cursor-pointer items-center gap-2 text-[12px] text-text-mid">
-          <input type="checkbox" checked={data.autoswitch}
-            onChange={(e) => api.setAutoswitch(e.target.checked).catch(() => {})}
-            className="accent-[#22d3ee]" />
+          <span className="switch">
+            <input type="checkbox" checked={data.autoswitch}
+              onChange={(e) => api.setAutoswitch(e.target.checked).catch(() => {})} />
+            <span className="switch-track" />
+          </span>
           切到游戏自动套用
         </label>
       </div>
 
       <div className="flex items-center gap-3 text-[12px] text-text-mid">
-        <span className="text-text-low">角标说明：<span className="text-accent">⚡官方适配</span>=飞智官方手工调参 ·
-          <span className="text-violet-300">DS转官</span>=原生 DualSense 游戏，参数按题材从官方调参学习生成 ·
-          <span className="text-violet-300/70">DS转官·通用</span>=同上但未取到题材，用通用参数 ·
-          <span className="text-sky-300">⚡题材适配</span>=非官方库游戏，参数按题材学习生成 ·
-          <span className="text-amber-300">Mod条目</span>=官方事件级适配（装后进游戏扳机实时联动）·
-          前四者进游戏都自动生效；「扳机预设」=可选，绑定后自动套用</span>
+        <span
+          className="tag cursor-help text-text-low"
+          title="⚡官方适配=飞智官方手工调参 · DS转官=原生 DualSense 游戏，参数按题材从官方调参学习生成 · DS转官·通用=同上但未取到题材，用通用参数 · ⚡题材适配=非官方库游戏，参数按题材学习生成 · Mod条目=官方事件级适配（装后进游戏扳机实时联动）。前四者进游戏都自动生效；「扳机预设」=可选，绑定后自动套用"
+        >
+          <Info size={11} /> 角标说明
+        </span>
+        <span className="text-text-low">{filtered.length} / {pool.length} 款</span>
+        {fg && <span>前台：<span className="font-mono text-accent">{fg}</span></span>}
+        {msg && <span className="ml-auto">{msg}</span>}
         {mods.ingress?.port && (
-          <span className="ml-auto shrink-0 text-text-low" title="DSX 事件流入口（官方 Mod 走这里）">
+          <span className={`shrink-0 text-text-low ${msg ? '' : 'ml-auto'}`} title="DSX 事件流入口（官方 Mod 走这里）">
             DSX :{mods.ingress.port} · 收 {mods.ingress.packets} / 出 {mods.ingress.applied}
           </span>
         )}
       </div>
 
-      <div className="flex items-center gap-3 text-[12px] text-text-mid">
-        <span>前台：<span className="font-mono text-accent">{fg ?? '—'}</span></span>
-        <span className="text-text-low">{filtered.length} / {pool.length} 款</span>
-        {msg && <span className="ml-auto">{msg}</span>}
-      </div>
-
       {/* 网格 */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-        {/* 添加卡置顶 */}
-        <div className="card space-y-2 border-dashed p-3">
-          <div className="flex items-center gap-1.5 text-[12px] text-text-mid"><Plus size={12} /> 添加游戏</div>
-          <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-            placeholder="游戏名"
-            className="w-full rounded border border-border-soft bg-[#0d0d14] px-2 py-1.5 text-[12px] outline-none focus:border-accent-dim" />
-          <input value={form.exe} onChange={e => setForm({ ...form, exe: e.target.value })}
-            placeholder="进程名 RDR2.exe（多个空格）"
-            className="w-full rounded border border-border-soft bg-[#0d0d14] px-2 py-1.5 font-mono text-[11px] outline-none focus:border-accent-dim" />
-          <select value={form.preset_id} onChange={e => setForm({ ...form, preset_id: e.target.value })}
-            className="w-full rounded border border-border-soft bg-[#0d0d14] px-2 py-1.5 text-[11px] outline-none focus:border-accent-dim">
-            <option value="">扳机预设（可选，进游戏自动套用）</option>
-            {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <button className="btn btn-primary w-full justify-center !py-1 text-[12px]" onClick={add}>
-            <Plus size={11} /> 添加
+        {/* 添加卡置顶（G HUB 式虚线卡：默认收起，点击展开表单） */}
+        {!addOpen ? (
+          <button className="card card-hover flex min-h-44 flex-col items-center justify-center gap-1.5 border-dashed p-3 text-text-low hover:text-text-mid"
+            onClick={() => setAddOpen(true)}>
+            <Plus size={18} />
+            <span className="text-[12px]">添加游戏</span>
           </button>
-        </div>
+        ) : (
+          <div className="card space-y-2 border-dashed p-3">
+            <div className="flex items-center justify-between text-[12px] text-text-mid">
+              <span className="flex items-center gap-1.5"><Plus size={12} /> 添加游戏</span>
+              <button className="text-[11px] text-text-low hover:text-text-mid" onClick={() => setAddOpen(false)}>收起</button>
+            </div>
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+              placeholder="游戏名"
+              className="input w-full !text-[12px]" />
+            <input value={form.exe} onChange={e => setForm({ ...form, exe: e.target.value })}
+              placeholder="进程名 RDR2.exe（多个空格）"
+              className="input w-full font-mono !text-[11px]" />
+            <select value={form.preset_id} onChange={e => setForm({ ...form, preset_id: e.target.value })}
+              className="select w-full !text-[11px]">
+              <option value="">扳机预设（可选，进游戏自动套用）</option>
+              {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <button className="btn btn-primary w-full justify-center !py-1 text-[12px]" onClick={add}>
+              <Plus size={11} /> 添加
+            </button>
+          </div>
+        )}
         {filtered.slice(0, limit).map(g => (
-          <Card key={g.id} g={g} picking={pickFor === g.id}
-            setPicking={(v) => setPickFor(v ? g.id : null)} />
+          <GameCard key={g.id} g={g} picking={pickFor === g.id}
+            setPicking={(v) => setPickFor(v ? g.id : null)}
+            presets={presets} fg={fg} mods={mods}
+            onApply={apply} onLink={link} onDel={del}
+            onPickExe={pickExe} onModAction={modAction} onDetail={setDetail} />
         ))}
       </div>
 
@@ -417,10 +445,11 @@ export default function GameLibrary() {
         </div>
       )}
 
-      {/* 游戏详情浮层：官方手感说明 + 参数 */}
+      {/* 游戏详情抽屉：右侧滑入（官方手感说明 + 参数） */}
       {detail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setDetail(null)}>
-          <div className="card max-h-[80vh] w-[520px] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setDetail(null)}>
+          <div className="anim-page absolute right-0 top-0 h-full w-[420px] overflow-y-auto border-l border-border-soft bg-card p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()}>
             <div className="mb-1 flex items-center gap-2">
               <Crosshair size={14} className="text-accent" />
               <span className="text-[15px] font-medium">{detail.name}</span>
@@ -428,8 +457,8 @@ export default function GameLibrary() {
             </div>
             <div className="mb-3 font-mono text-[11px] text-text-low">{detail.exe.join(' · ')}</div>
             {detail.vib && (
-              <div className="mb-3 rounded-lg border border-accent/30 bg-accent/5 p-3">
-                <div className="mb-1.5 flex items-center gap-1.5 text-[12px] text-accent"><Zap size={12} /> 官方震动联动参数（cmd 0x52）</div>
+              <div className="mb-3 rounded-xl border border-accent/30 bg-accent/5 p-3">
+                <div className="mb-1.5 flex items-center gap-1.5 text-[12px] text-accent"><Zap size={12} /> 官方震动联动参数</div>
                 <div className="grid grid-cols-3 gap-1 font-mono text-[11px] text-text-mid">
                   {Object.entries(detail.vib).map(([k, v]) => (
                     <div key={k}>{k}: <span className="text-accent">{v}</span></div>

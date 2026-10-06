@@ -10,12 +10,9 @@ const VERDICT_STYLE: Record<string, string> = {
   bad: 'border-red-500/40 bg-red-500/10 text-red-300',
   pending: 'border-border-soft bg-white/5 text-text-mid',
 }
-const VERDICT_TEXT: Record<string, string> = {
-  good: '好用', bad: '不好用', pending: '待测',
-}
 const TIER_STYLE: Record<number, string> = {
-  1: 'border-accent/40 bg-accent/10 text-accent',
-  2: 'border-violet-500/40 bg-violet-500/10 text-violet-300',
+  1: 'border-line-strong bg-white/5 text-text-mid',
+  2: 'border-line-strong bg-white/5 text-text-mid',
   3: 'border-border-soft bg-white/5 text-text-low',
 }
 
@@ -34,14 +31,13 @@ function FeatureCard({ f, open, onToggle, onVerdict }: {
           {f.tierLabel}
         </span>
         {f.enabled
-          ? <span className="rounded border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">可测试</span>
+          ? <span className="rounded border border-line-strong bg-white/5 px-1.5 py-0.5 text-[10px] text-text-mid">可测试</span>
           : <span className="rounded border border-border-soft bg-white/5 px-1.5 py-0.5 text-[10px] text-text-low">规划中</span>}
-        <span className="ml-auto text-[10px] text-text-low">{f.plan}</span>
       </div>
       <p className="text-[11px] leading-relaxed text-text-mid">{f.desc}</p>
       {f.id in PANELS && (
         <button
-          className="flex items-center gap-1 self-start text-[11px] text-accent hover:underline"
+          className="flex items-center gap-1 self-start text-[11px] text-text-mid hover:text-text-hi"
           onClick={() => onToggle(f.id)}>
           {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           {open ? '收起面板' : '展开功能面板'}
@@ -74,9 +70,6 @@ function FeatureCard({ f, open, onToggle, onVerdict }: {
           title="真机测试不理想：标记淘汰或回炉">
           <ThumbsDown size={12} /> 不好用
         </button>
-        <span className="ml-auto text-[10px] text-text-low">
-          当前：{VERDICT_TEXT[f.verdict] ?? f.verdict}
-        </span>
       </div>
     </div>
   )
@@ -105,22 +98,21 @@ export default function ExpLab() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <div className="card p-5">
-        <div className="mb-2 flex items-center gap-2 text-[12px] text-text-mid">
-          <FlaskConical size={14} className="text-accent" /> 测试区 · 隐藏功能孵化区
+      <div
+        className="card cursor-help p-3 text-[12px] leading-relaxed text-text-mid"
+        title="这里收容逆向挖出的隐藏功能：每项做出来先放在这，真机试过、判「好用」才转正进正式页面；不好用的标记淘汰。判定记录存在本地数据文件夹（重启不丢）。"
+      >
+        <div className="flex items-center gap-2">
+          <FlaskConical size={13} className="text-text-low" />
+          <span>真机试过、判「好用」才转正 · 悬停看规则</span>
           {s && (
             <span className="ml-auto flex items-center gap-2 text-[11px]">
-              <span className="text-emerald-300">好用 {s.good}</span>
-              <span className="text-red-300">不好用 {s.bad}</span>
+              <span className={s.good > 0 ? 'text-ok' : 'text-text-faint'}>好用 {s.good}</span>
+              <span className={s.bad > 0 ? 'text-err' : 'text-text-faint'}>不好用 {s.bad}</span>
               <span className="text-text-low">待测 {s.pending}</span>
             </span>
           )}
         </div>
-        <p className="text-[12px] leading-relaxed text-text-mid">
-          这里收容逆向挖出来的全部隐藏功能（16 项）。每项做出来先放在这，<b className="text-text-hi">真机试过、判「好用」才转正进正式页面</b>；
-          不好用的标记淘汰。功能逐项上架，上架后卡片出现「可测试」徽标。
-          判定记录存在数据文件夹（exp_verdicts.json），重启不丢。
-        </p>
         {msg && <div className="mt-2 text-[12px] text-accent">{msg}</div>}
       </div>
 

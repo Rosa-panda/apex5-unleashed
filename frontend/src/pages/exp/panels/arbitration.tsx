@@ -25,8 +25,8 @@ export function ArbitrationPanel() {
       )}
       <Row label="夺回">
         <button className={BTN_ACC} onClick={() =>
-          api.expAcquire().then((r: any) => { setO(r.owner); flash('✓ cmd28 已发（设备实名申请，语义待真机核）') }).catch(e => flash('', e))
-        }>发送申请（cmd28，报上名号）</button>
+          api.expAcquire().then((r: any) => { setO(r.owner); flash('✓ 已发送占用申请（真机语义待核）') }).catch(e => flash('', e))
+        }>向手柄报上名号（申请占用）</button>
         <span className="text-[10px] text-text-low">配合侧栏的「夺回控制权」一起用：那边重放账本，这边让设备记住是谁</span>
       </Row>
       <Err e={msg} />

@@ -1,6 +1,7 @@
 // #13 握把震动（ADR-029 F2 自 panels.tsx 逐字搬出）
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../../api'
+import { fill } from '../../../components/rangeFill'
 import { BTN, BTN_ACC, Err, NoDev, Row, useFlash } from '../ui'
 
 function SideVib({ s, set }: { s: any; set: (p: any) => void }) {
@@ -11,7 +12,7 @@ function SideVib({ s, set }: { s: any; set: (p: any) => void }) {
       </label>
       {(['min', 'max', 'scale'] as const).map(k => (
         <Row key={k} label={`${k} ${s[k] ?? 0}`}>
-          <input type="range" min={0} max={255} value={s[k] ?? 0} className="w-36"
+          <input type="range" min={0} max={255} value={s[k] ?? 0} className="w-36" style={fill(s[k] ?? 0, 0, 255)}
             onChange={e => set({ [k]: +e.target.value })} />
         </Row>
       ))}
