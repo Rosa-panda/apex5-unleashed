@@ -69,7 +69,7 @@
 
 ~~B3/B4 不过 = 桥接路线降级（回预设路线为主），需 ADR 记录。~~ → 已记录（ADR-020）。
 
-## CI 策略（落地状态：最后更新 v0.3.2 规范化改造）
+## CI 策略（落地状态：最后更新 v0.3.3，2026-10-06 CI 三连修后）
 
 > 该四条全绿后 `release.yml` 才打包（严格门禁，TASK-BREAKDOWN Q6 建议在此次采纳）。
 
@@ -88,3 +88,21 @@
 | `backend/smoke_test.py` | 命名命中 pytest 收集规则，模块级直连 `127.0.0.1:18765` → CI 无人起服务必 ConnectionRefused；已由 `backend/conftest.py` 的 `collect_ignore_glob` 兜底，CI 改走 `tools/run_smoke.py` |
 | `backend/test_grip_real.py` | 走运行中后端 HTTP API，**需真机**（归属 T05） |
 | `backend/test_screen_offline.py` | 第 2 项依赖本机 `C:\Program Files\Flydigi Space Station\...\default_screen_image_*.bin`，未装官方软件时必失败 → 标注「需本机官方软件」，仅在 `--local` 下跑 |
+
+**⚠ 排除必须双登记（2026-10-06 CI 实锤的教训，commit `7ade79f`）**：
+
+脚本式测试（模块级 `assert`、无 `def test_*`）**同样会被 pytest 按文件名收集**，模块级
+assert 在收集（import）阶段就会执行——只登记 `run_script_tests.py` 的 `--local` 名单、
+忘了加进 `backend/conftest.py` 的 `collect_ignore*`，CI 上 pytest 照样在收集阶段崩掉
+（`test_screen_offline.py` 即此故）。**新增脚本式测试的登记清单：**
+
+1. `tools/run_script_tests.py`：加进 `CI_TESTS`（纯 Mock）或 `LOCAL_ONLY_TESTS`（需本机环境）；
+2. `backend/conftest.py`：若它不该被 pytest 收集（模块级副作用 / 需本机环境），必须同时加入
+   `collect_ignore_glob` 与 `collect_ignore`；
+3. 推送前自检：`python -m pytest backend -q --collect-only` 全绿收集才算数。
+
+**CI 环境约定**：ci.yml / release.yml 两个 workflow 的 job 级 `env` 固定
+`PYTHONUTF8=1` + `PYTHONIOENCODING=utf-8`——Windows runner 默认 stdout 是 cp1252，
+脚本打印中文会 `UnicodeEncodeError`（run_script_tests.py CI 实锤，commit `a8082e2`）。
+**改 workflow 时不可删这两个变量**；新增打印中文的脚本无需特殊处理，但禁止在
+workflow 里单独改回编码。

@@ -3,12 +3,12 @@
 > **文档性质**：活文档（RISK-REGISTER **R8 · 巴士因子 = 1** 的应对锚点）。
 > 本文回答「**我现在该怎么办**」——指向权威文档而**不是复制**其内容；每条都能落到可执行动作。
 >
-> - 版本基线：**v0.3.2**（仓库根 `VERSION` 为唯一真相源）
+> - 版本基线：**v0.3.3**（仓库根 `VERSION` 为唯一真相源）
 > - 权威分工：`docs/PRD.md`（做什么/为什么） · `docs/ARCHITECTURE.md`（代码怎么组织） ·
 >   `docs/PROTOCOL.md`（字节怎么排） · `docs/TECH-SPEC.md`（技术参数与线程约定） ·
 >   `docs/adr/`（逐个决策的来龙去脉） · `docs/TASK-BREAKDOWN.md`（任务分解）
 > - **本文只做索引与状态记录**，结论一律引用上述文档；发现本文与代码不符时改文档，不改代码。
-> - 状态锚点时间戳：**2026-10-06 15:20 (+08:00)**，基线提交见 §2 安全点。
+> - 状态锚点时间戳：**2026-10-07 06:55 (+08:00)**，基线提交见 §2 安全点。
 
 ### 状态标注纪律（2026-10-06 立，TASK-BREAKDOWN 全局纪律第 6 条）
 
@@ -29,7 +29,7 @@
 
 | 项 | 值 | 来源 / 校验方式 |
 |---|---|---|
-| 当前版本 | `0.3.2` | 仓库根 `VERSION`（唯一真相源，禁止在界面硬编码，PRD §4.2） |
+| 当前版本 | `0.3.3` | 仓库根 `VERSION`（唯一真相源，禁止在界面硬编码，PRD §4.2；**bump 时须同步 `frontend/package.json`**，见 `docs/RELEASE.md` §3） |
 | 运行期查询 | `GET /api/version` | `backend/app/routers/system.py`；frozen 态 `VERSION` 由 `apex5.spec` 打进 `_MEIPASS` |
 | 构建元数据 | `GIT_SHA`（仓库根，CI 落盘） | `.github/workflows/release.yml`「落盘构建元数据」步骤；存在时 `/api/version` 一并返回短哈希，用于区分 nightly 来源 |
 | 版本一致性校验 | `python tools/check_version.py` | CI 发版第一步；失败即中断打包 |
@@ -89,6 +89,8 @@ git reset --hard safe-20261006-pre-standardization
 | T03 CI 与发布闭环（测试门禁 workflow、smoke 脚本化、脚本式单测纳门禁、发版 SOP） | P2 | ✅ 已完成 | `python -m pytest backend -q` → `35 passed`；`python tools/run_smoke.py` → `ALL SMOKE OK` + exit 0 | TASK-BREAKDOWN T03 |
 | T04.1 `protocol.py` 纯函数用例 | P3 | ✅ 已完成 | `python -m pytest backend/test_protocol_units.py -q` → `20 passed` | TASK-BREAKDOWN T04.1 |
 | T04.2 – T04.5 测试补强（gameprofiles / payload / engine 账本 / trace 回放） | P3 | ⬜ 本次不做，留给后续迭代 | —— | TASK-BREAKDOWN T04 |
+| T-UI UI 商业化革新（v0.3.3）：新设计系统（`frontend/src/index.css`）、分组导航外壳、十页重构；三轮子代理评审 62→81→90 分；功能审计 96 API 零丢失 | P1 | ✅ 已完成 | `cd frontend; npx tsc -b`（零错误）+ `npm run build`；Release [v0.3.3](https://github.com/Rosa-panda/apex5-unleashed/releases/tag/v0.3.3) 已发布（构建自 `468e437`） | `frontend/src/index.css` §头部注释；`ui-shots/` 截图（仓库外） |
+| T-CI CI 门禁三连修（v0.3.3 同批）：`test_screen_offline.py` pytest 收集排除 / workflow 强制 `PYTHONUTF8` / `check_version` 双文件一致性教训落文档 | P0 | ✅ 已完成 | push main → ci 与 build-release 双绿（run `37542257477`）；发版规则见 `docs/RELEASE.md` §3/§6 | `backend/conftest.py`、`.github/workflows/*.yml`、`docs/TEST-PLAN.md` §CI 策略 |
 | T05 真机人工验收 | P1 | ⚠ **待人工**（需手柄，命令行无法验证，见 §7） | —— | TASK-BREAKDOWN T05 |
 
 ### 4.2 下一步候选（README「下一步」四项，尚未开工）
@@ -155,12 +157,13 @@ git reset --hard safe-20261006-pre-standardization
 | 起服务（无窗口 + Mock） | `python backend/run.py --mock --no-gui` | 无手柄也跑；GUI 版去掉 `--no-gui` |
 | 健康检查 | `curl http://127.0.0.1:18765/api/health` | 期望 `{"ok": true, ...}` |
 | 改端口（避免单实例冲突） | `python backend/run.py --mock --no-gui --port 18799` | 默认 18765；已有实例会被唤起，CI 用非默认端口 |
-| pytest 单测 | `python -m pytest backend -q` | `backend/conftest.py` 已排除 `smoke_test.py`；v0.3.2 规范化后 **35 passed**（改造前 15） |
+| pytest 单测 | `python -m pytest backend -q` | `backend/conftest.py` 已排除 `smoke_test.py` 与 `test_screen_offline.py`（脚本式门禁勿被收集，TEST-PLAN §CI 策略）；v0.3.3 时点 **35 passed** |
 | 脚本式单测（CI 名单） | `python tools/run_script_tests.py` | 子进程逐个隔离，任一非零即失败 |
 | 脚本式单测（含本机专属） | `python tools/run_script_tests.py --local` | 追加 `test_screen_offline`（**需本机安装飞智空间站出厂 bin**） |
 | Mock 全链路冒烟 | `python tools/run_smoke.py` | 自动起服务（18799）→ 轮询就绪 → 跑冒烟 → 收尾杀进程 |
 | 前端构建 | `cd frontend; npm ci; npm run build` | `tsc -b && vite build` |
-| 版本一致性 | `python tools/check_version.py` | 发版前自校验 |
+| 版本一致性 | `python tools/check_version.py` | 发版前自校验（VERSION ↔ package.json，两处必须同步） |
+| **推送前一键自检** | `python tools/prepush_check.py`（`--quick` 跳过冒烟/前端构建） | 本地镜像 ci.yml test job 四步 + 版本校验；**两边清单以 ci.yml 为真相源，改一边必须同步另一边** |
 
 **一次性 / 诊断脚本**统一在 `tools/`（`_maze_check.py`、`_maze_diag.py`、`_smoke_dsu.py`、`_ws_check.py`、
 `_patch_sliders.py`）。其中 `_smoke_dsu.py` 依赖 `backend/app/dsu.py`（已带 `sys.path` 兜底），

@@ -23,10 +23,11 @@
 
 ## 2. 发版前自查（必须全绿）
 
-在仓库根执行，四条与 CI 完全一致（CMake→不，这里是四条命令）：
+在仓库根执行，四条与 CI 完全一致（CMake→不，这里是四条命令）。**懒人版一条命令**：
+`python tools/prepush_check.py`（本地镜像 ci.yml test job 四步 + 版本校验；`--quick` 跳过冒烟与前端构建）：
 
 ```powershell
-# ① pytest 式单测（smoke_test.py 已由 backend/conftest.py 排除）
+# ① pytest 式单测（smoke_test.py、test_screen_offline.py 已由 backend/conftest.py 排除）
 python -m pytest backend -q
 
 # ② 脚本式单测（纯 Mock 名单）
@@ -50,13 +51,16 @@ python tools/check_version.py
 
 ## 3. 标准发版流程（推荐）
 
-1. **改版本号**：编辑仓库根 `VERSION`（唯一改动点），例如 `0.3.2` → `0.3.3`。
+1. **改版本号（两处必须同步）**：编辑仓库根 `VERSION`（唯一改动点），例如 `0.3.2` → `0.3.3`，
+   **并把 `frontend/package.json` 的 `version` 字段改成同一个数**。
+   然后 `python tools/check_version.py` 自检——不一致 CI 发版第一步就会红
+   （2026-10-06 实锤：只改 VERSION 漏 package.json，build-release 卡死在版本一致性检查）。
 2. **自检**：跑 §2 四条（全绿才继续）。
 3. **提交并推送**（版本控制动作由本人执行）：
 
    ```powershell
-   git add VERSION
-   git commit -m "release: v0.3.3"
+   git add VERSION frontend/package.json
+   git commit -m "chore(release): v0.3.3"
    git push origin main
    ```
 
@@ -127,7 +131,10 @@ gh release delete v0.3.2 --repo Rosa-panda/apex5-unleashed --yes --cleanup-tag
 | 现象 | 原因 / 处置 |
 |---|---|
 | CI 报「tag x 与 VERSION(y) 不一致」 | tag 名必须等于 `v` + `VERSION` 内容。改 VERSION 或改 tag，两者同步后重发 |
+| CI 卡在「版本一致性检查」（check_version.py 红） | `VERSION` 与 `frontend/package.json` 的 `version` 不同步。**bump 版本永远两处一起改**，改完本地跑 `python tools/check_version.py` 验证 |
+| CI 在 `pytest 收集` 阶段报 AssertionError | 新增的脚本式测试（模块级 assert）被 pytest 按文件名收集了。按 `docs/TEST-PLAN.md` §CI 策略「排除必须双登记」处理：`backend/conftest.py` 的 `collect_ignore*` + `tools/run_script_tests.py` 名单 |
+| CI 脚本报 `UnicodeEncodeError: 'charmap' codec` | workflow 的 job 级 `env` 里 `PYTHONUTF8: "1"` / `PYTHONIOENCODING: utf-8` 被删了（Windows runner 默认 stdout cp1252，中文打印必炸）。恢复这两个变量 |
 | CI 在 `test` job 红了，没打包 | **这是设计好的严格门禁**。修测试；临时绕过属发布红线，不建议 |
-| 打好的 Release 是 nightly 不是正式版 | 该 VERSION 的 tag 已存在于远端 → 滚动替换 nightly。要正式版就 bump `VERSION` |
+| 打好的 Release 是 nightly 不是正式版 | 该 VERSION 的 tag 已存在于远端 → 滚动替换 nightly。要正式版就 bump `VERSION`（两处同步） |
 | nightly 想看来源 commit | 产物内 `GIT_SHA`（CI 在仓库根生成，**已被 .gitignore 忽略**，不入仓库） |
 | 本地根目录出现 `dist/`、`build/` | 早期在仓库根跑过 PyInstaller 的残留；已被 `.gitignore` 覆盖，可安全删除 |
