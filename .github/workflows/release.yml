@@ -26,6 +26,10 @@ jobs:
   windows:
     needs: test
     runs-on: windows-latest
+    env:
+      # Windows runner 默认 stdout cp1252：构建/测试脚本打印中文会 UnicodeEncodeError
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
     steps:
       - uses: actions/checkout@v7
 
