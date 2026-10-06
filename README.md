@@ -41,7 +41,33 @@ cd frontend && npm install && npm run build && cd ..
 python backend/run.py          # GUI + 托盘
 python backend/run.py --mock   # 强制 Mock
 python backend/run.py --no-gui # 无窗口（开发/CI）
+
+# 开发者：跑测试（详见 docs/DEV-STATUS.md §6）
+python -m pytest backend -q          # pytest 式单测
+python tools/run_script_tests.py     # 脚本式单测（CI 名单）
+python tools/run_smoke.py            # Mock 全链路冒烟（自动起/收服务）
+python tools/check_version.py        # 版本一致性（发版前自校验）
 ```
+
+> ⚠ **安全提示**：持续高负载马达（长时间高强度震动 / 满亮度灯效）会加速电机老化并明显缩短续航，
+> 请按需使用、不用时通过托盘退出（`Apex5Unleashed` 会在退出时做卫生清理）。
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [`docs/DEV-STATUS.md`](docs/DEV-STATUS.md) | **当前状态锚点**（版本 / 安全点回退 / 已知坑 / 本地跑法 / 真机验收记录表）——新人从这里开始 |
+| [`docs/PRD.md`](docs/PRD.md) | 需求基线（做什么 / 为什么）：需求池 P0-P2、边界条款、待确认问题、能力域速查 |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 架构定稿（代码怎么组织）：五层分层、模块结构、数据流、文档↔实现偏差表 |
+| [`docs/TECH-SPEC.md`](docs/TECH-SPEC.md) | 技术规格：线程约定、参数标定、接口清单 |
+| [`docs/PROTOCOL.md`](docs/PROTOCOL.md) | 协议规范（字节怎么排）：HID 帧 / 命令集 / 电量 / 已知坑 |
+| [`docs/RELEASE.md`](docs/RELEASE.md) | 发版 SOP：改 `VERSION` → push → CI 自动打包发版；手动补 tag 步骤 |
+| [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) | 测试计划：v0.1 / v0.2 / v0.3 验收条目 + CI 策略与排除项 |
+| [`docs/RISK-REGISTER.md`](docs/RISK-REGISTER.md) | 风险登记册（R1–R13，每版本评审） |
+| [`docs/TASK-BREAKDOWN.md`](docs/TASK-BREAKDOWN.md) | 任务分解（T01–T05）与待拍板事项 |
+| [`docs/RESEARCH-HIDDEN-FEATURES.md`](docs/RESEARCH-HIDDEN-FEATURES.md) | 隐藏功能挖掘实录（16 项功能的逆向与实测结论） |
+| [`docs/REFERENCES.md`](docs/REFERENCES.md) | 参考项目与致谢清单 |
+| [`docs/adr/`](docs/adr/) | 架构决策记录（ADR-001~034，索引起点 `docs/adr/ADR-INDEX.md`） |
 
 ## 路线图
 
@@ -50,10 +76,6 @@ python backend/run.py --no-gui # 无窗口（开发/CI）
 - **v0.3** ✅ 体感线（陀螺瞄准 / DSU 桥 / 体感总闸，ADR-027/028）+ 灯光工坊 + 拓展键映射与宏完善（ADR-030/031/032）+ Windows 打包发布
 - ~~DS 虚拟手柄桥接~~ **已废弃**（ADR-020：PC 上 DualSense 输入依赖 Steam Input 翻译层 + 虚拟驱动隔离伤及无辜，代码全量删除；改走无桥的 DS转官参数方案，ADR-024）
 - **下一步** 屏幕动画打磨（恢复出厂入口）、XGameMonitor 型 Mod 真机抽测、统一游戏配置格式（ADR-015）、分享码社区生态
-
-## 文档
-
-`docs/TECH-SPEC.md` · `docs/PROTOCOL.md` · `docs/TEST-PLAN.md` · `docs/RISK-REGISTER.md` · `docs/adr/` · `docs/REFERENCES.md`
 
 ## 参考项目与致谢
 

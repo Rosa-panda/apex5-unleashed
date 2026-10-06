@@ -116,3 +116,7 @@
 - **ADR-028** motion-hub：体感中心总闸 + 0xEF 流按需开关（rawstream 需求登记表，流常开=手柄不休眠实锤）
 - **ADR-029** structural-decoupling：service.py 拆 routers/appctx/wsbus/motionmaster + 前端 api/panels 拆域（行为零变化）
 - **ADR-030** extkey-full-mapping：拓展键完整映射双通道——手柄目标写固件键表（ADR-019 通路）+ 键盘目标软件注入（0xEF 边沿+SendInput，等价官方 KeyboardMouseInjectRunner/FeizVKB 驱动路线）；官方逆向实锤 Select/Start 与 Menu/Back 是四键，「按了没反应」是目标键不显形非映射失效
+- **ADR-031** extkey-first-class：拓展键=一等公民——**默认全 255 透传**（出厂态，修正 ADR-030 的「默认别名到已有键位」），「不能用」的真因是 UI 监听被手动开关闸死而非链路不通；改 UI 监听自动跟随页面可见性（跟 rev 后 ADR-028 修订 2 的体验缺陷，保留「流常开=不休眠」语义）；映射降级为可选增强且不写设备；宏依赖此语义才有专属触发源
+- **ADR-032** macro-ownership：键表**单一所有权**——六拓展键 target 由一条规则裁决（**宏绑定(32) > 映射配置**），`macro.write` 是唯一写入者、`extkeys.set_targets` 写前读宏页并跳过宏占用键（`skipped` 回显 UI 锁定）、删宏后该键自动回落映射配置；附带：宏恢复缩小到宏区作用域（不再整槽回写）、宏复制/JSON 导入导出、`unbind` 废弃；非目标=不改宏页二进制布局、不突破固件上限、不把拓展键当宏动作位、不做 PC 侧宏播放
+- **ADR-033** comet-effect：新增「扫描·循环」comet 修复原版 wipe 的拼接点残光（帧序=逐珠点亮 1..n 即回表首），并批量加六种灯效（rain/chase/pulse/fire/auroraflow/typewriter）与 duosweep/hueflash；**实锤固件灯表槽位容量 = 10 帧（360B @12 灯），超限帧被静默截断且自校验只比重叠前缀不报错**（rainbow/auroraflow/typewriter 等均超限 → 升级为 PRD P1-13）；附带实锤官方后台服务会把灯改回官方模式（用工具箱前需退出官方驱动）、新增诊断端点 `/api/led/apply_frames`
+- **ADR-034** led-customization：灯效自定义走**双路径**——主=模板+参数（`/api/led/apply` 增 `params` 透传生成器 kwargs：comet 方向 / rain 拖尾 / chase 倍速 / pulse 圆心 / duosweep 相遇融合，identify 同步泛化以认出参数化形态），辅=12 灯 × 10 帧**帧画布**直写 + localStorage 本地保存；**非目标=不做「规则积木」式灯效编辑器**（易做成半吊子编程语言，待 A/B 用一阵子再评估）、不动协议字节与 loop/亮度模型、帧画布不做逐帧时长（固件不支持）
