@@ -193,7 +193,7 @@ CRC32（整包、字段置零）、数据包 100B、accel 单位 g / gyro deg/s 
 - 端点 GET/POST /api/exp/dsu；explab #18；前端 DsuPanel（Yuzu 配置指引文案、
   服务开关、模拟器视角实时预览、三轴反转）
 
-冒烟（本地假 engine + 模拟 Yuzu 客户端，`backend/app/_smoke_dsu.py`）：
+冒烟（本地假 engine + 模拟 Yuzu 客户端，`tools/_smoke_dsu.py`——原 `backend/app/_smoke_dsu.py`，2026-10 规范化改造随「一次性脚本归位」移入 `tools/`）：
 版本 1001 ✓、信息包 32B/CRC ✓、数据包 100B/包号递增/accel+gyro 数值逐字段 ✓、
 invert 即时生效 ✓、震动 motor0=200→set_rumble ✓、马达数=2 ✓、无错误账本 ✓。
 教训两条：struct 格式串位数手数一遍；tx 异步流下测试要先排空缓冲再断言。

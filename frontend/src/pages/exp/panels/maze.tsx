@@ -16,7 +16,7 @@ const MAZE_W = 560, MAZE_H = 360, BALL_R = 7
 // 迷宫布局（v2，2026-09-21）：旧布局被 BFS 实锤结构性死路（H1 横墙切断 C2 上下，
 // 而 C1 只能从底部进 C2，C2/C3 上半区永远进不去——用户实测到不了终点是对的）。
 // v2 = 开阔蛇形五柱（每柱 ~100px 宽，通道远大于球径），S 形路线：下→上→下→上→下。
-// 已用 backend/app/_maze_check.py BFS（含球半径净空+洞避让）验证全通。
+// 已用 tools/_maze_check.py BFS（含球半径净空+洞避让）验证全通（原 backend/app/_maze_check.py，规范化改造后移入 tools/）。
 const MAZE_WALLS: Array<[number, number, number, number]> = [
   [0, 0, MAZE_W, 8], [0, MAZE_H - 8, MAZE_W, 8], [0, 0, 8, MAZE_H], [MAZE_W - 8, 0, 8, MAZE_H],
   [110, 8, 8, 230], [220, 122, 8, 230], [330, 8, 8, 230], [440, 122, 8, 230],
