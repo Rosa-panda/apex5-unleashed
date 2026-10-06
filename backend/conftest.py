@@ -14,9 +14,15 @@ app 是被 `sys.path.insert` 塞进来的模块目录，不是测试根。
 import os
 
 # 相对本 conftest 所在目录匹配（`backend/smoke_test.py`）
-collect_ignore_glob = ["smoke_test.py"]
+collect_ignore_glob = [
+    "smoke_test.py",
+    # 脚本式门禁（T03.4）：模块级 assert + 硬依赖本机飞智空间站出厂 bin，
+    # pytest 收集即崩（CI 实锤 2026-10-06）。CI 名单由 tools/run_script_tests.py 管。
+    "test_screen_offline.py",
+]
 
 # 保险：绝对路径也列一遍，避免将来有人改动收集根目录时漏掉
 collect_ignore = [
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "smoke_test.py"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_screen_offline.py"),
 ]
