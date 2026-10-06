@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# 一次性改版脚本（2026-09 已执行完毕，保留仅供参考）——已办的活：给全部 range 滑块补
+# fill 样式并注入 import。**不要再跑**，重复执行无害但也无收益（幂等，跳过已有 style 的标签）。
+# 归属：原在 frontend/ 下，随规范化改造移入 tools/（不在前端构建范围内，不进 PyInstaller 产物）。
 # 给全部 <input type="range"/> 补 style={fill(v,min,max)}：花括号配对解析 value，
 # 跳过已有 style 的标签；并按文件位置补 import。纯文本机械变换，tsc 兜底验证。
 import io

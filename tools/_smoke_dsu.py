@@ -1,5 +1,13 @@
 # -*- coding: utf-8 -*-
 # DSU 协议冒烟：假 engine + 模拟 Yuzu 客户端，验证请求/回包字节级正确性。跑完自删不删均可。
+# 归属：原在 backend/app/ 下靠 sys.path[0] 隐式导入同层 dsu.py；移入 tools/ 后该隐式路径
+# 失效，故显式把 backend/app 加进 sys.path（下面两行），否则 ImportError: No module named 'dsu'。
+# 跑法：python tools/_smoke_dsu.py（纯本机 UDP 回环，不碰手柄）
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend", "app"))
+
 import socket, struct, threading, time, zlib
 import dsu
 

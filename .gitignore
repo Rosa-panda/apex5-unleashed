@@ -1,6 +1,11 @@
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# 本地虚拟环境
+.venv/
+venv/
 
 # 前端构建产物 / 依赖
 node_modules/
@@ -9,9 +14,20 @@ frontend/dist/
 # 运行时杂物
 *.log
 
+# CI 构建元数据（release.yml 在仓库根生成 git 短哈希，本地/CI 都会留未跟踪文件）
+GIT_SHA
+
+# 仓库根构建产物（早期在仓库根跑过 PyInstaller，dist/build 落在这儿；
+# 正常产物在 backend/dist、backend/build，保持忽略不动）
+/dist/
+/build/
+
 # PyInstaller 打包产物 / 中间物（发布物由 CI 自动构建，不入库）
 backend/build/
 backend/dist/
 
 # 设备配置转储（备份 bin 含整机配置槽，属本机数据）
 backend/*.bin
+
+# 竞品 UI 参考截图（6 张，体积 + 版权考量，仓库不再分发；本地副本保留）
+frontend/.design-refs/

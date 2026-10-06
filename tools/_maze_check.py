@@ -1,5 +1,7 @@
 # 一次性脚本：BFS 验证迷宫布局从 START 到 GOAL 连通（考虑球半径净空）。
 # 旧布局（用户报死路）与新布局都验。
+# 归属：原在 backend/app/ 下，随规范化改造移入 tools/（会被 apex5.spec 收进打包产物，徒增体积）。
+# 纯标准库无依赖，跑法：python tools/_maze_check.py
 from collections import deque
 
 MAZE_W, MAZE_H, BALL_R = 560, 360, 7

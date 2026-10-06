@@ -1,4 +1,8 @@
+# -*- coding: utf-8 -*-
 # 一次性：验证 /ws 的 motion 推送（30Hz 节流）。
+# 归属：原在 backend/app/ 下，随规范化改造移入 tools/（避免被 apex5.spec 收进打包产物）。
+# ⚠ 需先起服务：默认直连 127.0.0.1:18765，**不进 CI**（CI 上没有服务也没有真机）。
+#   本地跑法：先 python backend/run.py --mock --no-gui，再 python tools/_ws_check.py
 import base64
 import json
 import os
