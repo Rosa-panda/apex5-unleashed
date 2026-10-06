@@ -1,11 +1,15 @@
 # Mock 全链路冒烟（TEST-PLAN #1/#6/#8 部分）：WS 推送 + panic 账本清零 + 预设保存
 import asyncio
 import json
+import os
 import urllib.request
 
 import websockets
 
-BASE = "http://127.0.0.1:18765"
+# 默认与改造前完全一致（127.0.0.1:18765）；CI / 多实例场景由 tools/run_smoke.py 通过
+# 环境变量 APEX5_BASE 改成空闲端口（如 18799），避免本地已有实例被单实例逻辑唤起。
+BASE = os.environ.get("APEX5_BASE", "http://127.0.0.1:18765")
+WS_URL = BASE.replace("https://", "wss://", 1).replace("http://", "ws://", 1).rstrip("/") + "/ws"
 
 
 def post(path, body=None):
@@ -15,7 +19,7 @@ def post(path, body=None):
 
 
 async def main():
-    async with websockets.connect("ws://127.0.0.1:18765/ws") as ws:
+    async with websockets.connect(WS_URL) as ws:
         snap = json.loads(await ws.recv())
         print("snapshot:", snap["device"], "| proxy:", snap["proxy"]["holder"])
         assert snap["device"]["online"] is True

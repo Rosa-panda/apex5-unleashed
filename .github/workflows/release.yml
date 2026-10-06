@@ -3,6 +3,8 @@
 #   否则滚动替换 nightly 预发布。push v* tag → 发正式 Release（tag 必须与 VERSION 一致）。
 # 版本唯一真相源 = 仓库根 VERSION（界面 /api/version、exe 文件属性、Release 全从它来）。
 # 打包命令与本地完全一致（backend/apex5.spec，路径全部按 SPECPATH 解析，与 cwd 无关）。
+# 严格门禁（T03.1 / Q6）：windows job `needs: test`——四道测试任一红→不打包、不发版。
+# 另有一条独立 ci.yml 在 push/PR 时跑（那里也会跑同一套测试，反馈更快）。
 name: build-release
 
 on:
@@ -18,7 +20,11 @@ concurrency:
   cancel-in-progress: true # 连续推送只保留最新一次构建（正式 tag 各自独立 ref 不受影响）
 
 jobs:
+  test:
+    uses: ./.github/workflows/ci.yml    # 严格门禁：测试红 = 不打包（Q6 建议）
+
   windows:
+    needs: test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7

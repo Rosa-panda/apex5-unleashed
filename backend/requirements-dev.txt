@@ -1,0 +1,2 @@
+# 开发期依赖（测试用，**不进** backend/requirements.txt 运行依赖，见 ARCHITECTURE §6.1）
+pytest

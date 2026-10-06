@@ -1,0 +1,47 @@
+# 测试门禁（T03.1）：任何 push main / PR 先跑四道健康检查，全绿才允许打包发版。
+#   release.yml 的 build job 依赖 `needs: test`（严格门禁，TASK-BREAKDOWN Q6 建议）——
+#   但 GH Actions 不支持跨 workflow 的 needs，所以这里用 workflow_call 供 release.yml 复用。
+# 运行环境必须与本地一致：本仓库是 Windows 专有（ctypes.windll / pystray / UAC），**禁止**换 Linux runner。
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: 安装后端依赖（运行依赖 + 测试依赖）
+        run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+
+      - name: pytest 单测（smoke_test.py 已由 backend/conftest.py 排除）
+        run: python -m pytest backend -q
+
+      - name: 脚本式单测（纯 Mock 名单）
+        run: python tools/run_script_tests.py
+
+      - name: Mock 全链路冒烟（自动起服务 → 跑冒烟 → 收尾）
+        run: python tools/run_smoke.py
+
+      - name: 前端构建
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
