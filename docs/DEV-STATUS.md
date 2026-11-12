@@ -29,7 +29,7 @@
 
 | 项 | 值 | 来源 / 校验方式 |
 |---|---|---|
-| 当前版本 | `0.4.0` | 仓库根 `VERSION`（唯一真相源，禁止在界面硬编码，PRD §4.2；**bump 时须同步 `frontend/package.json`**，见 `docs/RELEASE.md` §3） |
+| 当前版本 | `0.4.1` | 仓库根 `VERSION`（唯一真相源，禁止在界面硬编码，PRD §4.2；**bump 时须同步 `frontend/package.json`**，见 `docs/RELEASE.md` §3） |
 | 运行期查询 | `GET /api/version` | `backend/app/routers/system.py`；frozen 态 `VERSION` 由 `apex5.spec` 打进 `_MEIPASS` |
 | 构建元数据 | `GIT_SHA`（仓库根，CI 落盘） | `.github/workflows/release.yml`「落盘构建元数据」步骤；存在时 `/api/version` 一并返回短哈希，用于区分 nightly 来源 |
 | 版本一致性校验 | `python tools/check_version.py` | CI 发版第一步；失败即中断打包 |
