@@ -23,7 +23,8 @@ interface GameProfile {
   builtin: boolean
   vib?: VibParams | null
   mod?: ModInfo
-  origin: 'official' | 'ds' | 'custom'            // 卡片来源（角标）
+  dsx?: boolean                                   // 游戏自己经 DSX 入口实时驱动扳机（内置演示游戏）
+  origin: 'official' | 'ds' | 'custom' | 'demo'   // 卡片来源（角标）
   vib_origin?: 'official' | 'guess' | 'custom' | null   // 震动参数来源
   user_id?: string | null                         // 这张卡上你自己的配置（可删除恢复默认）
 }
@@ -52,16 +53,20 @@ const ORIGIN_BADGE: Record<GameProfile['origin'], { label: string; cls: string; 
   official: { label: '官方空间站', cls: 'text-accent', tip: '飞智空间站官方适配清单里的游戏' },
   ds: { label: 'DS推算', cls: 'text-violet-300', tip: '原生支持 DualSense 的游戏：官方没有参数，按游戏题材从官方调参推算' },
   custom: { label: '自定义', cls: 'text-sky-300', tip: '你自己添加或导入的配置' },
+  demo: { label: '内置演示', cls: 'text-emerald-300', tip: '随软件自带的演示游戏：游戏自己实时驱动扳机，用来感受和调校手感' },
 }
 
 const VIB_ORIGIN: Record<string, string> = { official: '官方调参', guess: '推算参数', custom: '自定义参数' }
 
 // 生效来源 → 展示文案
-const SOURCE_LABEL: Record<string, string> = { mod: 'Mod', vib: '震动联动', universal: '通用震动联动' }
+const SOURCE_LABEL: Record<string, string> = { mod: 'Mod', vib: '震动联动', universal: '通用震动联动', dsx: '游戏直连' }
 
 // 卡上的「方案」一句话：进这个游戏到底会用什么（issue #2 的核心诉求）
 function planOf(g: GameProfile, ms: ModStat, disabled: boolean): { text: string; cls: string } {
   if (disabled) return { text: '已禁用：进游戏不做任何适配', cls: 'text-text-low' }
+  if (g.exe.length === 0)
+    return { text: '尚未指定游戏 exe：点卡上的文件夹按钮选择游戏程序后才会自动生效', cls: 'text-amber-300' }
+  if (g.dsx) return { text: '游戏直连：游戏自己实时驱动扳机，震动联动让位', cls: 'text-accent' }
   const vib = g.vib ? `震动联动·${VIB_ORIGIN[g.vib_origin ?? ''] ?? '参数'}` : ''
   const pluginMod = !!g.mod && (g.mod.start_type ?? 1) !== 1
   if (g.mod && !pluginMod && ms?.enabled && ms?.installed)
@@ -103,8 +108,9 @@ type ModAction = 'install' | 'uninstall' | 'enable' | 'disable' | 'stop' | 'open
 
 // 游戏卡：模块级组件（内联定义会让 3s 轮询每次整棵卸载重挂，封面重载、焦点丢失）
 function GameCard({ g, fg, ms, effective, disabled,
-                    onApply, onDel, onPickExe, onModAction, onDetail, onToggleDisabled, onExport }: {
+                    onApply, onDel, onPickExe, onModAction, onDetail, onToggleDisabled, onExport, onLaunch }: {
   g: GameProfile
+  onLaunch: () => void
   fg: string | null
   ms: ModStat
   effective: string | null   // 本卡正在生效时的来源（mod/vib/...），未生效 null
@@ -151,7 +157,9 @@ function GameCard({ g, fg, ms, effective, disabled,
           <button className="w-full truncate text-left font-mono text-[10px] text-text-low hover:text-accent"
             title={(g.note || '') + '\n' + g.exe.join(' · ')}
             onClick={() => onDetail(g)}>
-            {g.exe.slice(0, 3).join(' · ')}{g.exe.length > 3 ? ` +${g.exe.length - 3}` : ''}
+            {g.exe.length === 0
+              ? '（未指定游戏 exe · 点右边文件夹按钮选择）'
+              : <>{g.exe.slice(0, 3).join(' · ')}{g.exe.length > 3 ? ` +${g.exe.length - 3}` : ''}</>}
           </button>
           {/* 方案：进游戏会用什么——一句话说清 */}
           <div className={`mt-1.5 truncate text-[11px] ${plan.cls}`} title={plan.text}>方案：{plan.text}</div>
@@ -176,6 +184,13 @@ function GameCard({ g, fg, ms, effective, disabled,
               </button>
             )}
           </div>
+          {/* 内置演示游戏：直接从这里启动 */}
+          {g.dsx && (
+            <button className="btn btn-primary mt-1.5 w-full justify-center !py-0.5 !text-[11px]" onClick={onLaunch}
+              title="启动内置的像素演示游戏：每把武器的扳机手感都不同，用来感受和调校自适应扳机与震动">
+              <Play size={10} /> 启动游戏
+            </button>
+          )}
           {/* Mod 行：安装 → 启用 → 进游戏自动拉起；文件夹里可改 Mod 自己的配置、或放入自制 Mod */}
           {g.mod && !pluginType && (
             <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
@@ -217,7 +232,7 @@ function GameCard({ g, fg, ms, effective, disabled,
 export default function GameLibrary() {
   const [data, setData] = useState<GamesResp>({ builtin: [], user: [], foreground: null, autoswitch: true, universal_vib: false })
   const [q, setQ] = useState('')
-  const [filter, setFilter] = useState<'all' | 'official' | 'ds' | 'custom' | 'mod'>('all')
+  const [filter, setFilter] = useState<'all' | 'official' | 'ds' | 'custom' | 'mod' | 'noexe'>('all')
   const [limit, setLimit] = useState(PAGE)
   const [msg, setMsg] = useState('')
   const [form, setForm] = useState({ name: '', exe: '' })
@@ -268,6 +283,7 @@ export default function GameLibrary() {
       if (filter === 'ds' && g.origin !== 'ds') return false
       if (filter === 'custom' && !(g.origin === 'custom' || g.user_id)) return false
       if (filter === 'mod' && !g.mod) return false
+      if (filter === 'noexe' && g.exe.length > 0) return false
       if (!needle) return true
       return g.name.toLowerCase().includes(needle)
         || (g.en ?? '').toLowerCase().includes(needle)
@@ -301,6 +317,13 @@ export default function GameLibrary() {
       setMsg(g.origin === 'custom' ? `✓ 已删除「${g.name}」` : `✓ 「${g.name}」已恢复默认参数`)
     } catch (e) { setMsg(`✗ ${(e as Error).message}`) }
     load()
+  }
+
+  const launchArcade = async () => {
+    try {
+      await api.arcadeLaunch()
+      setMsg('✓ 已启动「扳机猎人」——切到游戏窗口后扳机由游戏直连驱动')
+    } catch (e) { setMsg(`✗ ${(e as Error).message}`) }
   }
 
   const exportGame = async (g: GameProfile) => {
@@ -403,7 +426,7 @@ export default function GameLibrary() {
           />
         </div>
         <div className="flex gap-1">
-          {([['all', '全部'], ['official', '官方空间站'], ['ds', 'DS推算'], ['custom', '自定义'], ['mod', '有 Mod']] as const).map(([v, l]) => (
+          {([['all', '全部'], ['official', '官方空间站'], ['ds', 'DS推算'], ['custom', '自定义'], ['mod', '有 Mod'], ['noexe', '待指定 exe']] as const).map(([v, l]) => (
             <button key={v} onClick={() => setFilter(v)}
               className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${
                 filter === v ? 'bg-accent/15 text-accent' : 'text-text-mid hover:text-text-hi'
@@ -507,6 +530,7 @@ export default function GameLibrary() {
             effective={data.active?.gid === g.id ? data.active.source : null}
             disabled={disabledSet.has(g.id)}
             onApply={apply} onDel={del} onToggleDisabled={toggleDisabled} onExport={exportGame}
+            onLaunch={launchArcade}
             onPickExe={pickExe} onModAction={modAction} onDetail={setDetail} />
         ))}
       </div>

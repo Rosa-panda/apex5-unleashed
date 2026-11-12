@@ -31,6 +31,10 @@ datas = [
 ]
 if os.path.exists(_GIT_SHA_PATH):
     datas.append((_GIT_SHA_PATH, "."))
+# 内置演示游戏（Rust，arcade/build.cmd 构建）：编译过才带上，没有也不影响打包
+_ARCADE_EXE = os.path.join(_REPO_ROOT, "arcade", "target", "release", "apex5-arcade.exe")
+if os.path.exists(_ARCADE_EXE):
+    datas.append((_ARCADE_EXE, "arcade"))
 
 
 def _ver_info():

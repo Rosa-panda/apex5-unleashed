@@ -38,6 +38,39 @@ def status():
     return "enabled"
 
 
+def service_running():
+    """飞智空间站服务（SpaceStationService.exe）是否在运行。
+    虚拟手柄收到的震动靠它转发给真手柄：服务在跑 = 转发链通，不在跑 = 震动进虚拟手柄后蒸发。"""
+    from ctypes import wintypes
+
+    class PE(ctypes.Structure):
+        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+                    ("th32ProcessID", wintypes.DWORD), ("th32DefaultHeapID", ctypes.c_size_t),
+                    ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+                    ("th32ParentProcessID", wintypes.DWORD), ("pcPriClassBase", wintypes.LONG),
+                    ("dwFlags", wintypes.DWORD), ("szExeFile", ctypes.c_wchar * 260)]
+
+    k = ctypes.windll.kernel32
+    k.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    k.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    k.Process32FirstW.argtypes = k.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(PE)]
+    k.CloseHandle.argtypes = [wintypes.HANDLE]
+    snap = k.CreateToolhelp32Snapshot(0x2, 0)          # TH32CS_SNAPPROCESS
+    if not snap or snap == wintypes.HANDLE(-1).value:
+        return False
+    try:
+        pe = PE()
+        pe.dwSize = ctypes.sizeof(PE)
+        ok = k.Process32FirstW(snap, ctypes.byref(pe))
+        while ok:
+            if pe.szExeFile.lower() == "spacestationservice.exe":
+                return True
+            ok = k.Process32NextW(snap, ctypes.byref(pe))
+        return False
+    finally:
+        k.CloseHandle(snap)
+
+
 def _elevate(ps_script):
     """UAC 提权跑一段 PowerShell（窗口藏起来，只露授权框）。
     返回 True=授权通过（UAC 点了「是」）；设备树变更异步，由前端轮询确认。"""

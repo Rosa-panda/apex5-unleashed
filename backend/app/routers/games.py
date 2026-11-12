@@ -160,6 +160,32 @@ def build_games_router(ctx):
         except Exception as e:
             return err(e)
 
+    @r.post("/api/arcade/launch")
+    def arcade_launch():
+        """启动内置演示游戏「扳机猎人」（Rust，源码在 arcade/）。
+        打包版随软件放在 arcade/ 下；源码运行时用 arcade/target/release 里自己编译的。"""
+        import os
+        import subprocess
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))    # app/（frozen 下 = 包根）
+        cands = [os.path.join(here, "arcade", "apex5-arcade.exe"),
+                 os.path.join(here, "..", "..", "arcade", "target", "release", "apex5-arcade.exe")]
+        exe = next((os.path.abspath(p) for p in cands if os.path.isfile(p)), None)
+        if not exe:
+            return err(FileNotFoundError("没找到 apex5-arcade.exe：源码运行请先在 arcade 目录执行 build.cmd"))
+        try:
+            subprocess.Popen([exe], cwd=os.path.dirname(exe))
+            return {"ok": True, "path": exe}
+        except Exception as e:
+            return err(e)
+
+    class FeedbackReq(BaseModel):
+        enabled: bool = True
+
+    @r.post("/api/feedback")
+    def feedback_set(req: FeedbackReq):
+        """适配生效时手柄短震一下（全屏游戏里确认用）。"""
+        return {"ok": True, "feedback": games.set_feedback(req.enabled)}
+
     @r.post("/api/autoswitch")
     def autoswitch_set(req: AutoswitchReq):
         return {"ok": True, "autoswitch": games.set_autoswitch(req.enabled)}

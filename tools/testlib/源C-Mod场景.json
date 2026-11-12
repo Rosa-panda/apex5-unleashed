@@ -1,0 +1,15 @@
+[
+  {
+    "name": "TestLib-C ModGame",
+    "exe": ["apex5_modgame.exe"],
+    "note": "【测试库·源C】同时有震动参数和 Mod：Mod 启用并运行时震动联动让位，Mod 停用后回到震动联动。",
+    "vib": { "filter": 1, "scale": 10, "stroke": 0, "press": 1, "strength": 150, "freq": 15 },
+    "mod": { "name": "FakeMod.exe", "process": "apex5_modgame", "start_type": 1 }
+  },
+  {
+    "name": "TestLib-C ModOnly",
+    "exe": ["apex5_modonly.exe"],
+    "note": "【测试库·源C】只有 Mod、没有震动参数：Mod 没启用时不应有任何适配。",
+    "mod": { "name": "FakeMod.exe", "process": "apex5_modonly", "start_type": 1 }
+  }
+]

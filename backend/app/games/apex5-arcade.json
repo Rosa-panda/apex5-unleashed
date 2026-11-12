@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "name": "扳机猎人（内置演示）",
+  "en": "Trigger Ranger",
+  "exe": [
+    "apex5-arcade.exe"
+  ],
+  "note": "内置的像素横版演示游戏，用来感受和调校自适应扳机与震动。\n\n游戏自己通过 DSX 入口实时驱动扳机（和官方 Mod 同一条路），所以不走震动联动：\n· 弓：越拉越紧，拉满弓弦发颤\n· 左轮：半程一道坎是瞄准，压过去击发；打空变软，装弹时锁死\n· 加特林：扳机随射速震动，过热锁死\n· 喷气背包（LT）：燃料见底扳机发抖，烧光变软\n\n它的全部手感参数在这份配置的 feel 段里：导出后改数值再导入，游戏里按 F5 重新读取就能生效；游戏内按 Back / F1 可以看到正在发给手柄的扳机模式和参数。",
+  "dsx": true,
+  "feel": {
+    "bow": {
+      "draw": { "stroke": 30.0, "resist_min": 35.0, "resist_gain": 200.0 },
+      "full": { "stroke": 120.0, "press": 40.0, "strength": 70.0, "freq": 45.0 },
+      "full_hum": 0.06,
+      "release_lo": 0.15,
+      "release_hi_base": 0.25,
+      "release_hi_gain": 0.45,
+      "release_dur": 0.09
+    },
+    "revolver": {
+      "fire_at": 0.78,
+      "ready": { "stroke": 100.0, "recoil_stroke": 60.0, "strength": 200.0 },
+      "kick": { "stroke": 200.0, "press": 80.0, "strength": 230.0, "freq": 20.0 },
+      "kick_time": 0.14,
+      "shot": [0.9, 0.6, 0.16],
+      "dry": [0.0, 0.25, 0.04],
+      "reloading": { "stroke": 20.0, "strength": 255.0 },
+      "reload_time": 1.1,
+      "reload_tick": [0.0, 0.3, 0.035]
+    },
+    "gatling": {
+      "idle_stroke": 60.0,
+      "idle_resistance": 45.0,
+      "fire_stroke": 40.0,
+      "fire_press": 30.0,
+      "fire_strength_base": 90.0,
+      "fire_strength_heat": 120.0,
+      "fire_freq_base": 14.0,
+      "fire_freq_spin": 36.0,
+      "overheat": { "stroke": 15.0, "strength": 255.0 },
+      "tick": [0.22, 0.32, 0.05],
+      "spin_hum": 0.1,
+      "overheat_hit": [0.5, 0.2, 0.35]
+    },
+    "jetpack": {
+      "draw": { "stroke": 25.0, "resist_min": 50.0, "resist_gain": 150.0 },
+      "low_fuel": 0.25,
+      "sputter": { "stroke": 20.0, "press": 30.0, "strength": 120.0, "freq": 8.0 },
+      "hum": 0.2
+    },
+    "events": {
+      "land": { "lo_base": 0.15, "lo_gain": 0.55, "hi": 0.05, "dur": 0.09 },
+      "jump": [0.0, 0.12, 0.04],
+      "hit_confirm": [0.0, 0.18, 0.05],
+      "kill": [0.2, 0.25, 0.08],
+      "hurt": [0.85, 0.85, 0.28],
+      "hurt_kick": { "stroke": 60.0, "press": 20.0, "strength": 230.0, "freq": 30.0 },
+      "hurt_kick_time": 0.16,
+      "explosion": { "lo": 1.0, "hi": 0.6, "dur_base": 0.25, "dur_gain": 0.35 },
+      "shock": { "stroke": 10.0, "press": 255.0, "strength": 200.0, "freq": 30.0 },
+      "shock_near": 0.25,
+      "shock_time": 0.3,
+      "stomp": { "lo": 1.0, "hi": 0.45, "dur": 0.5 },
+      "roar": [0.6, 0.2, 1.0],
+      "roar_trigger": { "stroke": 10.0, "press": 255.0, "strength": 130.0, "freq": 12.0 },
+      "roar_time": 0.9,
+      "gate": [0.45, 0.1, 0.35],
+      "checkpoint": [0.0, 0.35, 0.12],
+      "pickup": [0.0, 0.25, 0.08],
+      "heartbeat": [0.3, 0.0, 0.07],
+      "rock_land": [0.4, 0.15, 0.12],
+      "test": [0.7, 0.7, 0.25]
+    }
+  }
+}

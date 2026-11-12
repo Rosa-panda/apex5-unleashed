@@ -16,6 +16,7 @@ export interface EngineEvent { ts: string; kind: string; hist?: boolean; [k: str
 export interface VibFixStatus {
   state: 'absent' | 'enabled' | 'disabled'
   service: string
+  service_running?: boolean    // 飞智空间站服务是否在运行（虚拟手柄的震动要靠它转发）
   auto: boolean
   ledger: { mode: 'temporary' | 'permanent' | 'restore' | null; state: string | null; since: string | null;
     history: Array<{ ts: string; action: string; state: string }> }

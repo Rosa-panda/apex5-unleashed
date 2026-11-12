@@ -1,0 +1,14 @@
+[
+  {
+    "name": "TestLib-A GoWR",
+    "exe": ["gowr.exe"],
+    "note": "【测试库·源A】覆盖内置「战神5」的震动参数：strength 255（最猛）。",
+    "vib": { "filter": 23, "scale": 10, "stroke": 2, "press": 14, "strength": 255, "freq": 62 }
+  },
+  {
+    "name": "TestLib-A Arena",
+    "exe": ["apex5_arena.exe"],
+    "note": "【测试库·源A】纯自定义游戏（库里原本没有）：strength 200 / freq 20。",
+    "vib": { "filter": 1, "scale": 10, "stroke": 0, "press": 1, "strength": 200, "freq": 20 }
+  }
+]

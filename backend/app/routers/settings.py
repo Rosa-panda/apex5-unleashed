@@ -21,6 +21,7 @@ def build_settings_router(ctx):
     def vibfix_get():
         import vibfix
         return {"state": vibfix.status(), "service": vibfix.SERVICE,
+                "service_running": vibfix.service_running(),
                 "auto": bool(games.vibfix_auto) if games else False,
                 "ledger": vibfix.ledger_get()}
 

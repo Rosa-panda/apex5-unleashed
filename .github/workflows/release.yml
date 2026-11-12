@@ -53,6 +53,11 @@ jobs:
           npm ci
           npm run build
 
+      - name: 编译内置演示游戏「扳机猎人」（Rust；失败只缺这个小游戏，不阻断发版）
+        continue-on-error: true
+        working-directory: arcade
+        run: cargo build --release
+
       - name: 落盘构建元数据（GIT_SHA → 产物内 /api/version 显示 nightly 来源）
         run: git rev-parse --short HEAD | Out-File -FilePath GIT_SHA -Encoding ascii -NoNewline
 

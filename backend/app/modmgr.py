@@ -206,6 +206,8 @@ class ModManager:
                 eng.unbind_grip(side, source="mod:start")
         eng and eng._emit("mod", state="start", game=g["name"],
                           detail=f"{g['name']} 事件级适配已启动（Mod 运行中）")
+        if eng:
+            self.games.blip(eng, g["name"])           # 手柄短震一下确认（全屏里看不到界面）
 
     def stop_mod(self):
         gid, was = self.active_gid, self.proc is not None

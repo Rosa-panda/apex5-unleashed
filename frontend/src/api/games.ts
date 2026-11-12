@@ -11,6 +11,7 @@ export const games = {
   // 「另存为」框阻塞到用户点完：放宽超时，避免超时重试弹第二个框
   exportGame: (id: string) => post(`/api/games/${id}/export`, undefined, 600000) as Promise<{ ok: boolean; path?: string; cancelled?: boolean }>,
   modOpenDir: (gid: string) => post(`/api/mods/${gid}/open-dir`),
+  arcadeLaunch: () => post('/api/arcade/launch'),
   setGameExe: (id: string, exe: string[]) => post(`/api/games/${id}/exe`, { exe }),
   setGameDisabled: (id: string, disabled: boolean) => post(`/api/games/${id}/disable`, { disabled }),
   importOfficial: () => post('/api/games/import-official'),
@@ -31,6 +32,7 @@ export const games = {
   modStop: () => post('/api/mods/stop'),
   setUniversalVib: (enabled: boolean) => post('/api/vib/universal', { enabled }),
   setAutoswitch: (enabled: boolean) => post('/api/autoswitch', { enabled }),
+  setFeedback: (enabled: boolean) => post('/api/feedback', { enabled }),
   vibfix: () => fetch('/api/vibfix').then(r => r.json()) as Promise<VibFixStatus>,
   vibfixSet: (enabled: boolean, mode: 'temporary' | 'permanent' = 'temporary') =>
     post('/api/vibfix/set', { enabled, mode }) as Promise<{

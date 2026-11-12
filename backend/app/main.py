@@ -181,9 +181,15 @@ def main():
     # 不留永久改动）；永久禁用只在设置页被显式点击时发生。
     import vibfix as vibfix_mod
 
-    def vibfix_watch(_exe):
+    def vibfix_watch(exe, boot=False):
         if not (games.vibfix_auto and vibfix_mod.auto_fix_allowed()):
             return
+        # 出手时机：① 软件启动时（boot，检测到占用就修一次）② 之后只在前台切到库里有适配的
+        # 游戏时补查——空间站可能中途才起来、把虚拟手柄又拉起；切浏览器/资源管理器不弹授权框
+        if not boot:
+            g = games.match(exe)
+            if not (g and (g.get("vib") or g.get("mod") or g.get("dsx"))):
+                return
         if vibfix_mod.status() != "enabled":
             return
         eng._emit("vibfix", state="fixing",
@@ -205,16 +211,19 @@ def main():
             # 自动修复开着 → 禁用马上还要重建，残留续用即可（省一次 UAC）；
             # 自动修复关着 → 启动自愈还原原状，绝不留下用户不知情的禁用。
             if games.vibfix_auto:
-                vibfix_mod.ledger_record("temporary", "disabled")
-                eng._emit("vibfix", state="carryover",
-                          detail="上次会话的临时修复残留继续生效（自动修复开启，保持禁用）")
+                # 残留的禁用已无哨兵看守（原哨兵随上次进程死了）：重新布一个哨兵，
+                # 否则这次正常退出也不会还原，禁用会一直留下去
+                if vibfix_mod.fix_temporary():
+                    eng._emit("vibfix", state="carryover",
+                              detail="上次会话的临时修复残留继续生效，已重新布防（本软件退出时自动恢复）")
+                # 没授权就保持账本原样：下次启动仍按残留处理，不会丢
             else:
                 eng._emit("vibfix", state="selfheal",
                           detail="检测到上次会话临时修复的残留（本软件未正常退出），正在请求授权恢复原状…")
                 if vibfix_mod.restore():
                     eng._emit("vibfix", state="restored", detail="虚拟手柄已恢复，系统回到原始状态")
         if games.vibfix_auto:
-            vibfix_watch(None)                 # 启动时也查一次（游戏内启动本工具的场景）
+            vibfix_watch(None, boot=True)      # 启动时查一次
 
     games.subscribers.append(vibfix_watch)
     threading.Thread(target=_vibfix_boot_check, daemon=True, name="vibfix-boot").start()
@@ -343,23 +352,17 @@ def main():
                                    width=1180, height=760, min_size=(960, 620))
     window.events.closing += _on_closing
 
-    # 窗口/任务栏图标：自绘手柄 .ico（icon.py，零版权风险）。native Form 在 webview
-    # 启动后才存在，挂 loaded 事件设置；失败静默（缺图标可容忍）。
+    # 窗口/任务栏图标：自绘手柄 .ico（icon.py，零版权风险）。
+    # ⚠ 绝不能在 loaded 事件线程里改 window.native 的任何属性（含 Icon）：赋值会跨线程
+    # SendMessage 给 UI 线程，而 pythonnet 调 .NET 期间不放 GIL、UI 线程回调 Python 又要 GIL
+    # → 全进程 GIL 死锁（窗口「未响应」、接口全无响应、CPU 为 0）。2026-09-20 和 2026-11-12
+    # 两次 py-spy 实锤：事件线程卡在 `window.native.Icon = ...`，主线程/UI 线程都在等 GIL。
+    # 正解：把图标路径交给 start(icon=)，pywebview 的 winforms 后端在 UI 线程创建窗口时
+    # 自己设置（platforms/winforms.py BrowserForm.__init__），零跨线程。
     import icon as icon_mod
     ico = icon_mod.ensure_ico()
-    if ico:
-        def _apply_win_icon():
-            try:
-                from System.Drawing import Icon
-                window.native.Icon = Icon(ico)
-                # ⚠ 只做纯赋值：ShowInTaskbar 之类会重建句柄的属性必须 UI 线程改，
-                # 在事件线程改 = 死锁（py-spy 实锤：MainThread 等 create_window、
-                # 事件线程等 UI 线程，全进程 GIL 僵死，2026-09-20）。
-            except Exception:
-                pass
-        window.events.loaded += _apply_win_icon
 
-    webview.start()          # 主线程阻塞（Windows 要求；X 只隐藏，退出走角标）
+    webview.start(icon=ico or None)   # 主线程阻塞（Windows 要求；X 只隐藏，退出走角标）
     print("[boot] webview 返回，进程收尾")
     mods.stop_mod()
     ingress.stop()

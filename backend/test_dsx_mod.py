@@ -49,6 +49,11 @@ class FakeGames:
         self._g = games
         self.foreground = None
         self.subscribers = []
+        self.disabled = set()          # 用户禁用的游戏 id（Mod 管家会查）
+        self._dirty = False
+
+    def blip(self, engine, key):       # 适配生效的手柄震动提示（测试里不需要）
+        pass
 
     def all(self):
         return self._g

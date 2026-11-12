@@ -30,6 +30,7 @@ function Toggle({ on, onChange, label, desc }: {
 export default function Settings() {
   const [autoswitch, setAutoswitch] = useState(true)
   const [universalVib, setUniversalVib] = useState(false)
+  const [feedback, setFeedback] = useState(true)
   const [autostart, setAutostart] = useState(false)
   const [cache, setCache] = useState<{ count: number; bytes: number } | null>(null)
   const [vibfix, setVibfix] = useState<VibFixStatus | null>(null)
@@ -39,6 +40,7 @@ export default function Settings() {
     api.games().then(g => {
       setAutoswitch(g.autoswitch)
       setUniversalVib(g.universal_vib)
+      setFeedback(g.feedback ?? true)
     }).catch(() => {})
     api.autostart().then(r => setAutostart(r.enabled)).catch(() => {})
     api.imgCacheStatus().then(r => setCache({ count: r.count, bytes: r.bytes })).catch(() => {})
@@ -66,6 +68,9 @@ export default function Settings() {
           <Toggle on={universalVib} label="通用震动联动"
             desc="没有专属适配的游戏也把游戏震动转到扳机上（设备端固件路由，全局生效）。"
             onChange={v => { setUniversalVib(v); api.setUniversalVib(v).then(() => flash('✓ 已保存')).catch(() => flash('✗ 保存失败')) }} />
+          <Toggle on={feedback} label="适配生效时手柄震动一下"
+            desc="全屏游戏里看不到界面提示：进入有适配的游戏、Mod 启动、离开游戏时，手柄短震一下作确认；同一个提示 20 秒内只震一次。"
+            onChange={v => { setFeedback(v); api.setFeedback(v).then(() => flash('✓ 已保存')).catch(() => flash('✗ 保存失败')) }} />
         </div>
         <div className="mt-2 text-[11px] text-text-low">
           两个开关都会记住（重启不丢）；适配优先级：官方适配 &gt; 通用联动 &gt; 标准模式。
@@ -132,7 +137,7 @@ export default function Settings() {
         {(vibfix?.state === 'enabled' || vibfix?.state === 'disabled') && (
           <div className="mt-2 space-y-2">
             <Toggle on={vibfix.auto} label="自动修复（临时）"
-              desc="启动和进游戏时自动检测，发现虚拟手柄抢 0 号槽就请求授权做临时修复；你点过一次授权后基本不会再弹。"
+              desc="默认关闭。开启后：打开软件、进入有适配的游戏时发现虚拟手柄抢 0 号槽，就弹系统授权框做临时修复（软件退出自动还原）。不开也行：检测到占用时，页面顶部会有提示和一键修复。"
               onChange={v => api.vibfixAuto(v)
                 .then(() => { flash('✓ 已保存'); load() })
                 .catch(() => flash('✗ 保存失败'))} />

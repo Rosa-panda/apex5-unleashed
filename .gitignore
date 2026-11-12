@@ -26,6 +26,9 @@ GIT_SHA
 backend/build/
 backend/dist/
 
+# 内置演示游戏（Rust）的编译产物
+arcade/target/
+
 # 设备配置转储（备份 bin 含整机配置槽，属本机数据）
 backend/*.bin
 

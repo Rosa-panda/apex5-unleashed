@@ -1,0 +1,14 @@
+[
+  {
+    "name": "TestLib-B GoWR",
+    "exe": ["gowr.exe"],
+    "note": "【测试库·源B】和源A抢同一款游戏，但参数很轻：strength 40。后导入的优先。",
+    "vib": { "filter": 23, "scale": 10, "stroke": 2, "press": 14, "strength": 40, "freq": 5 }
+  },
+  {
+    "name": "TestLib-B Arena",
+    "exe": ["apex5_arena.exe"],
+    "note": "【测试库·源B】和源A抢同一个自定义游戏：strength 60 / freq 8。",
+    "vib": { "filter": 1, "scale": 10, "stroke": 0, "press": 1, "strength": 60, "freq": 8 }
+  }
+]

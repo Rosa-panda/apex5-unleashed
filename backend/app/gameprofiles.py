@@ -60,7 +60,11 @@ class GameProfiles:
         self.autoswitch = True
         self.foreground = None                # 当前前台 exe（小写）
         self.universal_vib = False            # 通用震动联动（ADR-017）：无档案前台的回落
-        self.vibfix_auto = False              # 震动修复自动出手（检测到虚拟手柄抢 0 号槽才动）
+        self.vibfix_auto = False              # 震动修复自动出手（默认关：自动出手要弹系统授权框，打扰且曾疑似拖垮启动；
+                                              # 默认只在界面明显提示 + 一键修复，用户自己决定）
+        self._vibfix_user_set = False         # 用户是否显式选择过（只有显式选择才落盘）
+        self.feedback = True                  # 适配生效时手柄短震一下（全屏游戏里看不到界面提示，靠手感确认）
+        self._blip_at = {}                    # 提示键 → 上次震动时刻（防抖）
         self._was_online = False              # 设备接入沿：attach 瞬间重放当前适配
         self._active_game = None              # 自动切换当前生效适配的游戏名（None=无）
         self._active_uni = False              # 通用联动是否为自动切换所套（手动设置不算）
@@ -100,6 +104,7 @@ class GameProfiles:
                 "autoswitch": self.autoswitch,
                 "universal_vib": self.universal_vib,
                 "vibfix_auto": self.vibfix_auto,
+                "feedback": self.feedback,
                 "disabled": sorted(self.disabled),
                 "active": self.active_info()}
 
@@ -111,6 +116,8 @@ class GameProfiles:
             return {"gid": gid, "source": "mod", "origin": ""}
         if self.autoswitch:
             g = self.match(self.foreground)
+            if g and g.get("dsx"):
+                return {"gid": g["id"], "source": "dsx", "origin": ""}
             if g and g.get("vib"):
                 return {"gid": g["id"], "source": "vib", "origin": g.get("vib_origin") or ""}
         if self._active_uni:
@@ -156,14 +163,18 @@ class GameProfiles:
     def _merge(cls, raw):
         """一游戏一卡（2026-11 issue #2）：进程名有交集的档案合并成一条。
         - 卡片本体（id/名称/来源）取：带 Mod 的 > 内置 > 官方——Mod 安装目录/启用状态按 id 存，不能变；
-        - 震动参数取：用户档案（自定义/导入） > 官方调参 > 推算；
-        - 进程名取并集；没有进程名的条目（只用于展示、永远匹配不上）不再出现在库里。
+        - 震动参数取：用户档案（自定义/导入，多份时后保存的优先） > 官方调参 > 推算；
+        - 进程名取并集；没有进程名的条目照样显示成卡片（前台检测匹配不上，用户点卡上的
+          「选择 exe」指定后才生效）。用户指定 exe 存成的用户档案与它同名，按名字并回同一张卡。
         被并掉的条目 id 记在 merged，用户档案 id 记在 user_id（卡片「删除自定义」用）。"""
         items = []
+        keyless = []
         for g in raw.values():
             keys = cls._keys(g)
             if keys:
                 items.append((g, set(keys)))
+            else:
+                keyless.append(g)
         groups = []                                   # [(成员列表, 键集合)]
         for g, keys in items:
             hit = [grp for grp in groups if grp[1] & keys]
@@ -173,8 +184,17 @@ class GameProfiles:
                 allkeys |= grp[1]
                 groups.remove(grp)
             groups.append((members, allkeys))
+        for g in keyless:
+            name = g["name"].strip().lower()
+            same = next((grp for grp in groups
+                         if any(x["name"].strip().lower() == name for x in grp[0])), None)
+            if same:
+                same[0].append(g)
+            else:
+                groups.append(([g], set()))
         out = {}
         for members, _ in groups:
+            members.sort(key=lambda g: -g.get("saved_at", 0))   # 用户档案后保存的在前，内置保持原序
             base = sorted(members, key=lambda g: (not g.get("mod"), not g["builtin"],
                                                   not g.get("official")))[0]
             vm = sorted((g for g in members if g.get("vib")),
@@ -183,12 +203,16 @@ class GameProfiles:
             m = dict(base)
             m["exe"] = list(dict.fromkeys(e for g in members for e in g["exe"]
                                           if cls._norm(e) in set(cls._keys(g))))
+            fm = next((g for g in members if g.get("feel")), None)   # 用户档案在前：用户的手感配置优先
+            if fm:
+                m["feel"] = fm["feel"]
             m["vib"] = vm["vib"] if vm else None
             m["vib_source"] = vm.get("vib_source") if vm else None
             m["vib_origin"] = (None if not vm else
                                "custom" if not vm["builtin"] and not vm.get("official") else
                                "guess" if vm.get("vib_source") else "official")
-            m["origin"] = ("official" if base.get("official") else
+            m["origin"] = ("demo" if base.get("dsx") else       # 内置演示游戏（游戏直连扳机）
+                           "official" if base.get("official") else
                            "ds" if base["builtin"] else "custom")   # 内置非官方 = 推算参数
             users = [g["id"] for g in members if not g["builtin"]]
             m["user_id"] = users[0] if users else None
@@ -208,18 +232,26 @@ class GameProfiles:
                 s = json.load(f)
             self.autoswitch = bool(s.get("autoswitch", True))
             self.universal_vib = bool(s.get("universal_vib", False))
-            self.vibfix_auto = bool(s.get("vibfix_auto", False))
+            self.feedback = bool(s.get("feedback", True))
+            # 旧键 vibfix_auto 一律不认：它连「没动过的默认值」也落盘，分不清是不是用户的选择。
+            # 新键 vibfix_auto_user 只在用户于设置里显式切换后才写入。
+            if "vibfix_auto_user" in s:
+                self.vibfix_auto = bool(s["vibfix_auto_user"])
+                self._vibfix_user_set = True
             self.disabled = set(s.get("disabled_games") or [])
         except Exception:
             pass                              # 无文件/坏文件 → 默认值
 
     def _save_settings(self):
         try:
+            d = {"autoswitch": self.autoswitch,
+                 "universal_vib": self.universal_vib,
+                 "feedback": self.feedback,
+                 "disabled_games": sorted(self.disabled)}
+            if self._vibfix_user_set:             # 只记用户的显式选择，默认值不落盘
+                d["vibfix_auto_user"] = self.vibfix_auto
             with open(self._settings_path(), "w", encoding="utf-8") as f:
-                json.dump({"autoswitch": self.autoswitch,
-                           "universal_vib": self.universal_vib,
-                           "vibfix_auto": self.vibfix_auto,
-                           "disabled_games": sorted(self.disabled)}, f)
+                json.dump(d, f)
         except Exception:
             pass
 
@@ -228,8 +260,28 @@ class GameProfiles:
         self._save_settings()
         return self.autoswitch
 
+    def set_feedback(self, enabled):
+        self.feedback = bool(enabled)
+        self._save_settings()
+        return self.feedback
+
+    def blip(self, engine, key):
+        """适配生效 / 离开 / Mod 启动时，手柄短震一下作确认（全屏游戏里看不到工具界面）。
+        同一个 key 20 秒内只震一次：切窗口出去又马上回来不连震。"""
+        if not self.feedback:
+            return
+        t = time.time()
+        if t - self._blip_at.get(key, 0.0) < 20.0:
+            return
+        self._blip_at[key] = t
+        try:
+            engine.set_rumble(200, 200, duration=0.18, source="autoswitch:feedback")
+        except Exception:
+            pass
+
     def set_vibfix_auto(self, enabled):
         self.vibfix_auto = bool(enabled)
+        self._vibfix_user_set = True
         self._save_settings()
         return self.vibfix_auto
 
@@ -244,8 +296,9 @@ class GameProfiles:
             gid = gid + "-user"
         g = {"version": 1, "name": name, "note": data.get("note", ""),
              "exe": [e.strip().lower() for e in data["exe"] if e.strip()],
+             "saved_at": time.time(),            # 多份自定义撞同一游戏时：后保存的优先
              "builtin": False, "id": gid}
-        for k in ("vib", "official", "official_id", "mod_only", "en", "image", "mod"):
+        for k in ("vib", "official", "official_id", "mod_only", "en", "image", "mod", "feel"):
             if data.get(k) is not None:
                 g[k] = data[k]
         with open(os.path.join(games_dir(), gid + ".json"), "w", encoding="utf-8") as f:
@@ -284,8 +337,16 @@ class GameProfiles:
             if isinstance(mod, dict) and mod.get("name"):
                 g["mod"] = {k: mod[k] for k in ("name", "url", "version", "start_type",
                                                 "process", "mod_process") if k in mod}
-            if not g.get("vib") and not g.get("mod"):
-                raise ValueError(f"「{name}」至少要有 vib（震动参数）或 mod")
+            feel = it.get("feel")
+            if feel is not None:
+                # 游戏自己读取的手感配置（结构由游戏定义，工具原样保存、导出）
+                if not isinstance(feel, dict):
+                    raise ValueError(f"「{name}」的 feel 应是一个 JSON 对象")
+                if len(json.dumps(feel, ensure_ascii=False)) > 200_000:
+                    raise ValueError(f"「{name}」的 feel 过大（上限约 200KB）")
+                g["feel"] = feel
+            if not g.get("vib") and not g.get("mod") and not g.get("feel"):
+                raise ValueError(f"「{name}」至少要有 vib（震动参数）、mod 或 feel（手感配置）之一")
             parsed.append(g)
         return [self.save(g) for g in parsed]       # 先全部校验再落盘，坏一条不留半截
 
@@ -294,10 +355,35 @@ class GameProfiles:
         g = self.all().get(gid)
         if not g:
             raise KeyError(gid)
-        out = {"format": "apex5-game/1", "name": g["name"], "exe": g["exe"]}
-        for k in ("en", "note", "vib", "mod"):
+        out = {"format": "apex5-game/2", "name": g["name"], "exe": g["exe"]}
+        for k in ("en", "note"):
             if g.get(k):
                 out[k] = g[k]
+        if g.get("genres"):
+            # Steam 题材编号 → 名称（推算参数就是按这些题材估的；不认识的保留原编号）
+            names = {"1": "动作", "2": "策略", "3": "角色扮演", "4": "休闲", "9": "竞速", "18": "体育",
+                     "23": "独立", "25": "冒险", "28": "模拟", "29": "大型多人在线", "37": "免费开玩",
+                     "70": "抢先体验", "71": "暴力", "73": "血腥"}
+            out["题材"] = [names.get(str(x), str(x)) for x in g["genres"]]
+        origin = {"official": "官方空间站", "ds": "DS推算", "demo": "内置演示", "custom": "自定义"}
+        out["来源"] = {"卡片": origin.get(g.get("origin"), ""),
+                     "震动参数": {"official": "官方调参", "guess": "按题材推算", "custom": "自定义"}.get(
+                         g.get("vib_origin") or "", "")}
+        for k in ("vib", "mod", "feel"):
+            if g.get(k):
+                out[k] = g[k]
+        doc = {"格式": "改完直接在游戏库「导入配置」导回；只需保留想改的字段，name 和 exe 必须有。"}
+        if g.get("vib"):
+            doc["vib"] = ("震动联动：让手柄固件把游戏的震动转成扳机反馈。filter 滤波 / scale 缩放 / stroke 行程 / "
+                          "press 触发点 / strength 力度 / freq 频率，均为 0-255 整数；"
+                          "官方游戏的数值来自飞智空间站，推算游戏的数值按题材估算，可按手感自行微调。")
+        if g.get("feel"):
+            doc["feel"] = ("游戏自己读取的手感配置，结构由游戏定义，工具原样保存。"
+                           "改完导入后在游戏里按 F5 重新读取；只写想改的部分，缺的自动用默认值。"
+                           "扳机参数是固件原始量程 1-255；形如 [低频, 高频, 秒] 的震动三元组强度为 0-1。")
+        if g.get("mod"):
+            doc["mod"] = "官方事件级 Mod：name 为程序文件名，url 为下载地址（可省略，手动放进 Mod 文件夹也行）。"
+        out["_doc"] = doc
         return out
 
     def delete(self, gid):
@@ -331,6 +417,9 @@ class GameProfiles:
             return self.universal_vib
         if self.mod_running():
             return self.universal_vib          # Mod 接管扳机期间不绑 grip（停 mod 时会按档案回放）
+        fg = self.match(self.foreground)
+        if fg and fg.get("dsx"):
+            return self.universal_vib          # 前台是游戏直连驱动扳机：同理不绑 grip
         if self.universal_vib:
             from officialimport import UNIVERSAL_VIB
             for side in ("left", "right"):
@@ -389,7 +478,7 @@ class GameProfiles:
                 and any(self._norm(e) == want for e in g["exe"])]
         if not hits:
             return None
-        adapted = [g for g in hits if g.get("vib") or g.get("mod")]
+        adapted = [g for g in hits if g.get("vib") or g.get("mod") or g.get("dsx")]
         if len(adapted) == 1:
             return adapted[0]
         if adapted:                              # 多条都带适配：用户优先
@@ -426,7 +515,17 @@ class GameProfiles:
             self._active_game, self._active_uni = None, False
             return
         g = self.match(exe)
-        if g and g.get("vib"):
+        if g and g.get("dsx"):
+            # 游戏自己经 DSX 入口实时驱动扳机（内置演示游戏）：不绑震动联动——否则固件
+            # 会把游戏震动也路由到扳机，和游戏发来的扳机指令打架
+            if self._active_game != g["name"]:
+                for side in ("left", "right"):
+                    engine.unbind_grip(side, source=f"game:{g['name']}:dsx")
+                engine._emit("autoswitch", game=g["name"], preset="",
+                             detail=f"检测到 {exe}，由游戏直连驱动扳机")
+                self.blip(engine, g["name"])
+            self._active_game, self._active_uni = g["name"], False
+        elif g and g.get("vib"):
             switched = self._active_game != g["name"]
             self._active_game, self._active_uni = g["name"], False
             try:
@@ -434,6 +533,7 @@ class GameProfiles:
                 if switched:                     # 适配内切窗口/回来不打扰
                     engine._emit("autoswitch", game=g["name"], preset="",
                                  detail=f"检测到 {exe}，已应用 {g['name']} 适配")
+                    self.blip(engine, g["name"])
             except Exception as e:
                 engine._emit("error", detail=f"自动应用 {g['name']} 失败: {e}")
         elif self.universal_vib:
@@ -457,6 +557,7 @@ class GameProfiles:
                 for side in ("left", "right"):
                     engine.unbind_grip(side, source="autoswitch:leave")
                 engine._emit("autoswitch", game="", preset="", detail="离开游戏，已恢复标准状态")
+                self.blip(engine, "__leave__")
 
     def start_watch(self, engine, stop_evt):
         def loop():

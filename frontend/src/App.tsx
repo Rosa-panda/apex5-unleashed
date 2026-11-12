@@ -257,7 +257,7 @@ export default function App() {
         </header>
 
         {/* 全局离线横幅（展示件在 components/StatusBanner.tsx） */}
-        <StatusBanner connected={connected} online={online} mock={mock} />
+        <StatusBanner connected={connected} online={online} mock={mock} proxy={proxy} onGoto={setPage} />
 
         {/* 自动切换 toast：进入/离开游戏时全页面可见的工具行为提示（展示件在 components/Toast.tsx） */}
         {toast && <Toast msg={toast} />}
