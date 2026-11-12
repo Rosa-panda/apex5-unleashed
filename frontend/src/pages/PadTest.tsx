@@ -57,18 +57,26 @@ function Dot({ cx, cy, r, label, on, title, dashed }: {
   )
 }
 
-function Bumper({ x, w, label, on }: { x: number; w: number; label: string; on: boolean }) {
+/** 肩键：贴着机身肩部弧线的弯条；右侧用左侧镜像 */
+const BUMPER_D = 'M 100 160 C 108 126, 148 104, 210 102 L 248 102 Q 256 102 256 110 L 256 114 Q 256 122 248 122 L 210 122 C 166 124, 134 132, 117 152 Z'
+function Bumper({ side, label, on }: { side: 'L' | 'R'; label: string; on: boolean }) {
   return (
     <g>
       <title>{label}</title>
-      <rect x={x} y={104} width={w} height={30} rx={15}
-        fill={on ? ON_FILL : OFF_FILL} stroke={on ? ON_STROKE : OFF_STROKE_SOLID} strokeWidth={1.5}
+      <path d={BUMPER_D} transform={side === 'R' ? 'translate(640,0) scale(-1,1)' : undefined}
+        fill={on ? ON_FILL : OFF_FILL} stroke={on ? ON_STROKE : OFF_STROKE_SOLID} strokeWidth={1.5} strokeLinejoin="round"
         style={{ filter: on ? 'drop-shadow(0 0 7px rgba(34,211,239,.55))' : undefined, transition: 'fill 40ms' }} />
-      <text x={x + w / 2} y={123} textAnchor="middle" fontSize={12} fontWeight={600}
+      <text x={side === 'L' ? 208 : 432} y={116} textAnchor="middle" fontSize={11} fontWeight={600}
         fill={on ? '#062730' : '#8b8ba7'}>{label}</text>
     </g>
   )
 }
+
+/** 机身轮廓：Xbox 式非对称布局的一体外形（肩部 + 两侧握把 + 中部下沿） */
+const BODY_D = 'M 320 128 L 200 128 C 150 128, 112 140, 98 180 C 82 225, 66 300, 70 342 ' +
+  'C 74 378, 112 392, 138 370 C 160 352, 182 328, 210 316 C 260 300, 380 300, 430 316 ' +
+  'C 458 328, 480 352, 502 370 C 528 392, 566 378, 570 342 C 574 300, 558 225, 542 180 ' +
+  'C 528 140, 490 128, 440 128 Z'
 
 /** 扳机：左上/右上竖条，模拟量以填充高度呈现（outline 里液面升降） */
 function TriggerBar({ x, label, v }: { x: number; label: string; v: number }) {
@@ -96,7 +104,7 @@ function StickSvg({ cx, cy, x, y, press, title }: {
         style={{ filter: press ? 'drop-shadow(0 0 8px rgba(34,211,239,.5))' : undefined }} />
       <circle cx={kx} cy={ky} r={20} fill={press ? ON_FILL : '#23233a'} stroke={press ? ON_STROKE : '#3a3a5c'} strokeWidth={1.5}
         style={{ transition: 'fill 40ms' }} />
-      {press && <text x={cx} y={cy + 72} textAnchor="middle" fontSize={10} fill={ON_STROKE} fontWeight={600}>按下</text>}
+      {press && <text x={cx} y={cy + 48} textAnchor="middle" fontSize={10} fill={ON_STROKE} fontWeight={600}>按下</text>}
     </g>
   )
 }
@@ -105,18 +113,18 @@ function StickSvg({ cx, cy, x, y, press, title }: {
 function Dpad({ cx, cy, on }: { cx: number; cy: number; on: (i: number) => boolean }) {
   const arm = (px: number, py: number, w: number, h: number, i: number, label: string, lx: number, ly: number) => (
     <g key={i}>
-      <rect x={px} y={py} width={w} height={h} rx={7}
+      <rect x={px} y={py} width={w} height={h} rx={6}
         fill={on(i) ? ON_FILL : OFF_FILL} stroke={on(i) ? ON_STROKE : OFF_STROKE_SOLID} strokeWidth={1.5}
         style={{ filter: on(i) ? 'drop-shadow(0 0 7px rgba(34,211,239,.55))' : undefined, transition: 'fill 40ms' }} />
-      <text x={lx} y={ly} textAnchor="middle" fontSize={12} fontWeight={700} fill={on(i) ? '#062730' : '#8b8ba7'}>{label}</text>
+      <text x={lx} y={ly} textAnchor="middle" fontSize={10} fontWeight={700} fill={on(i) ? '#062730' : '#8b8ba7'}>{label}</text>
     </g>
   )
   return (
     <g>
-      {arm(cx - 13, cy - 46, 26, 40, 12, '▲', cx, cy - 26)}   {/* 上 */}
-      {arm(cx - 13, cy + 6, 26, 40, 13, '▼', cx, cy + 33)}    {/* 下 */}
-      {arm(cx - 46, cy - 13, 40, 26, 14, '◀', cx - 26, cy + 4)} {/* 左 */}
-      {arm(cx + 6, cy - 13, 40, 26, 15, '▶', cx + 26, cy + 4)}  {/* 右 */}
+      {arm(cx - 11, cy - 40, 22, 34, 12, '▲', cx, cy - 20)}   {/* 上 */}
+      {arm(cx - 11, cy + 6, 22, 34, 13, '▼', cx, cy + 27)}    {/* 下 */}
+      {arm(cx - 40, cy - 11, 34, 22, 14, '◀', cx - 22, cy + 4)} {/* 左 */}
+      {arm(cx + 6, cy - 11, 34, 22, 15, '▶', cx + 22, cy + 4)}  {/* 右 */}
     </g>
   )
 }
@@ -130,48 +138,52 @@ function PadDiagram({ pad, extNow }: { pad: PadSnap | null; extNow: Set<string> 
       <div className="pointer-events-none absolute inset-0"
         style={{ background: 'radial-gradient(ellipse 75% 70% at 50% 45%, rgba(34,211,239,.05), transparent 70%)' }} />
       <svg viewBox="0 0 640 400" className="relative w-full max-w-2xl">
-        {/* 机身 */}
-        <g fill="#12121c" stroke="#2a2a44" strokeWidth={2}>
-          <ellipse cx={150} cy={262} rx={82} ry={96} />
-          <ellipse cx={490} cy={262} rx={82} ry={96} />
-          <rect x={140} y={132} width={360} height={128} rx={64} />
-        </g>
+        <defs>
+          <linearGradient id="padBody" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#1a1a2a" />
+            <stop offset="1" stopColor="#0f0f18" />
+          </linearGradient>
+        </defs>
 
-        {/* 头部拓展键 LM / RM（顶部两颗） */}
-        <Dot cx={268} cy={142} r={11} label="LM" on={extNow.has('lm')} title="LM（头部左）" />
-        <Dot cx={372} cy={142} r={11} label="RM" on={extNow.has('rm')} title="RM（头部右）" />
+        {/* 扳机（模拟量，在肩键后上方） */}
+        <TriggerBar x={168} label="LT" v={pad?.buttons[6]?.value ?? 0} />
+        <TriggerBar x={446} label="RT" v={pad?.buttons[7]?.value ?? 0} />
+
+        {/* 机身：一体外形 */}
+        <path d={BODY_D} fill="url(#padBody)" stroke="#2e2e4a" strokeWidth={2} strokeLinejoin="round" />
+
+        {/* 肩键（贴肩部弧线） */}
+        <Bumper side="L" label="LB" on={btn(4)} />
+        <Bumper side="R" label="RB" on={btn(5)} />
+
+        {/* 头部拓展键 LM / RM（机身顶沿两颗） */}
+        <Dot cx={284} cy={144} r={10} label="LM" on={extNow.has('lm')} title="LM（头部左）" />
+        <Dot cx={356} cy={144} r={10} label="RM" on={extNow.has('rm')} title="RM（头部右）" />
 
         {/* LOGO / 视图 / 菜单 */}
-        <Dot cx={320} cy={170} r={16} label="⌂" on={btn(16)} title="LOGO" />
-        <Dot cx={293} cy={206} r={13} label="⧉" on={btn(8)} title="视图" />
-        <Dot cx={347} cy={206} r={13} label="☰" on={btn(9)} title="菜单" />
+        <Dot cx={320} cy={176} r={15} label="⌂" on={btn(16)} title="LOGO" />
+        <Dot cx={284} cy={212} r={11} label="⧉" on={btn(8)} title="视图" />
+        <Dot cx={356} cy={212} r={11} label="☰" on={btn(9)} title="菜单" />
 
-        {/* 左摇杆（推动方向实时映射） */}
-        <StickSvg cx={185} cy={212} x={ax(0)} y={ax(1)} press={btn(10)} title="左摇杆（L3 按下高亮）" />
-        {/* 十字键 */}
-        <Dpad cx={185} cy={318} on={btn} />
+        {/* 左摇杆在左上、十字键在左下内侧（Xbox 式非对称布局） */}
+        <StickSvg cx={178} cy={190} x={ax(0)} y={ax(1)} press={btn(10)} title="左摇杆（L3 按下高亮）" />
+        <Dpad cx={240} cy={252} on={btn} />
 
-        {/* 右摇杆 */}
-        <StickSvg cx={395} cy={318} x={ax(2)} y={ax(3)} press={btn(11)} title="右摇杆（R3 按下高亮）" />
+        {/* 右摇杆在右下内侧 */}
+        <StickSvg cx={400} cy={252} x={ax(2)} y={ax(3)} press={btn(11)} title="右摇杆（R3 按下高亮）" />
 
-        {/* 面键 ABXY（Xbox 布局：Y上 A下 X左 B右） */}
-        <Dot cx={455} cy={158} r={17} label="Y" on={btn(3)} title="Y / 三角" />
-        <Dot cx={455} cy={242} r={17} label="A" on={btn(0)} title="A / 交叉" />
-        <Dot cx={413} cy={200} r={17} label="X" on={btn(2)} title="X / 方块" />
-        <Dot cx={497} cy={200} r={17} label="B" on={btn(1)} title="B / 圆圈" />
+        {/* 面键 ABXY（右上；Y上 A下 X左 B右） */}
+        <Dot cx={462} cy={156} r={16} label="Y" on={btn(3)} title="Y / 三角" />
+        <Dot cx={462} cy={224} r={16} label="A" on={btn(0)} title="A / 交叉" />
+        <Dot cx={428} cy={190} r={16} label="X" on={btn(2)} title="X / 方块" />
+        <Dot cx={496} cy={190} r={16} label="B" on={btn(1)} title="B / 圆圈" />
 
-        {/* 肩键 */}
-        <Bumper x={108} w={128} label="LB" on={btn(4)} />
-        <Bumper x={404} w={128} label="RB" on={btn(5)} />
-        {/* 扳机（模拟量） */}
-        <TriggerBar x={158} label="LT" v={pad?.buttons[6]?.value ?? 0} />
-        <TriggerBar x={456} label="RT" v={pad?.buttons[7]?.value ?? 0} />
-
-        {/* 背部拓展键 M1-M4（虚线 = 位于背面，按压照样亮） */}
-        <Dot cx={100} cy={262} r={13} label="M2" on={extNow.has('m2')} title="M2（背左上）" dashed />
-        <Dot cx={132} cy={330} r={13} label="M4" on={extNow.has('m4')} title="M4（背左下）" dashed />
-        <Dot cx={540} cy={262} r={13} label="M1" on={extNow.has('m1')} title="M1（背右上）" dashed />
-        <Dot cx={508} cy={330} r={13} label="M3" on={extNow.has('m3')} title="M3（背右下）" dashed />
+        {/* 背部拓展键 M1-M4：画在握把上，虚线 = 位于背面，按压照样亮 */}
+        <Dot cx={112} cy={268} r={13} label="M2" on={extNow.has('m2')} title="M2（背左上）" dashed />
+        <Dot cx={126} cy={334} r={13} label="M4" on={extNow.has('m4')} title="M4（背左下）" dashed />
+        <Dot cx={528} cy={268} r={13} label="M1" on={extNow.has('m1')} title="M1（背右上）" dashed />
+        <Dot cx={514} cy={334} r={13} label="M3" on={extNow.has('m3')} title="M3（背右下）" dashed />
+        <text x={320} y={384} textAnchor="middle" fontSize={10} fill="#5c5c7a">虚线圈 = 背面拓展键 M1–M4</text>
       </svg>
     </div>
   )
