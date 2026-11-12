@@ -4,13 +4,20 @@ import type { VibFixStatus } from './types'
 
 export const games = {
   games: () => fetch('/api/games').then(r => r.json()),
-  saveGame: (g: { name: string; exe: string[]; preset_id: string; note: string }) => post('/api/games', g),
+  saveGame: (g: { name: string; exe: string[]; note: string }) => post('/api/games', g),
   deleteGame: (id: string) => fetch(`/api/games/${id}`, { method: 'DELETE' }).then(r => r.json()),
   applyGame: (id: string) => post(`/api/games/${id}/apply`),
-  linkGame: (id: string, preset_id: string) => post(`/api/games/${id}/link`, { preset_id }),
+  importConfig: (data: unknown) => post('/api/games/import-config', data) as Promise<{ ok: boolean; count: number; names: string[] }>,
+  // 「另存为」框阻塞到用户点完：放宽超时，避免超时重试弹第二个框
+  exportGame: (id: string) => post(`/api/games/${id}/export`, undefined, 600000) as Promise<{ ok: boolean; path?: string; cancelled?: boolean }>,
+  modOpenDir: (gid: string) => post(`/api/mods/${gid}/open-dir`),
   setGameExe: (id: string, exe: string[]) => post(`/api/games/${id}/exe`, { exe }),
+  setGameDisabled: (id: string, disabled: boolean) => post(`/api/games/${id}/disable`, { disabled }),
   importOfficial: () => post('/api/games/import-official'),
-  officialSrc: () => fetch('/api/games/official-src').then(r => r.json()) as Promise<{ available: boolean; path: string }>,
+  officialSrc: () => fetch('/api/games/official-src').then(r => r.json()) as Promise<{ available: boolean; path: string; custom: string }>,
+  setOfficialSrc: (path: string) => post('/api/games/official-src', { path }),
+  // 系统选择框会阻塞到用户点完：放宽超时，否则 6s 超时重试会弹出第二个框
+  pickOfficialSrc: () => post('/api/games/official-src/pick', undefined, 600000) as Promise<{ ok: boolean; path?: string; cancelled?: boolean }>,
   mods: () => fetch('/api/mods').then(r => r.json()) as Promise<{
     mods: Array<{ gid: string; name: string; mod_name: string; version: string; start_type: number;
       installed: boolean; enabled: boolean; installing: boolean; running: boolean }>

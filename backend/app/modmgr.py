@@ -134,6 +134,7 @@ class ModManager:
         self._save_enabled()
         if not enabled and self.active_gid == gid:
             self.stop_mod()
+        self.games._dirty = True              # 游戏正在前台时：下一拍立即拉起/回落震动联动
         return self.enabled[gid]
 
     # ---------- 生命周期（前台事件驱动） ----------
@@ -145,7 +146,7 @@ class ModManager:
             return None
         want = exe.lower().removesuffix(".exe")
         for g in self.games.all().values():
-            if not g.get("mod"):
+            if not g.get("mod") or g["id"] in self.games.disabled:
                 continue
             for e in g["exe"]:
                 if e.lower().removesuffix(".exe") == want:
@@ -222,7 +223,7 @@ class ModManager:
                 for side in ("left", "right"):
                     eng.clear_trigger(side, source="mod:stop")
                 g = self.games.match(getattr(self.games, "foreground", None))
-                if g and (g.get("vib") or g.get("preset_id")):
+                if g and g.get("vib"):
                     try:
                         self.games.apply_game(g, eng)   # 回游戏自己的 vib 适配
                     except Exception:

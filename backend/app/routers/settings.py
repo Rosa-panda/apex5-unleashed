@@ -99,6 +99,19 @@ def build_settings_router(ctx):
         except Exception as e:
             return err(e)
 
+    @r.post("/api/mods/{gid}/open-dir")
+    def mods_open_dir(gid: str):
+        """打开该游戏的 Mod 文件夹：自己改 Mod 配置文件、或放入自制/手动下载的 Mod。"""
+        if mods is None:
+            return err(RuntimeError("Mod 管家未初始化"))
+        try:
+            d = mods.mod_dir(gid)
+            _os.makedirs(d, exist_ok=True)
+            _os.startfile(d)
+            return {"ok": True, "path": d}
+        except Exception as e:
+            return err(e)
+
     @r.post("/api/mods/stop")
     def mods_stop():
         """手动停掉当前 Mod（应急，比如 mod 行为异常）。"""

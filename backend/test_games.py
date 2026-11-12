@@ -1,6 +1,5 @@
 # 游戏档案 + 前台自动切换状态机单测（不依赖真实前台：注入假 exe）
-# 2026-09-20 语义更新（用户定则）：内置档案默认【不走】扳机预设——
-# 预设绑定只能是用户显式行为；官方 vib 震动联动不受影响。
+# 2026-11：游戏不再绑扳机预设，适配 = 震动联动参数 / 官方 Mod；支持导入自定义配置。
 import os
 import sys
 import time
@@ -33,28 +32,27 @@ g = games.match("eldenring.exe")
 assert g and g["name"].startswith("艾尔登法环"), g
 print("builtin load + exe match OK")
 
-# 2. 新策略：内置档案默认不带 preset_id → 进老头环不套预设，明确提示标准模式
-assert not g.get("preset_id"), f"内置档案不应出厂绑预设: {g.get('preset_id')}"
+# 2. 游戏不再绑预设（2026-11）：进老头环不动扳机模式
 gameprofiles.foreground_exe = lambda: "eldenring.exe"
 games.maybe_autoswitch(eng)
 time.sleep(0.2)
 t = eng.state["triggers"]["left"]
-assert t is None, f"默认不应套预设，实际 {t}"
-print("default no-preset policy OK（老头环标准模式）")
+assert t is None, f"不应套扳机预设，实际 {t}"
+print("no-preset policy OK")
 
-# 3. 显式绑定 → 自动套用（用户在 UI 里给游戏绑预设的唯一入口）
-saved = games.save({"name": "测试绑定游戏", "exe": ["presetgame.exe"],
-                    "preset_id": "fps-sniper", "note": "test-only"})
+# 3. 导入自定义配置 → 进游戏自动套用其震动参数
+saved = games.import_config({"name": "测试自定义游戏", "exe": ["customgame.exe"], "note": "test-only",
+                             "vib": {"filter": 1, "scale": 10, "stroke": 0, "press": 1,
+                                     "strength": 90, "freq": 12}})[0]
 try:
-    gp = games.match("presetgame.exe")
-    assert gp and gp.get("preset_id") == "fps-sniper", gp
-    gameprofiles.foreground_exe = lambda: "presetgame.exe"
+    gp = games.match("customgame.exe")
+    assert gp and gp["vib_origin"] == "custom" and gp["origin"] == "custom", gp
+    gameprofiles.foreground_exe = lambda: "customgame.exe"
     games.maybe_autoswitch(eng)
     time.sleep(0.2)
-    t = eng.state["triggers"]["left"]
-    assert t and t["source"].startswith("preset:"), t
-    assert t["mode"] == "sniper", t
-    print("explicit link autoswitch applies preset OK:", t["mode"], "<-", t["source"])
+    gb = eng.state["gripBind"]["left"]
+    assert gb and gb["strength"] == 90 and gb["source"] == "game:测试自定义游戏", gb
+    print("custom config autoswitch OK:", gb)
 
     # 4. 迟滞：前台不变不重复应用
     before = len(eng.events)

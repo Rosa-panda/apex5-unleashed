@@ -42,8 +42,8 @@ const NAV: Array<{ id: PageId; label: string; icon: LucideIcon; group?: string }
 const PAGE_META: Record<PageId, { title: string; sub: string }> = {
   overview: { title: '总览', sub: '设备状态 · 实时反馈 · 事件流' },
   lab: { title: '扳机实验室', sub: '调参数、试手感，存成预设随时调用' },
-  presets: { title: '预设库', sub: '打包好的手感配置，一键应用或绑定游戏' },
-  games: { title: '游戏库', sub: '逐游戏适配 · 自动切换 · 官方 Mod 管理' },
+  presets: { title: '预设库', sub: '打包好的手感配置，一键应用' },
+  games: { title: '游戏库', sub: '一游戏一卡 · 自动切换 · 官方 Mod · 自定义配置导入导出' },
   macros: { title: '宏', sub: '板载宏：写在手柄固件里，关软件也生效' },
   lights: { title: '灯光', sub: '灯效编辑与识别 · 写入设备驻留' },
   screen: { title: '屏幕', sub: '手柄屏幕动画推送（GIF → 抽帧 → 写入）' },

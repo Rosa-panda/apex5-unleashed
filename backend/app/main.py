@@ -167,6 +167,8 @@ def main():
     games.start_watch(eng, eng._stop)          # 前台游戏自动切换（ADR-014）
     if ingress.start():                        # 7878（被占则 8787）收 DSX 事件流
         games.subscribers.append(mods.on_foreground)
+        games.mod_running = lambda: (mods.active_gid
+                                     if mods.proc and mods.proc.poll() is None else None)
         print(f"[boot] DSX ingress 就绪 :{ingress.port}")
     else:
         # 端口被占大概率是飞智空间站服务在跑——只报一次，不挡主流程
@@ -263,6 +265,21 @@ def main():
                 pass
 
     ui_hooks["show"] = on_show
+
+    def pick_folder():
+        r = window.create_file_dialog(webview.FileDialog.FOLDER) if window else None
+        return r[0] if r else None
+
+    ui_hooks["pick_folder"] = pick_folder
+
+    def save_file(default_name):
+        r = window.create_file_dialog(webview.FileDialog.SAVE, save_filename=default_name,
+                                      file_types=("JSON (*.json)",)) if window else None
+        if isinstance(r, str):
+            return r
+        return r[0] if r else None
+
+    ui_hooks["save_file"] = save_file
 
     def _on_closing():
         # 成熟软件惯例：点窗口 X = 最小化到托盘（进程保留，后台继续联动），

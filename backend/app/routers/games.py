@@ -1,5 +1,5 @@
 # 游戏档案端点（ADR-029 B5 自 service.py 逐字搬出；原 ADR-014/017）
-from fastapi import APIRouter
+from fastapi import APIRouter, Body
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -14,11 +14,7 @@ def build_games_router(ctx):
     class GameReq(BaseModel):
         name: str
         exe: list[str]
-        preset_id: str = ""
         note: str = ""
-
-    class LinkReq(BaseModel):
-        preset_id: str = ""
 
     class AutoswitchReq(BaseModel):
         enabled: bool = True
@@ -32,8 +28,10 @@ def build_games_router(ctx):
 
     @r.post("/api/games")
     def games_save(req: GameReq):
+        """手动添加游戏：以通用震动参数起步（之后可导出→改参数→再导入）。"""
+        from officialimport import UNIVERSAL_VIB
         try:
-            return {"ok": True, "game": games.save(req.model_dump())}
+            return {"ok": True, "game": games.save({**req.model_dump(), "vib": dict(UNIVERSAL_VIB)})}
         except Exception as e:
             return err(e)
 
@@ -51,12 +49,37 @@ def build_games_router(ctx):
             g = games.all().get(gid)
             if not g:
                 raise KeyError(gid)
-            if not (g.get("vib") or g.get("preset_id")):
-                return err(ValueError("该档案无震动联动参数且未绑定预设"))
+            if not g.get("vib"):
+                return err(ValueError("该游戏没有震动联动参数"))
             games.apply_game(g, engine)
-            return {"ok": True, "result": {"applied": g["name"],
-                                           "vib": bool(g.get("vib")),
-                                           "preset": g.get("preset_id") or ""}}
+            return {"ok": True, "result": {"applied": g["name"], "vib": True}}
+        except Exception as e:
+            return err(e)
+
+    @r.post("/api/games/import-config")
+    def games_import_config(data: dict | list = Body(...)):
+        """导入自定义游戏配置（单个对象或数组，格式见 README「自定义适配」）。"""
+        try:
+            saved = games.import_config(data)
+            return {"ok": True, "count": len(saved), "names": [g["name"] for g in saved]}
+        except Exception as e:
+            return err(e)
+
+    @r.post("/api/games/{gid}/export")
+    def games_export(gid: str):
+        """导出配置：弹系统「另存为」框写 JSON 文件（WebView 里下载链接不可用）。"""
+        import json as _json
+        try:
+            cfg = games.export_config(gid)
+            pick = (ctx.ui_hooks or {}).get("save_file")
+            if not pick:
+                return {"ok": True, "config": cfg}       # 无窗口：直接返回内容
+            path = pick(f"{cfg['name']}.json")
+            if not path:
+                return {"ok": True, "cancelled": True}
+            with open(path, "w", encoding="utf-8") as f:
+                _json.dump(cfg, f, ensure_ascii=False, indent=2)
+            return {"ok": True, "path": path}
         except Exception as e:
             return err(e)
 
@@ -83,8 +106,48 @@ def build_games_router(ctx):
     @r.get("/api/games/official-src")
     def games_official_src():
         import officialimport
-        return {"available": bool(officialimport.official_path()),
-                "path": officialimport.official_path() or officialimport.OFFICIAL_JSON}
+        p = officialimport.official_path()
+        return {"available": bool(p), "path": p or officialimport.OFFICIAL_JSON,
+                "custom": officialimport.get_custom()}
+
+    class OfficialSrcReq(BaseModel):
+        path: str = ""
+
+    @r.post("/api/games/official-src")
+    def games_official_src_set(req: OfficialSrcReq):
+        """手动指定官方库位置（解压版空间站）；path 空 = 恢复自动识别。"""
+        import officialimport
+        try:
+            return {"ok": True, "path": officialimport.set_custom(req.path)}
+        except Exception as e:
+            return err(e)
+
+    @r.post("/api/games/official-src/pick")
+    def games_official_src_pick():
+        """弹系统选文件夹对话框选空间站目录（WebView 里 <input type=file> 拿不到完整路径）。"""
+        import officialimport
+        pick = (ctx.ui_hooks or {}).get("pick_folder")
+        if not pick:
+            return err(RuntimeError("当前无窗口，无法弹出选择框"))
+        try:
+            chosen = pick()
+            if not chosen:
+                return {"ok": True, "cancelled": True}
+            return {"ok": True, "path": officialimport.set_custom(chosen)}
+        except Exception as e:
+            return err(e)
+
+    class DisableReq(BaseModel):
+        disabled: bool = True
+
+    @r.post("/api/games/{gid}/disable")
+    def games_disable(gid: str, req: DisableReq):
+        """手动禁用/启用某条适配（同一游戏多条适配时挑掉不想要的，issue #2）。
+        生效切换由前台监控下一拍重评（Mod 管家同步停/起）。"""
+        try:
+            return {"ok": True, "disabled": games.set_disabled(gid, req.disabled)}
+        except Exception as e:
+            return err(e)
 
     class UniversalVibReq(BaseModel):
         enabled: bool
@@ -94,24 +157,6 @@ def build_games_router(ctx):
         """通用震动联动：游戏震动→扳机反馈（设备端固件路由，任何游戏生效）。"""
         try:
             return {"ok": True, "universal_vib": games.set_universal_vib(req.enabled, engine)}
-        except Exception as e:
-            return err(e)
-
-    @r.post("/api/games/{gid}/link")
-    def games_link(gid: str, req: LinkReq):
-        try:
-            all_ = games.all()
-            if gid not in all_:
-                raise KeyError(gid)
-            g = all_[gid]
-            if g["builtin"]:
-                # 内置档案：复制为用户档案再改，保持内置只读
-                g = games.save({"name": g["name"], "exe": g["exe"],
-                                "note": g.get("note", ""), "preset_id": req.preset_id})
-            else:
-                g["preset_id"] = req.preset_id
-                games.save(g)
-            return {"ok": True, "game": g}
         except Exception as e:
             return err(e)
 

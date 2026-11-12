@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Gamepad2, Play, Trash2, RefreshCw, Lock, Zap, Link2, FlaskConical } from 'lucide-react'
+import { Gamepad2, Play, Trash2, RefreshCw, Lock, Zap, FlaskConical } from 'lucide-react'
 import { api, type EngineSnapshot, type Preset } from '../api'
 
 function describe(p: Preset): string {
@@ -14,19 +14,11 @@ function describe(p: Preset): string {
 
 export default function PresetLibrary({ snap }: { snap: EngineSnapshot | null }) {
   const [data, setData] = useState<{ builtin: Preset[]; user: Preset[] }>({ builtin: [], user: [] })
-  const [linked, setLinked] = useState<Record<string, string[]>>({})   // preset_id → 游戏名列表
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState('')
 
   const load = () => {
     api.presets().then(setData).catch(() => {})
-    api.games().then((g) => {
-      const m: Record<string, string[]> = {}
-      for (const game of [...g.user, ...g.builtin]) {
-        if (game.preset_id) (m[game.preset_id] ??= []).push(game.name)
-      }
-      setLinked(m)
-    }).catch(() => {})
   }
   useEffect(() => { load() }, [])
 
@@ -64,7 +56,6 @@ export default function PresetLibrary({ snap }: { snap: EngineSnapshot | null })
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {list.map((p) => {
           const active = activePresetName === p.name
-          const games = linked[p.id] ?? []
           return (
             <div key={p.id} className={`card group p-4 ${active ? 'card-selected' : 'card-hover'}`}>
               <div className="flex items-start justify-between gap-2">
@@ -81,12 +72,6 @@ export default function PresetLibrary({ snap }: { snap: EngineSnapshot | null })
                   </div>
                   <div className="mt-0.5 truncate font-mono text-[11px] text-text-low">{describe(p)}</div>
                   {p.note && <div className="mt-1.5 text-[11px] leading-snug text-text-mid">{p.note}</div>}
-                  <div className="mt-1.5 flex items-center gap-1 text-[11px] text-text-low" title="游戏库里绑定本预设的游戏：进游戏自动套用，切出自动解绑">
-                    <Link2 size={10} />
-                    {games.length
-                      ? <span>已绑定 {games.length} 款：{games.slice(0, 3).join('、')}{games.length > 3 ? ' 等' : ''}</span>
-                      : <span>未绑定游戏（可去游戏库绑定，或点 ▶ 手动套用）</span>}
-                  </div>
                 </div>
                 <div className="flex shrink-0 gap-1">
                   <button className={`btn !px-2.5 ${active ? 'border-accent/60 text-accent' : ''}`} disabled={busy === p.id}
@@ -119,10 +104,10 @@ export default function PresetLibrary({ snap }: { snap: EngineSnapshot | null })
     <div className="mx-auto max-w-3xl space-y-6">
       <div
         className="card cursor-help p-3 text-[12px] leading-relaxed text-text-mid"
-        title="预设=一套打包好的扳机/震动手感配置（LT/RT 模式+参数+握把路由）。生效两条路：① 点 ▶ 立即套用（马上写入手柄，失败自动回滚）；② 在游戏库绑定到游戏，切进自动套用、切出自动恢复。当前生效的会标「生效中」，侧栏设备卡也能看到。"
+        title="预设=一套打包好的扳机/震动手感配置（LT/RT 模式+参数+握把路由）。点 ▶ 立即套用（马上写入手柄，失败自动回滚）。当前生效的会标「生效中」，侧栏设备卡也能看到。游戏的自动适配在游戏库里，不走预设。"
       >
         <FlaskConical size={13} className="mr-1.5 inline text-text-low" />
-        点 ▶ 立即套用，或绑定游戏自动生效 · 悬停看详情
+        点 ▶ 立即套用 · 悬停看详情
       </div>
       <div className="flex items-center justify-between">
         <div className="text-[12px] text-text-mid">{activePresetName

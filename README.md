@@ -1,92 +1,150 @@
 # Apex5 Unleashed
 
-> 开源的飞智八爪鱼5（Apex 5）PC 工具箱 —— 扳机调校、游戏适配、板载宏、灯光屏幕、体感桥接，一个工具管全。
+> 飞智八爪鱼 5（Apex 5）的开源 PC 工具：游戏扳机适配、扳机调校、板载宏、灯光、屏幕、体感，一个工具全包。
 
-[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-## 这是什么
+非官方产品，与飞智无关。基于对手柄私有 HID 协议的实机逆向（[`docs/PROTOCOL.md`](docs/PROTOCOL.md)）实现，不需要安装或常驻飞智空间站。
 
-基于对飞智私有 HID 协议的实机逆向（`docs/PROTOCOL.md`），为 Apex 5 提供一套官方软件之外的 PC 端管理与调校工具。非官方产品，与飞智无关。
+## 下载使用
 
-- **扳机实验室**：六种自适应扳机模式（Normal / Race / Sniper / Recoil / Lock / Vibration）全参数实时调校，预览模式调参即生效
-- **预设库 / 游戏库**：内置 ~280 款游戏适配档案，前台进程自动切换；支持自定义预设与自定义 exe 定位。适配分五档：**官方适配**（飞智手工调参震动联动）/ **DS转官**（原生 DualSense 游戏，参数按题材从官方调参自动学习生成，ADR-024）/ **DS转官·通用** / **题材适配** / **Mod 条目**（官方事件级 Mod，见下）。默认不套预设，绑不绑定由你决定
-- **官方 Mod 管家**：一键下载安装官方 CDN 的游戏 Mod，DSX UDP ingress 把 Mod 的事件级扳机效果实时转译到手柄（ADR-025）；顺带兼容 DSX 社区 mod 生态。Mod 本体不随软件分发，只做下载引导 + 事件翻译
-- **体感中心**：体感总闸（状态持久化，重启自动恢复）+ 体感四件套——陀螺瞄准（软件层映射）、固件陀螺映射、DSU/Cemuhook 桥（UDP 模拟，Yuzu / Cemu / Dolphin / PCSX2 可直接识别，真机 97Hz 实测）、迷宫试玩场（弹珠物理，练手感用）
-- **板载宏**：宏写进手柄固件（≤5 条 / 全部 ≤128 步 / 10ms 精度），关软件照样触发；支持录制、单次 / 按住循环 / 点击循环、循环间隔、复制、导入导出 JSON、整机备份恢复。触发键为六个拓展键（固件直出）
-- **拓展键**：六个背键/头键在手柄图上**即按即亮**（实时回显，按 M 键图上 M 键亮）；可选映射到手柄按键或键盘按键，默认透传；被宏占用的键会锁定并标注
-- **灯光工坊**：RGB 灯效库 + 速度 / 亮度调节（真机标定）、进页自动还原当前灯效（含非库内「外来灯效」逐帧回放）、一键关灯、灯表备份恢复
-- **屏幕**：自定义 GIF 动画写入手柄屏幕（自动抽帧保原速，串口 OTA 烧写，已真机验证）
-- **测试区**：一组进阶实验功能——按键曲线编辑、扳机行程、连发（Turbo）、设备设置、四槽档案管理、摇杆→键鼠映射、RGB 桥接、分享码导入导出、摇杆诊断散点、恢复出厂等。写操作均有确认闸门与备份，实验项请自行评估
-- **游戏震动修复**：自动检测飞智空间站虚拟手柄抢占 XInput 0 号槽（原神等只认 0 号槽的游戏不震的根因），一键临时修复（退出自动还原）或永久修复，全程账本留痕
-- **状态与可观测性**：电量显示（含充电态）、代理权感知（检测飞智空间站 / Steam / DualSenseX 等接管，总线级证据 + 进程归因）、锁存账本（软件所见 = 手柄真实状态）、命令级事件日志
+到 [Releases](https://github.com/Rosa-panda/apex5-unleashed/releases) 下载 `Apex5Unleashed-v*-win64.zip`，解压后双击 `Apex5Unleashed.exe`。不用装 Python 或 Node。
 
-**能力边界（诚实声明）**：DualSense 原生游戏的「事件级」自适应扳机效果，是游戏运行时发给 DualSense 硬件的报告流——手柄本身不 DualSense 时这些数据根本不存在，无法凭空还原。我们能做的是转译其**体验**（逐游戏震动参数包），而非配置本身；事件级效果请走官方 Mod 管家路线。
+- 关闭窗口 = 收进右下角托盘，后台继续工作；真正退出请在托盘图标右键「退出」
+- 运行日志：`%APPDATA%\Apex5Unleashed\apex5.log`
+- 没插手柄也能打开（Mock 模式），方便先看界面
 
-## 快速开始
+## 游戏库：游戏扳机适配
 
-### 普通用户（推荐）
+进游戏时自动给扳机套上这款游戏的手感，切出游戏自动恢复。
 
-到 [Releases](https://github.com/Rosa-panda/apex5-unleashed/releases) 下载最新 `Apex5Unleashed-v*-win64.zip`，解压后双击 `Apex5Unleashed.exe` 即可——无需安装 Python 或 Node。运行日志在 `%APPDATA%\Apex5Unleashed\apex5.log`。
+### 一款游戏一张卡
 
-### 开发者（源码运行）
+每张卡右上角标明来源：
 
-```powershell
-# 后端依赖
-pip install -r backend/requirements.txt
+| 角标 | 含义 |
+|---|---|
+| **官方空间站** | 飞智空间站官方适配清单里的游戏，震动参数是官方手工调的 |
+| **DS推算** | 原生支持 DualSense 自适应扳机的游戏。官方没有参数，按游戏题材从官方调参推算出来 |
+| **自定义** | 你自己添加或导入的游戏 |
 
-# 前端构建（已含 dist 可跳过）
-cd frontend && npm install && npm run build && cd ..
+左上角有 **Mod** 标记的游戏，另有飞智官方的事件级 Mod 可选（见下文）。
 
-# 启动（无手柄也能跑，自动 Mock 模式）
-python backend/run.py          # GUI + 托盘
-python backend/run.py --mock   # 强制 Mock
-python backend/run.py --no-gui # 无窗口（开发/CI）
+卡片上的「方案」一行直接写明进这款游戏会用什么；页面顶部「生效」显示此刻正在生效的适配。
 
-# 开发者：跑测试（详见 docs/DEV-STATUS.md §6）
-python -m pytest backend -q          # pytest 式单测
-python tools/run_script_tests.py     # 脚本式单测（CI 名单）
-python tools/run_smoke.py            # Mock 全链路冒烟（自动起/收服务）
-python tools/check_version.py        # 版本一致性（发版前自校验）
+### 两种适配方式
+
+- **震动联动**（所有带参数的游戏）：让手柄固件把游戏的震动信号转成扳机反馈——游戏一震，扳机就跟着有阻力/震感。不改游戏、不注入，任何会震动的游戏都能用；每款游戏有自己的一组参数。
+- **官方 Mod**（部分游戏）：飞智为这些游戏做的独立小程序，读取游戏事件（开枪、刹车、换挡……）实时驱动扳机，手感比震动联动细。在卡片上「安装 Mod」（从飞智官方 CDN 下载）→「启用 Mod」，之后进游戏自动拉起、退出游戏自动关掉。Mod 运行期间震动联动自动让位，Mod 退出后回到震动联动。
+
+### 进游戏时怎么选
+
+1. 这款游戏的 Mod 已安装并启用 → 用 Mod
+2. 否则有震动参数 → 用震动联动
+3. 库里没有这款游戏，且打开了「通用震动联动」→ 用一组通用参数兜底
+4. 都没有 → 不动扳机
+
+不想要某款游戏的适配，点卡上的禁用按钮即可（震动联动和 Mod 都不再生效）。顶栏「切到游戏自动套用」可整体关闭自动切换（Mod 的拉起不受它影响）。
+
+特殊版本游戏（进程名和库里不一样）：点卡上的文件夹按钮选游戏 exe，进程名会追加到这张卡上。
+
+### 自定义适配（导入 / 导出 / 分享）
+
+- **导出**：点卡上的分享按钮，把这款游戏的配置存成 `.json` 文件。
+- **导入**：游戏库顶栏「导入配置」，选别人分享或你自己写的 `.json`。
+- **添加游戏**：添加卡填游戏名和进程名，以通用参数起步；想精调就导出 → 改参数 → 再导入。
+
+导入的配置和库里已有游戏的进程名重叠时，会并入那张卡，震动参数以你导入的为准；卡上会出现删除按钮，点了恢复默认参数。
+
+配置格式（一个对象，或多个对象组成的数组）：
+
+```json
+{
+  "name": "我的游戏",
+  "exe": ["MyGame.exe"],
+  "note": "可选：手感说明",
+  "vib": { "filter": 1, "scale": 10, "stroke": 0, "press": 1, "strength": 100, "freq": 15 }
+}
 ```
 
-> ⚠ **安全提示**：持续高负载马达（长时间高强度震动 / 满亮度灯效）会加速电机老化并明显缩短续航，
-> 请按需使用、不用时通过托盘退出（`Apex5Unleashed` 会在退出时做卫生清理）。
+- `name`、`exe` 必填；`vib` 和 `mod` 至少有一个。
+- `vib` 六个整数（0–255），对应飞智空间站的 `VibFilter` / `PwmScal` / `VibParams`。上面这组就是「通用震动联动」的参数；最省事的写法是导出一款手感接近的游戏，在它的参数上改。
+- 可选 `mod`：`{ "name": "Mod 程序文件名.exe", "url": "zip 下载地址（可省略）", "process": "游戏进程名（不带 .exe）" }`。没有 `url` 时，点卡上 Mod 行的文件夹按钮，把 Mod 文件放进打开的文件夹即可启用。
+
+**改官方 Mod 自己的配置文件**：同样点 Mod 行的文件夹按钮，打开的就是这款游戏 Mod 的安装目录（`%APPDATA%\Apex5Unleashed\mods\<游戏>\`）。
+
+### 飞智空间站官方库
+
+内置游戏库已包含转换好的官方适配，不装空间站也能用。装了新版空间站时，可以点「同步空间站」把新增游戏和更新过的参数拉进来。
+
+程序会自动找空间站的位置（读 Windows 已安装软件记录，再试默认安装目录）。解压版/绿色版空间站找不到时，点顶栏「库位置」手动选择空间站目录，选择会被记住；「恢复自动」可撤销。
+
+### 能力边界
+
+原生 DualSense 游戏的「事件级」扳机效果，是游戏运行时发给 DualSense 手柄的数据——手柄不是 DualSense 时这些数据根本不会产生，无法还原。DS推算 能做的是用一组震动联动参数还原相近的**体验**；要事件级效果，请用有官方 Mod 的游戏。
+
+## 其他功能
+
+- **总览**：设备连接、电量（含充电状态）、实时手柄图（按键/摇杆/扳机/拓展键即按即亮）、马达与扳机状态、事件时间线；侧栏「手柄复位」一键让马达归零、扳机恢复出厂（效果卡住时用）。
+- **扳机实验室**：六种扳机模式（Normal / Race / Sniper / Recoil / Lock / Vibration）全参数实时调校，调好存成预设。
+- **预设库**：内置和自己保存的扳机手感预设，点一下立即写入手柄（失败自动回滚）。
+- **宏**：板载宏写进手柄固件，关掉软件照样能用。最多 5 条、合计 128 步、10ms 精度；支持录制、单次 / 按住循环 / 点击循环、导入导出、整机备份恢复。触发键为六个拓展键。
+- **拓展键**：六个背键/头键实时回显，可映射成手柄按键或键盘按键（默认透传）；被宏占用的键会锁定并标注。
+- **灯光**：RGB 灯效库，速度/亮度调节，自定义改色，进页面自动还原当前灯效，一键关灯，灯表备份恢复。
+- **屏幕**：把 GIF/图片写进手柄屏幕（自动抽帧保持原速）。
+- **体感**：体感总闸（重启后保持状态）、陀螺瞄准、固件陀螺映射、DSU/Cemuhook 桥（Yuzu / Cemu / Dolphin / PCSX2 可直接识别）、弹珠迷宫试玩场。
+- **测试区**：尚在验证的进阶功能——连发 Turbo、摇杆曲线编辑、设备设置、摇杆→键鼠、Mod 灯效桥、摇杆体检与校准、4 配置槽快切、配置分享码、Switch 第二银行、握把震动调校、屏幕补全、模拟游戏场、恢复出厂等。写操作都有确认和备份。
+- **设置**：开机自启；**游戏震动修复**——飞智空间站的虚拟手柄会抢占 XInput 0 号槽，导致原神等只认 0 号槽的游戏不震动，可一键临时修复（退出自动还原）或永久修复，也可设为检测到再自动修复；封面图缓存管理。
+- **接管感知**：飞智空间站、Steam、DualSenseX 等程序占用手柄时如实显示，并在空闲后自动收回。
+
+> ⚠ 长时间高强度震动或满亮度灯效会加速马达老化、明显缩短续航，请按需使用。
+
+## 数据存放
+
+都在 `%APPDATA%\Apex5Unleashed\`：
+
+| 位置 | 内容 |
+|---|---|
+| `games\` | 你添加/导入的游戏配置 |
+| `mods\` | 已安装的官方 Mod（每款游戏一个子目录） |
+| `settings.json` | 自动切换、通用震动联动、禁用的游戏等开关 |
+| `official_src.json` | 手动指定的空间站官方库位置 |
+| `apex5.log` | 运行日志 |
+
+## 从源码运行
+
+```powershell
+pip install -r backend/requirements.txt
+cd frontend && npm install && npm run build && cd ..
+
+python backend/run.py          # 窗口 + 托盘
+python backend/run.py --mock   # 强制 Mock（不连手柄）
+python backend/run.py --no-gui # 无窗口
+```
+
+测试：`python -m pytest backend -q`、`python tools/run_script_tests.py`、`python tools/run_smoke.py`（详见 [`docs/DEV-STATUS.md`](docs/DEV-STATUS.md)）。
 
 ## 文档
 
 | 文档 | 内容 |
 |---|---|
-| [`docs/DEV-STATUS.md`](docs/DEV-STATUS.md) | **当前状态锚点**（版本 / 安全点回退 / 已知坑 / 本地跑法 / 真机验收记录表）——新人从这里开始 |
-| [`docs/PRD.md`](docs/PRD.md) | 需求基线（做什么 / 为什么）：需求池 P0-P2、边界条款、待确认问题、能力域速查 |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 架构定稿（代码怎么组织）：五层分层、模块结构、数据流、文档↔实现偏差表 |
-| [`docs/TECH-SPEC.md`](docs/TECH-SPEC.md) | 技术规格：线程约定、参数标定、接口清单 |
-| [`docs/PROTOCOL.md`](docs/PROTOCOL.md) | 协议规范（字节怎么排）：HID 帧 / 命令集 / 电量 / 已知坑 |
-| [`docs/RELEASE.md`](docs/RELEASE.md) | 发版 SOP：改 `VERSION` → push → CI 自动打包发版；手动补 tag 步骤 |
-| [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) | 测试计划：v0.1 / v0.2 / v0.3 验收条目 + CI 策略与排除项 |
-| [`docs/RISK-REGISTER.md`](docs/RISK-REGISTER.md) | 风险登记册（R1–R13，每版本评审） |
-| [`docs/TASK-BREAKDOWN.md`](docs/TASK-BREAKDOWN.md) | 任务分解（T01–T05）与待拍板事项 |
-| [`docs/RESEARCH-HIDDEN-FEATURES.md`](docs/RESEARCH-HIDDEN-FEATURES.md) | 隐藏功能挖掘实录（16 项功能的逆向与实测结论） |
-| [`docs/REFERENCES.md`](docs/REFERENCES.md) | 参考项目与致谢清单 |
-| [`docs/adr/`](docs/adr/) | 架构决策记录（ADR-001~034，索引起点 `docs/adr/ADR-INDEX.md`） |
+| [`docs/DEV-STATUS.md`](docs/DEV-STATUS.md) | 开发状态、已知坑、本地跑法、真机验收记录 |
+| [`docs/PROTOCOL.md`](docs/PROTOCOL.md) | 手柄 HID 协议：帧格式、命令集、电量、已知坑 |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 代码架构与数据流 |
+| [`docs/TECH-SPEC.md`](docs/TECH-SPEC.md) | 线程约定、参数标定、接口清单 |
+| [`docs/RELEASE.md`](docs/RELEASE.md) | 发版流程 |
+| [`docs/adr/`](docs/adr/) | 架构决策记录（索引：[`ADR-INDEX.md`](docs/adr/ADR-INDEX.md)） |
 
-## 路线图
+## 致谢
 
-- **v0.1** ✅ 协议引擎 + 扳机实验室 + 预设/游戏库 + 灯光 + 屏幕 + 拓展键 + 板载宏 + 托盘 + Mock 全链路
-- **v0.2** ✅ 官方 Mod 管家 + DSX UDP ingress（ADR-025）+ 游戏震动修复 + 游戏库五档适配
-- **v0.3** ✅ 体感线（陀螺瞄准 / DSU 桥 / 体感总闸，ADR-027/028）+ 灯光工坊 + 拓展键映射与宏完善（ADR-030/031/032）+ Windows 打包发布
-- ~~DS 虚拟手柄桥接~~ **已废弃**（ADR-020：PC 上 DualSense 输入依赖 Steam Input 翻译层 + 虚拟驱动隔离伤及无辜，代码全量删除；改走无桥的 DS转官参数方案，ADR-024）
-- **下一步** 屏幕动画打磨（恢复出厂入口）、XGameMonitor 型 Mod 真机抽测、统一游戏配置格式（ADR-015）、分享码社区生态
+- [ApexSenseBridge](https://github.com/ReynArts/ApexSenseBridge)：原生 DualSense 自适应扳机游戏清单（DS推算游戏的来源）
+- [DualSenseX](https://github.com/Paliverse/DualSenseX)：DSX UDP 协议（官方 Mod 与社区 mod 的兼容基础）
+- [openflydigi](https://github.com/mkaliaha/openflydigi)：配置 blob 布局与屏幕 OTA 的参考实现
+- PCGamingWiki：自适应扳机游戏支持清单
+- 飞智空间站：官方逐游戏调参数据与 Mod（逆向解析，与飞智官方无关联）
 
-## 参考项目与致谢
-
-站在这些项目和数据源肩膀上（详细清单见 [`docs/REFERENCES.md`](docs/REFERENCES.md)）：
-
-- [ApexSenseBridge（ASB）](https://github.com/ReynArts/ApexSenseBridge)——原生 DualSense 自适应扳机游戏清单（DS转官档案的元数据来源）
-- [DualSenseX](https://github.com/Paliverse/DualSenseX)——DSX UDP 协议参考（官方 Mod / 社区 mod 兼容层的协议基础）
-- [openflydigi](https://github.com/mkaliaha/openflydigi)——档案 blob 布局与屏幕 OTA 方案的参考实现（MIT）
-- PCGamingWiki——自适应扳机游戏支持清单的原始出处
-- 飞智空间站——官方逐游戏调参数据与 Mod 生态（逆向解析，与飞智官方无关联）
+完整清单见 [`docs/REFERENCES.md`](docs/REFERENCES.md)。
 
 ## 许可
 
-GPLv3 —— 允许商用，但衍生作品必须开源回馈。
+[MIT](LICENSE)：可以随意使用、修改、分发和商用，保留版权声明即可。

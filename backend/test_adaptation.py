@@ -68,18 +68,15 @@ assert not games.match("eldenring.exe") or not games.all().get("eldenring"), "�
 # 重复导入：已带官方 vib 的不再动
 r2 = officialimport.import_official(games, path=fake_path)
 assert r2["imported"] == 0 and r2["updated"] == 0, r2
-# 参数变了（官方更新调参）→ 合并升级，且保留用户 preset_id / 自定义 exe
+# 参数变了（官方更新调参）→ 合并升级，且保留自定义 exe
 variant = [dict(fake_lib[0], VibParams="7,7,7,7,0", VibFilter=31)]
 vpath = os.path.join(_tmp, "variant.json")
 with open(vpath, "w", encoding="utf-8") as f:
     json.dump(variant, f, ensure_ascii=False)
-before = games.match("wrc.exe")
-pid_keep = before.get("preset_id") or ""
 r3 = officialimport.import_official(games, path=vpath)
 assert r3["updated"] == 1, r3
 after = games.match("wrc.exe")
 assert after["vib"]["filter"] == 31 and after["vib"]["freq"] == 7, after["vib"]
-assert after.get("preset_id", "") == pid_keep, (after.get("preset_id"), pid_keep)
 # 官方新进程名并集进来，原有匹配键不丢
 assert "wrc" in after["exe"] and "wrc.exe" in after["exe"]
 print("2. import_official OK:", r, r3)
@@ -124,15 +121,15 @@ time.sleep(0.2)
 assert eng.state["gripBind"]["left"] is None
 print("5. autoswitch + universal fallback OK")
 
-# ---- 6. 自定义 exe（特殊版本）：内置档案复制为用户档案并改匹配键 ----
+# ---- 6. 自定义 exe（特殊版本）：给卡追加进程名，仍是同一张卡（一游戏一卡） ----
 builtin = next(it for it in games.all().values() if it["builtin"])
 g3 = games.set_exe(builtin["id"], ["MySpecialEdition.exe"])
-assert not g3["builtin"] and g3["exe"] == ["myspecialedition.exe"], g3
-assert games.match("MySpecialEdition.EXE")["id"] == g3["id"]
-# 内置档案本体不受影响：原 exe 仍命中内置档案（标准版本照常，特殊版本各走各的）
+assert not g3["builtin"] and "myspecialedition.exe" in g3["exe"], g3
+assert games.match("MySpecialEdition.EXE")["id"] == builtin["id"]
+# 原 exe 照样命中同一张卡
 assert games.match(builtin["exe"][0])["id"] == builtin["id"]
 try:
-    games.set_exe(g3["id"], [])
+    games.set_exe(builtin["id"], [])
     assert False, "空 exe 应报错"
 except ValueError:
     pass
