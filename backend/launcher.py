@@ -24,6 +24,31 @@ if not getattr(sys, "frozen", False):     # 源码态误运行本文件时也能
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "app"))
 _phase("launcher start")
 
+
+def _unblock_dlls():
+    # 根因（2026-11-13 本机复现）：zip 下载后用资源管理器解压，文件带 Zone.Identifier
+    # （来自网络）标记；.NET Framework 默认拒绝 LoadFrom 这类程序集，pythonnet 加载
+    # Python.Runtime.dll 失败 → 「Failed to resolve Python.Runtime.Loader.Initialize」。
+    # 加载 pywebview 之前自己删掉 .NET 相关 DLL 的标记，用户无需手动「解除锁定」。
+    root = getattr(sys, "_MEIPASS", None)
+    if not root:
+        return
+    n = 0
+    for sub in ("pythonnet", "clr_loader", "webview"):
+        for dp, _dn, fns in os.walk(os.path.join(root, sub)):
+            for fn in fns:
+                if fn.lower().endswith(".dll"):
+                    try:
+                        os.remove(os.path.join(dp, fn) + ":Zone.Identifier")
+                        n += 1
+                    except OSError:
+                        pass                # 无标记 / 非 NTFS，正常
+    if n:
+        print(f"[boot] 已解除 {n} 个 DLL 的网络锁定", flush=True)
+
+
+_unblock_dlls()
+
 from main import main  # noqa: E402
 _phase("imports done")
 
