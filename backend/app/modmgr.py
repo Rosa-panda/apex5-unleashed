@@ -17,6 +17,7 @@ MODS_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"),
                         "Apex5Unleashed", "mods")
 DOWNLOAD_TIMEOUT = 60
 MAX_ZIP = 64 * 1024 * 1024          # 官方 mod ~400KB，64MB 上限防异常包
+LAYOUT_MARK = ".layout2"            # 保留目录结构安装的标记（旧版压平安装没有它）
 
 
 def mods_settings_path():
@@ -62,7 +63,11 @@ class ModManager:
         m = g.get("mod") or {}
         if not m.get("name"):
             return False
-        return os.path.isfile(os.path.join(self.mod_dir(g["id"]), m["name"]))
+        d = self.mod_dir(g["id"])
+        if not os.path.isfile(os.path.join(d, m["name"])):
+            return False
+        # 旧版（≤0.4.2）把文件压平安装，Mod 起不来：带下载源的条目没有新布局标记就算未安装，重装即修复
+        return not m.get("url") or os.path.isfile(os.path.join(d, LAYOUT_MARK))
 
     def install(self, gid, on_done=None):
         all_ = self.games.all()
@@ -94,17 +99,29 @@ class ModManager:
                         if total > MAX_ZIP:
                             raise ValueError("下载体积异常，已放弃")
                         f.write(chunk)
-                # 解压：zip 内是 mods/<xx>/AdapterTrigger_*.exe 相对路径，展平到 mod_dir
+                # 解压：zip 内是 mods/<xx>/XGameMonitor.exe + mods/<xx>/configs/... 。
+                # 以 exe 所在目录为根、保留子目录结构展开——Mod 用 ./configs/ 之类相对路径读配置，
+                # 压平会让 XGameMonitor 静默退出、ForzaDualSense 抛 DirectoryNotFound（2026-11-13 实测）。
                 with zipfile.ZipFile(zpath) as z:
-                    for i in z.infolist():
-                        if not i.is_file():
+                    files = [(i, i.filename.replace("\\", "/")) for i in z.infolist() if not i.is_dir()]
+                    exe_fn = next((fn for _, fn in files
+                                   if fn.rsplit("/", 1)[-1].lower() == m["name"].lower()), None)
+                    if not exe_fn:
+                        raise ValueError("zip 里找不到 " + m["name"])
+                    root = exe_fn.rpartition("/")[0]
+                    root = root + "/" if root else ""
+                    base_dir = os.path.realpath(self.mod_dir(gid))
+                    for i, fn in files:
+                        if not fn.startswith(root):
                             continue
-                        base = i.filename.replace("/", "\\").split("\\")[-1]
-                        if not base:
-                            continue
-                        with z.open(i) as src, \
-                                open(os.path.join(self.mod_dir(gid), base), "wb") as dst:
-                            dst.write(src.read())
+                        dst = os.path.realpath(os.path.join(base_dir, *fn[len(root):].split("/")))
+                        if os.path.commonpath([base_dir, dst]) != base_dir:
+                            continue                      # 路径穿越，丢弃
+                        os.makedirs(os.path.dirname(dst), exist_ok=True)
+                        with z.open(i) as src, open(dst, "wb") as out:
+                            out.write(src.read())
+                with open(os.path.join(self.mod_dir(gid), LAYOUT_MARK), "w") as f:
+                    f.write("2")
                 os.remove(zpath)
                 if not self.is_installed(g):
                     raise ValueError("zip 里找不到 " + m["name"])
@@ -189,10 +206,12 @@ class ModManager:
             pass
         # 端口用 ingress 实际绑定值（7878 被占时我们落 8787——发给 7878 就进官方服务了）
         port = self.ingress.port or self.dsx_port
-        args = f"{port} name={game_proc} port={port}"
-        try:    # 官方 GameHelper.StartGameMod 同款参数；CREATE_NO_WINDOW 防 pythonw 黑框
+        # 必须是分开的参数（同官方 launcher.bat：name=X port=7878）；拼成一个带空格的参数，
+        # XGameMonitor 解析不了会静默退出（2026-11-13 实测）
+        args = [f"name={game_proc}", f"port={port}"]
+        try:    # CREATE_NO_WINDOW 防 pythonw 黑框
             self.proc = subprocess.Popen(
-                [exe_path, args], cwd=os.path.dirname(exe_path),
+                [exe_path, *args], cwd=os.path.dirname(exe_path),
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except Exception as e:
             self._emit_error(f"拉起 {g['name']} 的 Mod 失败: {e}")

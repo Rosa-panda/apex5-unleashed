@@ -5,6 +5,7 @@ import json
 import os
 import socket
 import sys
+import threading
 import time
 import unittest
 
@@ -173,6 +174,42 @@ class TestModMgr(unittest.TestCase):
         self.mm.stop_mod()
         self.ing.stop()
 
+    def test_install_keeps_dir_structure(self):
+        """zip 内 mods/<xx>/configs/... 必须保留子目录（Mod 用 ./configs/ 相对路径读配置）；
+        路径穿越条目丢弃；旧版压平安装（无布局标记）视为未安装。"""
+        import io
+        import tempfile
+        import zipfile
+        from unittest.mock import patch
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("mods/Spider-Man/XGameMonitor.exe", "exe")
+            z.writestr("mods/Spider-Man/configs/Spider-Man.default.json", "{}")
+            z.writestr("mods/Spider-Man/../../evil.txt", "x")
+        self.games._g["dl"] = {"id": "dl", "name": "DL", "exe": ["dl.exe"],
+                              "mod": {"name": "XGameMonitor.exe", "url": "http://x/y.zip",
+                                      "start_type": 1, "process": "Spider-Man"}}
+
+        class R(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        done = []
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(modmgr, "MODS_DIR", tmp), \
+                patch.object(modmgr.urllib.request, "urlopen", return_value=R(buf.getvalue())):
+            self.mm.install("dl", on_done=done.append)
+            for t in list(threading.enumerate()):
+                if t.name == "mod-dl-dl":
+                    t.join(10)
+            self.assertEqual(done, [""])
+            d = os.path.join(tmp, "dl")
+            self.assertTrue(os.path.isfile(os.path.join(d, "XGameMonitor.exe")))
+            self.assertTrue(os.path.isfile(os.path.join(d, "configs", "Spider-Man.default.json")))
+            self.assertFalse(os.path.exists(os.path.join(tmp, "evil.txt")))
+            self.assertTrue(self.mm.is_installed(self.games._g["dl"]))
+            os.remove(os.path.join(d, modmgr.LAYOUT_MARK))        # 模拟旧版压平安装
+            self.assertFalse(self.mm.is_installed(self.games._g["dl"]))
+
     def test_plugin_type_rejected(self):
         with self.assertRaises(ValueError):
             self.mm.install("gta")
@@ -188,10 +225,10 @@ class TestModMgr(unittest.TestCase):
             self.assertIs(self.mm.proc, fake_proc)
             # 同 exe 的 asb 震动档案不遮蔽：_mod_profile 独立找到 mod 档案
             self.assertEqual(self.mm._mod_profile("f1_23.exe")["id"], "f1")
-            # 官方参数格式："<port> name=F1_23 port=<port>"（进程名取 mod.process，
-            # 端口取 ingress 实际绑定值——7878 被占时我们落 8787）
-            self.assertEqual(popen.call_args[0][0][1],
-                             f"{self.ing.port} name=F1_23 port={self.ing.port}")
+            # 官方 launcher.bat 参数格式：分开的 name=F1_23 port=<port>（进程名取 mod.process，
+            # 端口取 ingress 实际绑定值）。合成一个带空格的参数会让 XGameMonitor 静默退出
+            self.assertEqual(popen.call_args[0][0][1:],
+                             ["name=F1_23", f"port={self.ing.port}"])
             # mod 接管期 grip 解绑（抑制 cmd82 抢扳机）
             self.assertIsNone(self.eng.state["gripBind"]["left"])
             # 离开游戏 → mod 杀 + 清扳机 + 状态归位
